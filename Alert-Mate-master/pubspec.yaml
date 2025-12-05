@@ -1,0 +1,30 @@
+name: alert_mate
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_database: ^11.1.4
+  web_socket_channel: ^2.4.0
+  cupertino_icons: ^1.0.8
+  country_picker: ^2.0.25
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  fluttertoast: ^8.2.8
+  pin_code_fields: ^8.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+flutter:
+  uses-material-design: true
+  assets:
+     - assets/images/
