@@ -68,7 +68,7 @@ class _AuthScreenState extends State<AuthScreen>
     switch (_selectedDashboard) {
       case 0: return 'Driver';
       case 1: return 'Passenger';
-      case 2: return 'Owner';
+      case 2: return 'Vehicle Owner';
       case 3: return 'Admin';
       default: return 'Driver';
     }
@@ -565,7 +565,7 @@ class _AuthScreenState extends State<AuthScreen>
                             _buildNavIcon(Icons.people, 1, 'Passenger'),
                             const SizedBox(width: 16),
                             _buildNavIcon(
-                                Icons.admin_panel_settings, 2, 'Owner'),
+                                Icons.admin_panel_settings, 2, 'Vehicle Owner'),
                             const SizedBox(width: 16),
                             _buildNavIcon(Icons.settings, 3, 'Admin'),
                           ],

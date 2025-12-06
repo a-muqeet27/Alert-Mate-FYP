@@ -1,4 +1,5 @@
 import 'package:firebase_database/firebase_database.dart';
+import 'dart:async';
 
 class MonitoringService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
@@ -200,30 +201,52 @@ class MonitoringService {
 
   // Get all sessions for a driver
   Future<List<Map<String, dynamic>>> getDriverSessions(String driverId) async {
-    final snapshot = await _database
-        .child('drivers')
-        .child(driverId)
-        .child('monitoring_sessions')
-        .get();
+    try {
+      final snapshot = await _database
+          .child('drivers')
+          .child(driverId)
+          .child('monitoring_sessions')
+          .get()
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException('Failed to load sessions: Request timed out');
+            },
+          );
 
-    if (!snapshot.exists) return [];
+      if (!snapshot.exists || snapshot.value == null) {
+        return [];
+      }
 
-    final sessions = <Map<String, dynamic>>[];
-    final data = snapshot.value as Map<dynamic, dynamic>;
+      final sessions = <Map<String, dynamic>>[];
+      final data = snapshot.value;
 
-    data.forEach((key, value) {
-      final session = Map<String, dynamic>.from(value as Map);
-      session['id'] = key;
-      sessions.add(session);
-    });
+      // Handle different data structures
+      if (data is Map) {
+        data.forEach((key, value) {
+          try {
+            if (value is Map) {
+              final session = Map<String, dynamic>.from(value as Map);
+              session['id'] = key.toString();
+              sessions.add(session);
+            }
+          } catch (e) {
+            print('Error parsing session $key: $e');
+          }
+        });
+      }
 
-    // Sort by start time (newest first)
-    sessions.sort((a, b) {
-      final aTime = a['startTime'] as int? ?? 0;
-      final bTime = b['startTime'] as int? ?? 0;
-      return bTime.compareTo(aTime);
-    });
+      // Sort by start time (newest first)
+      sessions.sort((a, b) {
+        final aTime = a['startTime'] as int? ?? 0;
+        final bTime = b['startTime'] as int? ?? 0;
+        return bTime.compareTo(aTime);
+      });
 
-    return sessions;
+      return sessions;
+    } catch (e) {
+      print('Error getting driver sessions: $e');
+      rethrow;
+    }
   }
 }

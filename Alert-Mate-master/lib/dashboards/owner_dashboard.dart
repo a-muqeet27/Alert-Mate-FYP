@@ -398,7 +398,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           ),
         ),
         title: Text(
-          'Fleet Management',
+          'Owner Dashboard',
           style: const TextStyle(
             color: Colors.black87,
             fontSize: 20,
@@ -490,7 +490,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Fleet Management',
+                            'Vehicle Owner Dashboard',
                             style: TextStyle(
                               fontSize: isMobile ? 24 : isTablet ? 28 : 32,
                               fontWeight: FontWeight.bold,
@@ -588,7 +588,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                 child: _buildStatCard(
                                   'Total Vehicles',
                                   vehicles.length.toString(),
-                                  'Fleet size',
+                                  'Registered in system',
                                   Icons.directions_car_outlined,
                                   AppColors.primary,
                                   isMobile,
@@ -643,7 +643,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               Expanded(child: _buildStatCard(
                                 'Total Vehicles',
                                 vehicles.length.toString(),
-                                'Fleet size',
+                                'Registered in system',
                                 Icons.directions_car_outlined,
                                 AppColors.primary,
                                 isMobile,
@@ -690,7 +690,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               Expanded(child: _buildStatCard(
                                 'Total Vehicles',
                                 vehicles.length.toString(),
-                                'Fleet size',
+                                'Registered in system',
                                 Icons.directions_car_outlined,
                                 AppColors.primary,
                                 isMobile,
@@ -887,7 +887,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Fleet Overview',
+                    'Vehicle(s) Details',
                     style: TextStyle(
                       fontSize: isMobile ? 16 : 18,
                       fontWeight: FontWeight.bold,
@@ -1430,7 +1430,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Fleet Contacts',
+                    'Emergency Contacts',
                     style: TextStyle(
                       fontSize: isMobile ? 16 : 18,
                       fontWeight: FontWeight.bold,
@@ -1766,8 +1766,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE2A9F1),
-                foregroundColor: Colors.black,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Add Contact'),
             ),

@@ -83,7 +83,7 @@ class AppSidebar extends StatelessWidget {
             Row(
               children: [
                 Image.asset(
-                  'assets/images/Alert Mate.png',
+                  'assets/images/Alert Mate New.png',
                   width: 32,
                   height: 24,
                   fit: BoxFit.contain,
@@ -121,7 +121,7 @@ class AppSidebar extends StatelessWidget {
           ],
           if (collapsed) ...[
             Image.asset(
-              'assets/images/Alert Mate.png',
+              'assets/images/Alert Mate New.png',
               width: 32,
               height: 24,
               fit: BoxFit.contain,
@@ -261,7 +261,6 @@ class AppSidebar extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Icon(Icons.notifications_outlined, size: 20, color: Colors.grey[600]),
                   ],
                 ],
               ),

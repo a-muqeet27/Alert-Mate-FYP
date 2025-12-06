@@ -411,7 +411,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             padding: const EdgeInsets.only(right: 8.0),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: AppColors.driverPrimary,
+              backgroundColor: AppColors.primary,
               child: Text(
                 widget.user.firstName[0].toUpperCase(),
                 style: const TextStyle(
@@ -429,7 +429,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           : Row(
         children: [
           AppSidebar(
-            role: 'driver',
+            role: 'Driver',
             user: widget.user,
             selectedIndex: _selectedIndex,
             onMenuItemTap: (index) => setState(() => _selectedIndex = index),
@@ -437,7 +437,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
               MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
             ],
-            accentColor: AppColors.driverPrimary,
+            accentColor: AppColors.primary,
             accentLightColor: AppColors.driverLight,
           ),
           Expanded(
@@ -454,7 +454,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       backgroundColor: AppColors.surface,
       child: SafeArea(
         child: AppSidebar(
-          role: 'driver',
+          role: 'Driver',
           user: widget.user,
           selectedIndex: _selectedIndex,
           onMenuItemTap: (index) {
@@ -465,7 +465,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
             MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
           ],
-          accentColor: AppColors.driverPrimary,
+          accentColor: AppColors.primary,
           accentLightColor: AppColors.driverLight,
         ),
       ),
@@ -548,7 +548,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                             ? 'Stop Monitoring'
                             : 'Start Monitoring'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.driverPrimary,
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           padding: EdgeInsets.symmetric(
                               horizontal: isMobile ? 20 : 24,
@@ -576,8 +576,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                         icon: const Icon(Icons.history),
                         label: const Text('View History'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.driverPrimary,
-                          side: BorderSide(color: AppColors.driverPrimary),
+                          foregroundColor: AppColors.primary,
+                          side: BorderSide(color: AppColors.primary),
                           padding: EdgeInsets.symmetric(
                               horizontal: isMobile ? 20 : 24,
                               vertical: isMobile ? 14 : 16),
@@ -636,7 +636,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.directions_car, color: AppColors.driverPrimary, size: isMobile ? 20 : 24),
+                                  Icon(Icons.directions_car, color: AppColors.primary, size: isMobile ? 20 : 24),
                                   SizedBox(width: isMobile ? 8 : 12),
                                   Expanded(
                                     child: Text(
@@ -761,7 +761,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    color: AppColors.driverPrimary,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -853,12 +853,12 @@ class _DriverDashboardState extends State<DriverDashboard>
             borderRadius: BorderRadius.circular(8),
             border: isActive
                 ? const Border(
-              bottom: BorderSide(color: AppColors.driverPrimary, width: 2),
+              bottom: BorderSide(color: AppColors.primary, width: 2),
             )
                 : null,
             boxShadow: isActive ? [
               BoxShadow(
-                color: AppColors.driverPrimary.withValues(alpha: 0.2),
+                color: AppColors.primary.withValues(alpha: 0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -869,7 +869,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             style: TextStyle(
               fontSize: 14,
               fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-              color: isActive ? AppColors.driverPrimary : Colors.black54,
+              color: isActive ? AppColors.primary : Colors.black54,
             ),
             child: Text(text),
           ),
@@ -914,7 +914,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
           SizedBox(height: isMobile ? 6 : 8),
           Text(
-            'Customize your drowsiness detection alerts',
+            'Customize your Drowsiness Detection Alerts',
             style: TextStyle(
               fontSize: isMobile ? 12 : 14,
               color: Colors.black54,
@@ -929,7 +929,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             actionWidget: Switch(
               value: _audioAlertsEnabled,
               onChanged: (value) => setState(() => _audioAlertsEnabled = value),
-              activeColor: const Color(0xFFE2A9F1),
+              activeColor: AppColors.primary,
             ),
           ),
           const Divider(height: 48),
@@ -941,7 +941,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             actionWidget: Switch(
               value: _emergencyContactsEnabled,
               onChanged: (value) => setState(() => _emergencyContactsEnabled = value),
-              activeColor: const Color(0xFFE2A9F1),
+              activeColor: AppColors.primary,
             ),
           ),
           const Divider(height: 48),
@@ -1805,8 +1805,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE2A9F1),
-                foregroundColor: Colors.black,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Add Contact'),
             ),
@@ -2114,8 +2114,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                       padding: EdgeInsets.symmetric(
                           horizontal: isMobile ? 12 : 20,
                           vertical: isMobile ? 10 : 12),
-                      backgroundColor: const Color(0xFFE2A9F1),
-                      foregroundColor: Colors.black,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),

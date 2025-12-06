@@ -30,14 +30,17 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
     });
 
     try {
+      print('Loading driver sessions for: ${widget.driverId}');
       final sessions = await _monitoringService.getDriverSessions(widget.driverId);
+      print('Loaded ${sessions.length} sessions');
       setState(() {
         _sessions = sessions;
         _isLoading = false;
       });
     } catch (e) {
+      print('Error loading sessions: $e');
       setState(() {
-        _error = 'Error loading history: $e';
+        _error = 'Error loading history: ${e.toString()}';
         _isLoading = false;
       });
     }
