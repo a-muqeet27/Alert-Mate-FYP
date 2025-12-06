@@ -218,7 +218,7 @@ class _SplashScreenState extends State<SplashScreen>
                                     ),
                                     child: Center(
                                       child: Image.asset(
-                                        'assets/images/Alert Mate.png',
+                                        'assets/images/Alert Mate New.png',
                                         width: 100,
                                         height: 80,
                                         fit: BoxFit.contain,
@@ -264,15 +264,6 @@ class _SplashScreenState extends State<SplashScreen>
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              Text(
-                                'Drowsiness Detection System',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[700],
-                                  letterSpacing: 1.5,
-                                  fontWeight: FontWeight.w300,
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -369,73 +360,184 @@ class _SplashScreenState extends State<SplashScreen>
       builder: (context, child) {
         return Stack(
           children: [
-            // Floating circles
+            // Car 1 - Moving from left to right at top
             Positioned(
-              top: 100 + (50 * _backgroundAnimation.value),
-              left: 50,
+              top: 80,
+              left: -50 + (MediaQuery.of(context).size.width + 100) * _backgroundAnimation.value,
               child: Opacity(
-                opacity: 0.05,
+                opacity: 0.15,
                 child: Transform.scale(
-                  scale: 1.0 + (0.3 * _backgroundAnimation.value),
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.primary,
-                    ),
+                  scale: 0.6,
+                  child: Icon(
+                    Icons.directions_car,
+                    size: 60,
+                    color: AppColors.primary,
                   ),
                 ),
               ),
             ),
+
+            // Car 2 - Moving from right to left at middle
             Positioned(
-              bottom: 150 + (30 * (1 - _backgroundAnimation.value)),
-              right: 80,
+              top: MediaQuery.of(context).size.height * 0.35,
+              right: -50 + (MediaQuery.of(context).size.width + 100) * (1 - _backgroundAnimation.value),
               child: Opacity(
-                opacity: 0.05,
+                opacity: 0.12,
                 child: Transform.scale(
-                  scale: 1.0 + (0.2 * (1 - _backgroundAnimation.value)),
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
+                  scale: 0.7,
+                  child: Transform.flip(
+                    flipX: true,
+                    child: Icon(
+                      Icons.directions_car,
+                      size: 70,
                       color: AppColors.primary,
                     ),
                   ),
                 ),
               ),
             ),
+
+            // Car 3 - Moving from left to right at bottom
             Positioned(
-              top: MediaQuery.of(context).size.height * 0.4,
-              right: 30,
+              bottom: 100,
+              left: -50 + (MediaQuery.of(context).size.width + 100) * _backgroundAnimation.value,
               child: Opacity(
-                opacity: 0.04,
-                child: Transform.rotate(
-                  angle: _backgroundAnimation.value * 3.14,
-                  child: Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
+                opacity: 0.1,
+                child: Transform.scale(
+                  scale: 0.5,
+                  child: Icon(
+                    Icons.directions_car,
+                    size: 50,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+
+            // Car 4 - Small car moving right to left
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.65,
+              right: -50 + (MediaQuery.of(context).size.width + 100) * (1 - _backgroundAnimation.value),
+              child: Opacity(
+                opacity: 0.08,
+                child: Transform.scale(
+                  scale: 0.4,
+                  child: Transform.flip(
+                    flipX: true,
+                    child: Icon(
+                      Icons.directions_car,
+                      size: 55,
                       color: AppColors.primary,
                     ),
                   ),
                 ),
               ),
             ),
+
+            // Car 5 - Taxi moving left to right (with delay effect)
             Positioned(
-              bottom: 200,
-              left: 30,
+              top: 150,
+              left: -50 + (MediaQuery.of(context).size.width + 100) * ((_backgroundAnimation.value + 0.3) % 1.0),
               child: Opacity(
-                opacity: 0.04,
-                child: Transform.rotate(
-                  angle: -_backgroundAnimation.value * 3.14,
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
+                opacity: 0.13,
+                child: Transform.scale(
+                  scale: 0.55,
+                  child: Icon(
+                    Icons.local_taxi,
+                    size: 65,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+
+            // Car 6 - Truck moving right to left
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.5,
+              right: -50 + (MediaQuery.of(context).size.width + 100) * ((1 - _backgroundAnimation.value + 0.5) % 1.0),
+              child: Opacity(
+                opacity: 0.1,
+                child: Transform.scale(
+                  scale: 0.65,
+                  child: Transform.flip(
+                    flipX: true,
+                    child: Icon(
+                      Icons.local_shipping,
+                      size: 60,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Car 7 - Electric car moving left to right at top
+            Positioned(
+              top: 40,
+              left: -50 + (MediaQuery.of(context).size.width + 100) * ((_backgroundAnimation.value + 0.6) % 1.0),
+              child: Opacity(
+                opacity: 0.09,
+                child: Transform.scale(
+                  scale: 0.45,
+                  child: Icon(
+                    Icons.electric_car,
+                    size: 58,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+
+            // Car 8 - Van moving right to left
+            Positioned(
+              bottom: 150,
+              right: -50 + (MediaQuery.of(context).size.width + 100) * ((1 - _backgroundAnimation.value + 0.2) % 1.0),
+              child: Opacity(
+                opacity: 0.11,
+                child: Transform.scale(
+                  scale: 0.6,
+                  child: Transform.flip(
+                    flipX: true,
+                    child: Icon(
+                      Icons.airport_shuttle,
+                      size: 62,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Car 9 - Regular car moving left to right (slower)
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.25,
+              left: -50 + (MediaQuery.of(context).size.width + 100) * ((_backgroundAnimation.value + 0.8) % 1.0),
+              child: Opacity(
+                opacity: 0.12,
+                child: Transform.scale(
+                  scale: 0.5,
+                  child: Icon(
+                    Icons.directions_car,
+                    size: 56,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+
+            // Car 10 - Sports car moving right to left
+            Positioned(
+              bottom: 50,
+              right: -50 + (MediaQuery.of(context).size.width + 100) * ((1 - _backgroundAnimation.value + 0.7) % 1.0),
+              child: Opacity(
+                opacity: 0.14,
+                child: Transform.scale(
+                  scale: 0.55,
+                  child: Transform.flip(
+                    flipX: true,
+                    child: Icon(
+                      Icons.directions_car,
+                      size: 64,
                       color: AppColors.primary,
                     ),
                   ),

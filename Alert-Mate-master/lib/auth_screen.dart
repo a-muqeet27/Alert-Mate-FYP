@@ -530,7 +530,7 @@ class _AuthScreenState extends State<AuthScreen>
                         Column(
                           children: [
                             Image.asset(
-                              'assets/images/Alert Mate.png',
+                              'assets/images/Alert Mate New.png',
                               width: 80,
                               height: 60,
                               fit: BoxFit.contain,
