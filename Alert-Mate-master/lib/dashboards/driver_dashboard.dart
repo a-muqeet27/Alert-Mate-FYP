@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -42,15 +43,15 @@ class _DriverDashboardState extends State<DriverDashboard>
   Timer? _updateTimer;
   final Random _random = Random();
   Uint8List? _cameraFrameBytes;
-  
+
   Vehicle? _assignedVehicle;
   final VehicleService _vehicleService = VehicleService();
   final EmergencyContactService _emergencyContactService = EmergencyContactService();
   final MonitoringService _monitoringService = MonitoringService();
   Timer? _statsUpdateTimer;
   String? _currentSessionId;
-  
-  
+
+
   // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -61,7 +62,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   // Alert Settings
   bool _audioAlertsEnabled = true;
-  bool _vibrationAlertsEnabled = true;
+  bool _emergencyContactsEnabled = true;
   String _sensitivityLevel = 'Medium';
 
   @override
@@ -81,7 +82,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       duration: const Duration(milliseconds: 400),
       vsync: this,
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
     );
@@ -92,7 +93,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _scaleController, curve: Curves.elasticOut),
     );
-    
+
     _fadeController.forward();
     _slideController.forward();
     _scaleController.forward();
@@ -134,7 +135,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
     // Start Firebase session
     _currentSessionId =
-        await _monitoringService.startMonitoringSession(driverId);
+    await _monitoringService.startMonitoringSession(driverId);
 
     // Mark monitoring active – this drives stats + live camera feed
     setState(() {
@@ -148,24 +149,24 @@ class _DriverDashboardState extends State<DriverDashboard>
       _channel = WebSocketChannel.connect(
         Uri.parse(wsUrl),
       );
-      
+
       print('✅ Connected! Listening for data...');
-      
+
       _channel!.stream.listen(
-        (message) {
+            (message) {
           try {
             final data = json.decode(message) as Map<String, dynamic>;
-            
+
             if (data.containsKey('error')) {
               print('❌ Error from server: ${data['error']}');
               return;
             }
-            
+
             if (data.containsKey('status')) {
               print('ℹ️ Status: ${data['status']}');
               return;
             }
-            
+
             // Update UI with real stats from your models
             if (mounted) {
               setState(() {
@@ -201,11 +202,11 @@ class _DriverDashboardState extends State<DriverDashboard>
           print('🔌 WebSocket connection closed');
         },
       );
-      
+
     } catch (e) {
       print('❌ Failed to connect to server: $e');
     }
-    
+
     // Update Firebase every second
     _statsUpdateTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _monitoringService.updateRealtimeStats(
@@ -224,155 +225,155 @@ class _DriverDashboardState extends State<DriverDashboard>
     setState(() {
       _isMonitoring = false;
     });
-    
+
     _updateTimer?.cancel();
     _statsUpdateTimer?.cancel();
-    
+
     // Close WebSocket connection
     _channel?.sink.close();
     _channel = null;
-    
+
     // Clear camera frame
     setState(() {
       _cameraFrameBytes = null;
     });
-    
+
     // End Firebase session
     if (_currentSessionId != null && driverId != null) {
       await _monitoringService.endMonitoringSession(driverId);
       _currentSessionId = null;
     }
   }
- Future<void> _launchPythonMonitor() async {
-  try {
-    final projectRoot = Directory.current.path;
-    
-    final scriptPath = Platform.isWindows
-        ? '$projectRoot\\python\\drowsiness_monitor_flutter.py'
-        : '$projectRoot/python/drowsiness_monitor_flutter.py';
-    
-    // Models in same python folder
-    final landmarkModelPath = Platform.isWindows
-        ? '$projectRoot\\python\\landmark_detector.pth'
-        : '$projectRoot/python/landmark_detector.pth';
-    
-    final drowsyModelPath = Platform.isWindows
-        ? '$projectRoot\\python\\drowsiness_classifier.pkl'
-        : '$projectRoot/python/drowsiness_classifier.pkl';
+  Future<void> _launchPythonMonitor() async {
+    try {
+      final projectRoot = Directory.current.path;
 
-    print('🔍 Launching Python with:');
-    print('Script: $scriptPath');
-    print('Landmark: $landmarkModelPath');
-    print('Drowsy: $drowsyModelPath');
+      final scriptPath = Platform.isWindows
+          ? '$projectRoot\\python\\drowsiness_monitor_flutter.py'
+          : '$projectRoot/python/drowsiness_monitor_flutter.py';
 
-    // Use 'py' on Windows (Python launcher)
-    final pythonCommand = Platform.isWindows ? 'py' : 'python3';
+      // Models in same python folder
+      final landmarkModelPath = Platform.isWindows
+          ? '$projectRoot\\python\\landmark_detector.pth'
+          : '$projectRoot/python/landmark_detector.pth';
 
-    _monitorProcess = await Process.start(
-      pythonCommand,
-      [
-        scriptPath,
-        '--landmark-model', landmarkModelPath,
-        '--drowsy-model', drowsyModelPath,
-        '--camera', '0'
-      ],
-      runInShell: true,
-      mode: ProcessStartMode.normal,
-    );
+      final drowsyModelPath = Platform.isWindows
+          ? '$projectRoot\\python\\drowsiness_classifier.pkl'
+          : '$projectRoot/python/drowsiness_classifier.pkl';
 
-    // Listen to stdout (JSON data)
-    _monitorProcess!.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-      print('📊 Python stdout: $line');
-      try {
-        final data = json.decode(line) as Map<String, dynamic>;
-        
-        if (data.containsKey('error')) {
-          print('❌ Python error: ${data['error']}');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Camera error: ${data['error']}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
-        
-        if (data.containsKey('status')) {
-          print('✅ Python status: ${data['status']}');
-          return;
-        }
-        
-        // Update UI with real stats
-        if (mounted) {
-          setState(() {
-            _alertness = (data['alertness'] as num?)?.toDouble() ?? _alertness;
-            _ear = (data['ear'] as num?)?.toDouble() ?? _ear;
-            _mar = (data['mar'] as num?)?.toDouble() ?? _mar;
-            _eyeClosurePercentage = (data['eyeClosure'] as num?)?.toDouble() ?? _eyeClosurePercentage;
-          });
-          
-          // Show drowsiness alert
-          if (data['isDrowsy'] == true) {
-            final reason = data['reason'] as String? ?? 'unknown';
-            final reasonText = reason == 'eyes_closed' ? 'Eyes Closed' : 
-                             reason == 'yawning' ? 'Yawning Detected' : 'Alert';
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('⚠️ DROWSINESS ALERT: $reasonText'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        print('❌ Error parsing JSON: $e, Line: $line');
-      }
-    });
+      print('🔍 Launching Python with:');
+      print('Script: $scriptPath');
+      print('Landmark: $landmarkModelPath');
+      print('Drowsy: $drowsyModelPath');
 
-    // Listen to stderr (errors and debug info)
-    _monitorProcess!.stderr.transform(utf8.decoder).listen((error) {
-      print('🔴 Python stderr: $error');
-    });
+      // Use 'py' on Windows (Python launcher)
+      final pythonCommand = Platform.isWindows ? 'py' : 'python3';
 
-    // When process exits
-    _monitorProcess!.exitCode.then((exitCode) {
-      print('🛑 Python process exited with code: $exitCode');
-      if (mounted && _isMonitoring) {
-        setState(() {
-          _isMonitoring = false;
-        });
-      }
-    });
-    
-    print('✅ Python process started successfully!');
-    
-  } catch (e) {
-    print('💥 Error launching Python: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to start camera: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
+      _monitorProcess = await Process.start(
+        pythonCommand,
+        [
+          scriptPath,
+          '--landmark-model', landmarkModelPath,
+          '--drowsy-model', drowsyModelPath,
+          '--camera', '0'
+        ],
+        runInShell: true,
+        mode: ProcessStartMode.normal,
       );
-    }
-    
-    // Fallback to mock data if launching fails
-    _updateTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      setState(() {
-        _alertness = 70 + _random.nextDouble() * 25;
-        _ear = _random.nextDouble() * 0.3;
-        _mar = _random.nextDouble() * 0.3;
-        _eyeClosurePercentage = _random.nextDouble() * 30;
+
+      // Listen to stdout (JSON data)
+      _monitorProcess!.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        print('📊 Python stdout: $line');
+        try {
+          final data = json.decode(line) as Map<String, dynamic>;
+
+          if (data.containsKey('error')) {
+            print('❌ Python error: ${data['error']}');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Camera error: ${data['error']}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+            return;
+          }
+
+          if (data.containsKey('status')) {
+            print('✅ Python status: ${data['status']}');
+            return;
+          }
+
+          // Update UI with real stats
+          if (mounted) {
+            setState(() {
+              _alertness = (data['alertness'] as num?)?.toDouble() ?? _alertness;
+              _ear = (data['ear'] as num?)?.toDouble() ?? _ear;
+              _mar = (data['mar'] as num?)?.toDouble() ?? _mar;
+              _eyeClosurePercentage = (data['eyeClosure'] as num?)?.toDouble() ?? _eyeClosurePercentage;
+            });
+
+            // Show drowsiness alert
+            if (data['isDrowsy'] == true) {
+              final reason = data['reason'] as String? ?? 'unknown';
+              final reasonText = reason == 'eyes_closed' ? 'Eyes Closed' :
+              reason == 'yawning' ? 'Yawning Detected' : 'Alert';
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('⚠️ DROWSINESS ALERT: $reasonText'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          print('❌ Error parsing JSON: $e, Line: $line');
+        }
       });
-    });
+
+      // Listen to stderr (errors and debug info)
+      _monitorProcess!.stderr.transform(utf8.decoder).listen((error) {
+        print('🔴 Python stderr: $error');
+      });
+
+      // When process exits
+      _monitorProcess!.exitCode.then((exitCode) {
+        print('🛑 Python process exited with code: $exitCode');
+        if (mounted && _isMonitoring) {
+          setState(() {
+            _isMonitoring = false;
+          });
+        }
+      });
+
+      print('✅ Python process started successfully!');
+
+    } catch (e) {
+      print('💥 Error launching Python: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start camera: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+
+      // Fallback to mock data if launching fails
+      _updateTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+        setState(() {
+          _alertness = 70 + _random.nextDouble() * 25;
+          _ear = _random.nextDouble() * 0.3;
+          _mar = _random.nextDouble() * 0.3;
+          _eyeClosurePercentage = _random.nextDouble() * 30;
+        });
+      });
+    }
   }
-}
   void _killPythonMonitor() {
     try {
       _monitorProcess?.kill(ProcessSignal.sigint);
@@ -384,7 +385,7 @@ class _DriverDashboardState extends State<DriverDashboard>
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    
+
     return Scaffold(
       backgroundColor: AppColors.background,
       drawer: isMobile ? _buildMobileDrawer() : null,
@@ -426,24 +427,24 @@ class _DriverDashboardState extends State<DriverDashboard>
       body: isMobile
           ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
           : Row(
-              children: [
-                AppSidebar(
-                  role: 'driver',
-                  user: widget.user,
-                  selectedIndex: _selectedIndex,
-                  onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                  menuItems: const [
-                    MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-                    MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-                  ],
-                  accentColor: AppColors.driverPrimary,
-                  accentLightColor: AppColors.driverLight,
-                ),
-                Expanded(
-                  child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-                ),
-              ],
-            ),
+        children: [
+          AppSidebar(
+            role: 'driver',
+            user: widget.user,
+            selectedIndex: _selectedIndex,
+            onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+            menuItems: const [
+              MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+              MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+            ],
+            accentColor: AppColors.driverPrimary,
+            accentLightColor: AppColors.driverLight,
+          ),
+          Expanded(
+            child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -533,8 +534,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                             ),
                           ),
                         ],
-                  ],
-                ),
+                      ],
+                    ),
                     SizedBox(
                       width: isMobile ? double.infinity : null,
                       child: ElevatedButton.icon(
@@ -597,22 +598,22 @@ class _DriverDashboardState extends State<DriverDashboard>
                     if (snapshot.hasError) {
                       return Text('Error loading vehicle: ${snapshot.error}');
                     }
-                    
+
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
                     final assignedVehicle = snapshot.data;
-                    
+
                     // Update local state for other widgets if needed
                     if (assignedVehicle != null && _assignedVehicle?.id != assignedVehicle.id) {
-                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                         if (mounted) setState(() => _assignedVehicle = assignedVehicle);
-                       });
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) setState(() => _assignedVehicle = assignedVehicle);
+                      });
                     } else if (assignedVehicle == null && _assignedVehicle != null) {
-                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                         if (mounted) setState(() => _assignedVehicle = null);
-                       });
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) setState(() => _assignedVehicle = null);
+                      });
                     }
 
                     if (assignedVehicle == null) {
@@ -661,37 +662,27 @@ class _DriverDashboardState extends State<DriverDashboard>
                 ),
                 isMobile
                     ? Column(
-                        children: [
-                          _buildAlertCard(isMobile),
-                          SizedBox(height: isMobile ? 16 : 20),
-                          _buildEARMARCard(isMobile),
-                          SizedBox(height: isMobile ? 16 : 20),
-                          _buildSystemStatusCard(isMobile),
-                        ],
-                      )
+                  children: [
+                    _buildAlertCard(isMobile),
+                    SizedBox(height: isMobile ? 16 : 20),
+                    _buildEARMARCard(isMobile),
+                  ],
+                )
                     : isTablet
-                        ? Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: _buildAlertCard(isMobile)),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: _buildEARMARCard(isMobile)),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _buildSystemStatusCard(isMobile),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              Expanded(child: _buildAlertCard(isMobile)),
-                              const SizedBox(width: 20),
-                              Expanded(child: _buildEARMARCard(isMobile)),
-                              const SizedBox(width: 20),
-                              Expanded(child: _buildSystemStatusCard(isMobile)),
-                            ],
-                          ),
+                    ? Row(
+                  children: [
+                    Expanded(child: _buildAlertCard(isMobile)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildEARMARCard(isMobile)),
+                  ],
+                )
+                    : Row(
+                  children: [
+                    Expanded(child: _buildAlertCard(isMobile)),
+                    const SizedBox(width: 20),
+                    Expanded(child: _buildEARMARCard(isMobile)),
+                  ],
+                ),
                 SizedBox(height: isMobile ? 24 : 32),
                 _buildTabBar(isMobile),
                 SizedBox(height: isMobile ? 24 : 32),
@@ -830,73 +821,6 @@ class _DriverDashboardState extends State<DriverDashboard>
     );
   }
 
-  Widget _buildSystemStatusCard([bool isMobile = false]) {
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 20 : 28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  'System Status',
-                  style: TextStyle(
-                    fontSize: isMobile ? 14 : 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              Icon(Icons.shield_outlined, color: Colors.grey[400], size: isMobile ? 18 : 20),
-            ],
-          ),
-          SizedBox(height: isMobile ? 16 : 24),
-          Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF4CAF50),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Flexible(
-                child: Text(
-                  'All Systems Active',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Icon(Icons.battery_full, color: Colors.grey[600], size: 18),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  'Battery: 87%',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildTabBar([bool isMobile = false]) {
     return SingleChildScrollView(
@@ -1002,38 +926,23 @@ class _DriverDashboardState extends State<DriverDashboard>
             'Sound alarm when drowsiness detected',
             _audioAlertsEnabled,
                 (value) => setState(() => _audioAlertsEnabled = value),
-            actionWidget: Text(
-              'Enabled',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
+            actionWidget: Switch(
+              value: _audioAlertsEnabled,
+              onChanged: (value) => setState(() => _audioAlertsEnabled = value),
+              activeColor: const Color(0xFFE2A9F1),
             ),
           ),
           const Divider(height: 48),
           _buildSettingRow(
-            'Vibration Alerts',
-            'Device vibration for alerts',
-            _vibrationAlertsEnabled,
-                (value) => setState(() => _vibrationAlertsEnabled = value),
-            actionWidget: Text(
-              'Enabled',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const Divider(height: 48),
-          _buildSettingRowWithButton(
             'Emergency Contacts',
             'Auto-notify contacts on critical alerts',
-            'Configure',
-                () {
-              // Handle configure action
-            },
+            _emergencyContactsEnabled,
+                (value) => setState(() => _emergencyContactsEnabled = value),
+            actionWidget: Switch(
+              value: _emergencyContactsEnabled,
+              onChanged: (value) => setState(() => _emergencyContactsEnabled = value),
+              activeColor: const Color(0xFFE2A9F1),
+            ),
           ),
           const Divider(height: 48),
           _buildSettingRowWithButton(
@@ -1248,8 +1157,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                 _isMonitoring
                     ? 'Monitoring active'
                     : _isCameraTesting
-                        ? 'Testing...'
-                        : 'Ready to test',
+                    ? 'Testing...'
+                    : 'Ready to test',
                 style: const TextStyle(
                   fontSize: 16,
                   color: Colors.black54,
@@ -1270,48 +1179,48 @@ class _DriverDashboardState extends State<DriverDashboard>
                 borderRadius: BorderRadius.circular(8),
                 child: _cameraFrameBytes != null && (_isMonitoring || _isCameraTesting)
                     ? Image.memory(
-                        _cameraFrameBytes!,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        filterQuality: FilterQuality.low,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Error loading camera feed',
-                                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      )
-                    : Center(
-                        child: _isCameraTesting
-                            ? Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const CircularProgressIndicator(
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Camera is testing...',
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                'Click "Test Camera" to start',
-                                style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                              ),
+                  _cameraFrameBytes!,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.low,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading camera feed',
+                            style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          ),
+                        ],
                       ),
+                    );
+                  },
+                )
+                    : Center(
+                  child: _isCameraTesting
+                      ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Camera is testing...',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      ),
+                    ],
+                  )
+                      : Text(
+                    'Click "Test Camera" to start',
+                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1360,47 +1269,47 @@ class _DriverDashboardState extends State<DriverDashboard>
                 borderRadius: BorderRadius.circular(8),
                 child: _cameraFrameBytes != null && _isMonitoring
                     ? Image.memory(
-                        _cameraFrameBytes!,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        filterQuality: FilterQuality.low,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Error loading camera feed',
-                                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      )
-                    : Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isMonitoring ? Icons.videocam : Icons.videocam_off,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _isMonitoring
-                                  ? 'Waiting for camera feed...'
-                                  : 'Camera feed will appear here',
-                              style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                            ),
-                          ],
-                        ),
+                  _cameraFrameBytes!,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.low,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading camera feed',
+                            style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          ),
+                        ],
                       ),
+                    );
+                  },
+                )
+                    : Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _isMonitoring ? Icons.videocam : Icons.videocam_off,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _isMonitoring
+                            ? 'Waiting for camera feed...'
+                            : 'Camera feed will appear here',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -1497,53 +1406,114 @@ class _DriverDashboardState extends State<DriverDashboard>
             SizedBox(height: isMobile ? 24 : 32),
 
             // Emergency Services Grid
-            Wrap(
-              spacing: isMobile ? 12 : 20,
-              runSpacing: isMobile ? 12 : 20,
+            isMobile
+                ? Column(
               children: [
-                SizedBox(
-                  width: isMobile ? double.infinity : 280,
-                  child: _buildEmergencyServiceCard(
-                    'Police',
-                    '15',
-                    Icons.local_police,
-                    const Color(0xFF2196F3),
-                    const Color(0xFFE3F2FD),
-                    isMobile,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Police',
+                        '15',
+                        Icons.local_police_outlined,
+                        const Color(0xFFE2A9F1),
+                        const Color(0xFFF5E6FA),
+                        isMobile,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Ambulance',
+                        '1122',
+                        Icons.local_hospital_outlined,
+                        Colors.red[700]!,
+                        Colors.red[50]!,
+                        isMobile,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(
-                  width: isMobile ? double.infinity : 280,
-                  child: _buildEmergencyServiceCard(
-                    'Ambulance',
-                    '1122',
-                    Icons.local_hospital,
-                    Colors.red,
-                    const Color(0xFFFFEBEE),
-                    isMobile,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Fire Department',
+                        '16',
+                        Icons.local_fire_department_outlined,
+                        Colors.orange[700]!,
+                        Colors.orange[50]!,
+                        isMobile,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Motorway Police',
+                        '130',
+                        Icons.car_crash,
+                        const Color(0xFF4CAF50),
+                        const Color(0xFFE8F5E9),
+                        isMobile,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(
-                  width: isMobile ? double.infinity : 280,
-                  child: _buildEmergencyServiceCard(
-                    'Fire Department',
-                    '16',
-                    Icons.local_fire_department,
-                    const Color(0xFFFF6F00),
-                    const Color(0xFFFFF3E0),
-                    isMobile,
-                  ),
+              ],
+            )
+                : Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Police',
+                        '15',
+                        Icons.local_police_outlined,
+                        const Color(0xFFE2A9F1),
+                        const Color(0xFFF5E6FA),
+                        isMobile,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Ambulance',
+                        '1122',
+                        Icons.local_hospital_outlined,
+                        Colors.red[700]!,
+                        Colors.red[50]!,
+                        isMobile,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(
-                  width: isMobile ? double.infinity : 280,
-                  child: _buildEmergencyServiceCard(
-                    'Motorway Police',
-                    '130',
-                    Icons.car_crash,
-                    const Color(0xFF4CAF50),
-                    const Color(0xFFE8F5E9),
-                    isMobile,
-                  ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Fire Department',
+                        '16',
+                        Icons.local_fire_department_outlined,
+                        Colors.orange[700]!,
+                        Colors.orange[50]!,
+                        isMobile,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Motorway Police',
+                        '130',
+                        Icons.car_crash,
+                        const Color(0xFF4CAF50),
+                        const Color(0xFFE8F5E9),
+                        isMobile,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1630,6 +1600,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   // Add Contact Dialog
   void _showAddContactDialog() {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final relationshipController = TextEditingController();
     final phoneController = TextEditingController();
@@ -1644,101 +1615,147 @@ class _DriverDashboardState extends State<DriverDashboard>
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Add Emergency Contact'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: relationshipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (Optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: priority,
-                  decoration: const InputDecoration(
-                    labelText: 'Priority',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                    DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      priority = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text('Contact Methods:', style: TextStyle(fontWeight: FontWeight.bold)),
-                CheckboxListTile(
-                  title: const Text('Phone Call'),
-                  value: methods.contains('call'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('call');
-                      } else {
-                        methods.remove('call');
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Name is required';
                       }
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('SMS'),
-                  value: methods.contains('sms'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('sms');
-                      } else {
-                        methods.remove('sms');
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: relationshipController,
+                    decoration: const InputDecoration(
+                      labelText: 'Relationship *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Relationship is required';
                       }
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Email'),
-                  value: methods.contains('email'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('email');
-                      } else {
-                        methods.remove('email');
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number *',
+                      hintText: '03XX-1234567',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+                      _PhoneNumberFormatter(),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Phone number is required';
                       }
-                    });
-                  },
-                ),
-              ],
+                      final phone = value.trim();
+                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
+                        return 'Phone must be in format 03XX-1234567';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value != null && value.trim().isNotEmpty) {
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                          return 'Please enter a valid email address';
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: priority,
+                    decoration: const InputDecoration(
+                      labelText: 'Priority',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'primary', child: Text('Primary')),
+                      DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        priority = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
+                  CheckboxListTile(
+                    title: const Text('Phone Call'),
+                    value: methods.contains('call'),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          methods.add('call');
+                        } else {
+                          methods.remove('call');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('SMS'),
+                    value: methods.contains('sms'),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          methods.add('sms');
+                        } else {
+                          methods.remove('sms');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Email'),
+                    value: methods.contains('email'),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          methods.add('email');
+                        } else {
+                          methods.remove('email');
+                        }
+                      });
+                    },
+                  ),
+                  if (methods.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'At least one contact method is required',
+                        style: TextStyle(color: Colors.red[700], fontSize: 12),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -1748,46 +1765,49 @@ class _DriverDashboardState extends State<DriverDashboard>
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isEmpty || 
-                    relationshipController.text.isEmpty || 
-                    phoneController.text.isEmpty) {
-                  Navigator.pop(dialogContext);
+                if (methods.isEmpty) {
                   ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                    const SnackBar(content: Text('Please fill in all required fields')),
+                    const SnackBar(content: Text('Please select at least one contact method')),
                   );
                   return;
                 }
                 
-                try {
-                  await _emergencyContactService.addEmergencyContact(
-                    userId: widget.user.id,
-                    userRole: 'driver',
-                    contactData: {
-                      'name': nameController.text,
-                      'relationship': relationshipController.text,
-                      'phone': phoneController.text,
-                      'email': emailController.text,
-                      'priority': priority,
-                      'methods': methods,
-                      'enabled': true,
-                    },
-                  );
-                  
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('${nameController.text} added to emergency contacts')),
+                if (formKey.currentState!.validate()) {
+                  try {
+                    await _emergencyContactService.addEmergencyContact(
+                      userId: widget.user.id,
+                      userRole: 'driver',
+                      contactData: {
+                        'name': nameController.text.trim(),
+                        'relationship': relationshipController.text.trim(),
+                        'phone': phoneController.text.trim(),
+                        'email': emailController.text.trim(),
+                        'priority': priority,
+                        'methods': methods,
+                        'enabled': true,
+                      },
                     );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('Error adding contact: $e')),
-                    );
+
+                    if (mounted) {
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                        SnackBar(content: Text('${nameController.text} added to emergency contacts')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                        SnackBar(content: Text('Error adding contact: $e')),
+                      );
+                    }
                   }
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE2A9F1),
+                foregroundColor: Colors.black,
+              ),
               child: const Text('Add Contact'),
             ),
           ],
@@ -1798,6 +1818,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   // Edit Contact Dialog
   void _showEditContactDialog(EmergencyContact contact) {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: contact.name);
     final relationshipController = TextEditingController(text: contact.relationship);
     final phoneController = TextEditingController(text: contact.phone);
@@ -1812,41 +1833,78 @@ class _DriverDashboardState extends State<DriverDashboard>
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Edit Emergency Contact'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    border: OutlineInputBorder(),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Name is required';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: relationshipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship *',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: relationshipController,
+                    decoration: const InputDecoration(
+                      labelText: 'Relationship *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Relationship is required';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number *',
+                      hintText: '03XX-1234567',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+                      _PhoneNumberFormatter(),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Phone number is required';
+                      }
+                      final phone = value.trim();
+                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
+                        return 'Phone must be in format 03XX-1234567';
+                      }
+                      return null;
+                    },
                   ),
-                  keyboardType: TextInputType.phone,
-                ),
                 const SizedBox(height: 16),
-                TextField(
+                TextFormField(
                   controller: emailController,
                   decoration: const InputDecoration(
                     labelText: 'Email (Optional)',
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value != null && value.trim().isNotEmpty) {
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                        return 'Please enter a valid email address';
+                      }
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -1866,7 +1924,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                   },
                 ),
                 const SizedBox(height: 16),
-                const Text('Contact Methods:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
                 CheckboxListTile(
                   title: const Text('Phone Call'),
                   value: methods.contains('call'),
@@ -1906,7 +1964,16 @@ class _DriverDashboardState extends State<DriverDashboard>
                     });
                   },
                 ),
-              ],
+                  if (methods.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'At least one contact method is required',
+                        style: TextStyle(color: Colors.red[700], fontSize: 12),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -1916,45 +1983,48 @@ class _DriverDashboardState extends State<DriverDashboard>
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isEmpty || 
-                    relationshipController.text.isEmpty || 
-                    phoneController.text.isEmpty) {
-                  Navigator.pop(dialogContext);
+                if (methods.isEmpty) {
                   ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                    const SnackBar(content: Text('Please fill in all required fields')),
+                    const SnackBar(content: Text('Please select at least one contact method')),
                   );
                   return;
                 }
                 
-                try {
-                  await _emergencyContactService.updateEmergencyContact(
-                    contactId: contact.id,
-                    contactData: {
-                      'name': nameController.text,
-                      'relationship': relationshipController.text,
-                      'phone': phoneController.text,
-                      'email': emailController.text,
-                      'priority': priority,
-                      'methods': methods,
-                      'enabled': contact.enabled,
-                    },
-                  );
-                  
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('${nameController.text} updated successfully')),
+                if (formKey.currentState!.validate()) {
+                  try {
+                    await _emergencyContactService.updateEmergencyContact(
+                      contactId: contact.id,
+                      contactData: {
+                        'name': nameController.text.trim(),
+                        'relationship': relationshipController.text.trim(),
+                        'phone': phoneController.text.trim(),
+                        'email': emailController.text.trim(),
+                        'priority': priority,
+                        'methods': methods,
+                        'enabled': contact.enabled,
+                      },
                     );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('Error updating contact: $e')),
-                    );
+
+                    if (mounted) {
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                        SnackBar(content: Text('${nameController.text} updated successfully')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                        SnackBar(content: Text('Error updating contact: $e')),
+                      );
+                    }
                   }
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE2A9F1),
+                foregroundColor: Colors.black,
+              ),
               child: const Text('Save Changes'),
             ),
           ],
@@ -2010,27 +2080,30 @@ class _DriverDashboardState extends State<DriverDashboard>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Emergency Contacts',
-                        style: TextStyle(
-                          fontSize: isMobile ? 18 : 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Emergency Contacts',
+                          style: TextStyle(
+                            fontSize: isMobile ? 18 : 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: isMobile ? 2 : 4),
-                      Text(
-                        'Manage your emergency contact list',
-                        style: TextStyle(
-                          fontSize: isMobile ? 12 : 14,
-                          color: Colors.grey[600],
+                        SizedBox(height: isMobile ? 2 : 4),
+                        Text(
+                          'Manage your emergency contact list',
+                          style: TextStyle(
+                            fontSize: isMobile ? 12 : 14,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  SizedBox(width: isMobile ? 8 : 12),
                   ElevatedButton.icon(
                     onPressed: () {
                       _showAddContactDialog();
@@ -2041,8 +2114,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                       padding: EdgeInsets.symmetric(
                           horizontal: isMobile ? 12 : 20,
                           vertical: isMobile ? 10 : 12),
-                      backgroundColor: const Color(0xFF2196F3),
-                      foregroundColor: Colors.white,
+                      backgroundColor: const Color(0xFFE2A9F1),
+                      foregroundColor: Colors.black,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2054,53 +2127,53 @@ class _DriverDashboardState extends State<DriverDashboard>
               SizedBox(height: isMobile ? 16 : 24),
               isMobile
                   ? contacts.isEmpty
-                      ? Padding(
-                          padding: EdgeInsets.all(isMobile ? 20 : 40),
-                          child: Center(
-                            child: Text(
-                              'No emergency contacts added yet',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ),
-                        )
-                      : Column(
-                          children: contacts.map((contact) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildMobileContactCard(contact),
-                              )).toList(),
-                        )
-                  : Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(1.5),
-                        1: FlexColumnWidth(1.2),
-                        2: FlexColumnWidth(1.8),
-                        3: FlexColumnWidth(1.0),
-                        4: FlexColumnWidth(1.0),
-                        5: FlexColumnWidth(0.8),
-                        6: FlexColumnWidth(1.0),
-                      },
-                      children: [
-                        TableRow(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          children: [
-                            _buildTableHeader('Name', isMobile),
-                            _buildTableHeader('Relationship', isMobile),
-                            _buildTableHeader('Contact', isMobile),
-                            _buildTableHeader('Priority', isMobile),
-                            _buildTableHeader('Methods', isMobile),
-                            _buildTableHeader('Status', isMobile),
-                            _buildTableHeader('Actions', isMobile),
-                          ],
-                        ),
-                        ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
-                      ],
+                  ? Padding(
+                padding: EdgeInsets.all(isMobile ? 20 : 40),
+                child: Center(
+                  child: Text(
+                    'No emergency contacts added yet',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
                     ),
+                  ),
+                ),
+              )
+                  : Column(
+                children: contacts.map((contact) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildMobileContactCard(contact),
+                )).toList(),
+              )
+                  : Table(
+                columnWidths: const {
+                  0: FlexColumnWidth(1.5),
+                  1: FlexColumnWidth(1.2),
+                  2: FlexColumnWidth(1.8),
+                  3: FlexColumnWidth(1.0),
+                  4: FlexColumnWidth(1.0),
+                  5: FlexColumnWidth(0.8),
+                  6: FlexColumnWidth(1.0),
+                },
+                children: [
+                  TableRow(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    children: [
+                      _buildTableHeader('Name', isMobile),
+                      _buildTableHeader('Relationship', isMobile),
+                      _buildTableHeader('Contact', isMobile),
+                      _buildTableHeader('Priority', isMobile),
+                      _buildTableHeader('Methods', isMobile),
+                      _buildTableHeader('Status', isMobile),
+                      _buildTableHeader('Actions', isMobile),
+                    ],
+                  ),
+                  ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
+                ],
+              ),
               SizedBox(height: isMobile ? 16 : 20),
               Row(
                 children: [
@@ -2432,6 +2505,36 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
         ],
       ),
+    );
+  }
+}
+
+// Custom formatter for phone number input (03XX-1234567 format)
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    
+    // Limit to 11 digits (03XX1234567)
+    if (text.length > 11) {
+      return oldValue;
+    }
+    
+    String formatted = text;
+    
+    // Insert dash after 4 digits if not already present
+    if (text.length > 4 && !text.contains('-')) {
+      formatted = '${text.substring(0, 4)}-${text.substring(4)}';
+    } else if (text.length <= 4) {
+      formatted = text;
+    }
+    
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
@@ -22,43 +23,44 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   final VehicleService _vehicleService = VehicleService();
   final MonitoringService _monitoringService = MonitoringService();
   late EmergencyContactService _emergencyContactService;
-  
+
   int _selectedIndex = 0;
   bool _isLoading = false;
   final TextEditingController _searchController = TextEditingController();
   String _statusFilter = 'All Status';
-   bool _showClearButton = false;
-  
+  String _typeFilter = 'All Types';
+  bool _showClearButton = false;
+
 
   // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _slideController;
 
   @override
-void initState() {
-  super.initState();
-  _emergencyContactService = EmergencyContactService();
-  _isLoading = false;
-  
-  // Add listener for search controller
-  _searchController.addListener(() {
-    setState(() {
-      _showClearButton = _searchController.text.isNotEmpty;
+  void initState() {
+    super.initState();
+    _emergencyContactService = EmergencyContactService();
+    _isLoading = false;
+
+    // Add listener for search controller
+    _searchController.addListener(() {
+      setState(() {
+        _showClearButton = _searchController.text.isNotEmpty;
+      });
     });
-  });
-  
-  _fadeController = AnimationController(
-    duration: const Duration(milliseconds: 800),
-    vsync: this,
-  );
-  _slideController = AnimationController(
-    duration: const Duration(milliseconds: 600),
-    vsync: this,
-  );
-  
-  _fadeController.forward();
-  _slideController.forward();
-}
+
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _fadeController.forward();
+    _slideController.forward();
+  }
 
   @override
   void dispose() {
@@ -67,235 +69,268 @@ void initState() {
     _slideController.dispose();
     super.dispose();
   }
-  
-   Future<void> _showAddVehicleDialog() async {
-  final formKey = GlobalKey<FormState>();
-  String make = '';
-  String model = '';
-  String year = '';
-  String licensePlate = '';
-  bool willDrive = false;
 
-  await showDialog(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context,  setDialogState) {
-        return AlertDialog(
-          title: const Text('Add New Vehicle'),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Make *'),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Make is required';
-                    }
-                    if (value.trim().length < 2) {
-                      return 'Make must be at least 2 characters';
-                    }
-                    return null;
-                  },
-                  onSaved: (value) => make = value!.trim(),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Model *'),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Model is required';
-                    }
-                    if (value.trim().length < 2) {
-                      return 'Model must be at least 2 characters';
-                    }
-                    return null;
-                  },
-                  onSaved: (value) => model = value!.trim(),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Year *'),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Year is required';
-                    }
-                    final yearInt = int.tryParse(value.trim());
-                    if (yearInt == null) {
-                      return 'Year must be a valid number';
-                    }
-                    final currentYear = DateTime.now().year;
-                    if (yearInt < 1900 || yearInt > currentYear + 1) {
-                      return 'Year must be between 1900 and ${currentYear + 1}';
-                    }
-                    return null;
-                  },
-                  onSaved: (value) => year = value!.trim(),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'License Plate *'),
-                  textCapitalization: TextCapitalization.characters,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'License plate is required';
-                    }
-                    final plate = value.trim().toUpperCase();
-                    if (plate.length < 3 || plate.length > 15) {
-                      return 'License plate must be 3-15 characters';
-                    }
-                    // Basic validation: alphanumeric with optional spaces/dashes
-                    if (!RegExp(r'^[A-Z0-9\s\-]+$').hasMatch(plate)) {
-                      return 'License plate contains invalid characters';
-                    }
-                    return null;
-                  },
-                  onSaved: (value) => licensePlate = value!.trim().toUpperCase(),
-                ),
-                const SizedBox(height: 16),
-                CheckboxListTile(
-                  title: const Text('I will be driving this vehicle'),
-                  subtitle: const Text('Assign this vehicle to me'),
-                  value: willDrive,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      willDrive = value!;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  activeColor: AppColors.primary,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (formKey.currentState!.validate()) {
-                  formKey.currentState!.save();
-                  
-                  // Show confirmation dialog
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Confirm Vehicle Addition'),
-                      content: Text(
-                        'Are you sure you want to add this vehicle?\n\n'
-                        'Make: $make\n'
-                        'Model: $model\n'
-                        'Year: $year\n'
-                        'License Plate: $licensePlate\n'
-                        '${willDrive ? "You will be assigned as the driver." : "Vehicle will be available for driver assignment."}',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Confirm'),
-                        ),
-                      ],
+  Future<void> _showAddVehicleDialog() async {
+    final formKey = GlobalKey<FormState>();
+    String vehicleType = 'Car';
+    String make = '';
+    String model = '';
+    String year = '';
+    String licensePlate = '';
+    bool willDrive = false;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context,  setDialogState) {
+          return AlertDialog(
+            title: const Text('Add New Vehicle'),
+            content: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                  DropdownButtonFormField<String>(
+                    value: vehicleType,
+                    decoration: const InputDecoration(labelText: 'Type *'),
+                    items: const [
+                      DropdownMenuItem(value: 'Car', child: Text('Car')),
+                      DropdownMenuItem(value: 'Bus', child: Text('Bus')),
+                      DropdownMenuItem(value: 'Van', child: Text('Van')),
+                      DropdownMenuItem(value: 'Truck', child: Text('Truck')),
+                      DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Type is required';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) {
+                      setDialogState(() {
+                        vehicleType = value!;
+                      });
+                    },
+                    onSaved: (value) => vehicleType = value!,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Make *'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Make is required';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Make must be at least 2 characters';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) => make = value!.trim(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Model *'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Model is required';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Model must be at least 2 characters';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) => model = value!.trim(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Year *'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Year is required';
+                      }
+                      final yearInt = int.tryParse(value.trim());
+                      if (yearInt == null) {
+                        return 'Year must be a valid number';
+                      }
+                      final currentYear = DateTime.now().year;
+                      if (yearInt < 1900 || yearInt > currentYear + 1) {
+                        return 'Year must be between 1900 and ${currentYear + 1}';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) => year = value!.trim(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'License Plate *',
+                      hintText: 'ABC-123',
                     ),
-                  );
-                  
-                  if (confirm != true) return;
-                  
-                  Navigator.pop(context);
-                  
-                  try {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Adding vehicle...')),
-                    );
-
-                    final result = await _vehicleService.addVehicleWithDriverCheck(
-                      make: make,
-                      model: model,
-                      year: year,
-                      licensePlate: licensePlate,
-                      ownerId: widget.user.id,
-                      ownerEmail: widget.user.email,
-                      willOwnerDrive: willDrive,
-                    );
-
-                    if (result == null && willDrive) {
-                      if (mounted) {
-                        _showDriverRegistrationDialog();
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9\-]')),
+                      _LicensePlateFormatter(),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'License plate is required';
                       }
-                    } else if (result != null && willDrive && result.assignedDriverId == null) {
-                      // Vehicle was created but not assigned because owner already has one
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text(
-                              'Vehicle added! Since you already have a vehicle assigned, this one will be automatically assigned to the next driver who signs up.',
+                      final plate = value.trim().toUpperCase();
+                      // Validate ABC-123 format (3 letters, dash, 3 digits)
+                      if (!RegExp(r'^[A-Z]{3}-[0-9]{3}$').hasMatch(plate)) {
+                        return 'License plate must be in format ABC-123';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) => licensePlate = value!.trim().toUpperCase(),
+                  ),
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    title: const Text('I will be driving this vehicle'),
+                    subtitle: const Text('Assign this vehicle to me'),
+                    value: willDrive,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        willDrive = value!;
+                      });
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (formKey.currentState!.validate()) {
+                    formKey.currentState!.save();
+
+                    // Show confirmation dialog
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Confirm Vehicle Addition'),
+                        content: Text(
+                          'Are you sure you want to add this vehicle?\n\n'
+                              'Type: $vehicleType\n'
+                              'Make: $make\n'
+                              'Model: $model\n'
+                              'Year: $year\n'
+                              'License Plate: $licensePlate\n'
+                              '${willDrive ? "You will be assigned as the driver." : "Vehicle will be available for driver assignment."}',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Confirm'),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm != true) return;
+
+                    Navigator.pop(context);
+
+                    try {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Adding vehicle...')),
+                      );
+
+                      final result = await _vehicleService.addVehicleWithDriverCheck(
+                        make: make,
+                        model: model,
+                        year: year,
+                        licensePlate: licensePlate,
+                        ownerId: widget.user.id,
+                        ownerEmail: widget.user.email,
+                        willOwnerDrive: willDrive,
+                        type: vehicleType,
+                      );
+
+                      if (result == null && willDrive) {
+                        if (mounted) {
+                          _showDriverRegistrationDialog();
+                        }
+                      } else if (result != null && willDrive && result.assignedDriverId == null) {
+                        // Vehicle was created but not assigned because owner already has one
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                'Vehicle added! Since you already have a vehicle assigned, this one will be automatically assigned to the next driver who signs up.',
+                              ),
+                              backgroundColor: AppColors.primary,
+                              duration: const Duration(seconds: 5),
                             ),
-                            backgroundColor: AppColors.primary,
-                            duration: const Duration(seconds: 5),
-                          ),
-                        );
+                          );
+                        }
+                      } else {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(willDrive
+                                  ? 'Vehicle added and assigned to you!'
+                                  : 'Vehicle added successfully'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
                       }
-                    } else {
+                    } catch (e) {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(willDrive 
-                              ? 'Vehicle added and assigned to you!' 
-                              : 'Vehicle added successfully'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                      }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      // Show error in a dialog for better visibility
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Row(
-                            children: [
-                              Icon(Icons.error_outline, color: AppColors.danger, size: 28),
-                              SizedBox(width: 12),
-                              Expanded(child: Text('Error Adding Vehicle')),
+                        // Show error in a dialog for better visibility
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Row(
+                              children: [
+                                Icon(Icons.error_outline, color: AppColors.danger, size: 28),
+                                SizedBox(width: 12),
+                                Expanded(child: Text('Error Adding Vehicle')),
+                              ],
+                            ),
+                            content: Text(
+                              e.toString().replaceFirst('Exception: ', ''),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            actions: [
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.danger,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('OK'),
+                              ),
                             ],
                           ),
-                          content: Text(
-                            e.toString().replaceFirst('Exception: ', ''),
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          actions: [
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.danger,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('OK'),
-                            ),
-                          ],
-                        ),
-                      );
+                        );
+                      }
                     }
                   }
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-}
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
   void _showDriverRegistrationDialog() {
     showDialog(
       context: context,
@@ -303,8 +338,8 @@ void initState() {
       builder: (context) => AlertDialog(
         title: const Text('Driver Registration Required'),
         content: const Text(
-          'You need to register as a driver before you can be assigned to a vehicle. '
-          'Would you like to register as a driver now?'
+            'You need to register as a driver before you can be assigned to a vehicle. '
+                'Would you like to register as a driver now?'
         ),
         actions: [
           TextButton(
@@ -317,7 +352,7 @@ void initState() {
                   duration: Duration(seconds: 4),
                 ),
               );
-             
+
             },
             child: const Text('Not Now'),
           ),
@@ -349,7 +384,7 @@ void initState() {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    
+
     return Scaffold(
       backgroundColor: AppColors.background,
       drawer: isMobile ? _buildMobileDrawer() : null,
@@ -391,24 +426,24 @@ void initState() {
       body: isMobile
           ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
           : Row(
-              children: [
-                AppSidebar(
-                  role: 'owner',
-                  user: widget.user is User ? widget.user : null,
-                  selectedIndex: _selectedIndex,
-                  onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                  menuItems: const [
-                    MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-                    MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-                  ],
-                  accentColor: AppColors.primary,
-                  accentLightColor: AppColors.primaryLight,
-                ),
-                Expanded(
-                  child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-                ),
-              ],
-            ),
+        children: [
+          AppSidebar(
+            role: 'owner',
+            user: widget.user is User ? widget.user : null,
+            selectedIndex: _selectedIndex,
+            onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+            menuItems: const [
+              MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+              MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+            ],
+            accentColor: AppColors.primary,
+            accentLightColor: AppColors.primaryLight,
+          ),
+          Expanded(
+            child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -476,26 +511,9 @@ void initState() {
                         Row(
                           children: [
                             ElevatedButton.icon(
-                              onPressed: _showAddVehicleDialog,
-                              icon: Icon(Icons.add, size: isTablet ? 16 : 18),
-                              label: Text('Add Vehicle', style: TextStyle(fontSize: isTablet ? 13 : 14)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: isTablet ? 16 : 20,
-                                    vertical: isTablet ? 12 : 16),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: isTablet ? 8 : 12),
-                            ElevatedButton.icon(
                               onPressed: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Export report'))
+                                    const SnackBar(content: Text('Export report'))
                                 );
                               },
                               icon: Icon(Icons.download, size: isTablet ? 16 : 18),
@@ -517,7 +535,7 @@ void initState() {
                             IconButton(
                               onPressed: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Open settings'))
+                                    const SnackBar(content: Text('Open settings'))
                                 );
                               },
                               icon: Icon(Icons.settings, size: isTablet ? 20 : 24),
@@ -553,145 +571,169 @@ void initState() {
                   const SizedBox(height: 16),
                 ],
                 SizedBox(height: isMobile ? 24 : 32),
-StreamBuilder<List<Vehicle>>(
-  stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
-  builder: (context, snapshot) {
-    final vehicles = snapshot.data ?? [];
-    final isMobile = MediaQuery.of(context).size.width < 768;
-    final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
-    
-    return _buildStaggeredItem(
-      isMobile
-          ? Column(
-              children: [
-                _buildStatCard(
-                  'Total Vehicles',
-                  vehicles.length.toString(),
-                  'Fleet size',
-                  Icons.directions_car_outlined,
-                  AppColors.primary,
-                  isMobile,
+                StreamBuilder<List<Vehicle>>(
+                  stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
+                  builder: (context, snapshot) {
+                    final vehicles = snapshot.data ?? [];
+                    final isMobile = MediaQuery.of(context).size.width < 768;
+                    final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
+
+                    return _buildStaggeredItem(
+                      isMobile
+                          ? Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildStatCard(
+                                  'Total Vehicles',
+                                  vehicles.length.toString(),
+                                  'Fleet size',
+                                  Icons.directions_car_outlined,
+                                  AppColors.primary,
+                                  isMobile,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildStatCard(
+                                  'Active Drivers',
+                                  vehicles.where((v) => v.status == 'Active').length.toString(),
+                                  'Currently driving',
+                                  Icons.people_outline,
+                                  AppColors.success,
+                                  isMobile,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildStatCard(
+                                  'Critical Alerts',
+                                  vehicles.where((v) => v.status == 'Critical').length.toString(),
+                                  'Requires attention',
+                                  Icons.warning_amber_rounded,
+                                  AppColors.danger,
+                                  isMobile,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildStatCard(
+                                  'Safety Score',
+                                  '8.4/10',
+                                  'Overall performance',
+                                  Icons.shield_outlined,
+                                  AppColors.success,
+                                  isMobile,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                          : isTablet
+                          ? Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: _buildStatCard(
+                                'Total Vehicles',
+                                vehicles.length.toString(),
+                                'Fleet size',
+                                Icons.directions_car_outlined,
+                                AppColors.primary,
+                                isMobile,
+                              )),
+                              const SizedBox(width: 16),
+                              Expanded(child: _buildStatCard(
+                                'Active Drivers',
+                                vehicles.where((v) => v.status == 'Active').length.toString(),
+                                'Currently driving',
+                                Icons.people_outline,
+                                AppColors.success,
+                                isMobile,
+                              )),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(child: _buildStatCard(
+                                'Critical Alerts',
+                                vehicles.where((v) => v.status == 'Critical').length.toString(),
+                                'Requires attention',
+                                Icons.warning_amber_rounded,
+                                AppColors.danger,
+                                isMobile,
+                              )),
+                              const SizedBox(width: 16),
+                              Expanded(child: _buildStatCard(
+                                'Safety Score',
+                                '8.4/10',
+                                'Overall performance',
+                                Icons.shield_outlined,
+                                AppColors.success,
+                                isMobile,
+                              )),
+                            ],
+                          ),
+                        ],
+                      )
+                          : Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: _buildStatCard(
+                                'Total Vehicles',
+                                vehicles.length.toString(),
+                                'Fleet size',
+                                Icons.directions_car_outlined,
+                                AppColors.primary,
+                                isMobile,
+                              )),
+                              const SizedBox(width: 20),
+                              Expanded(child: _buildStatCard(
+                                'Active Drivers',
+                                vehicles.where((v) => v.status == 'Active').length.toString(),
+                                'Currently driving',
+                                Icons.people_outline,
+                                AppColors.success,
+                                isMobile,
+                              )),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(child: _buildStatCard(
+                                'Critical Alerts',
+                                vehicles.where((v) => v.status == 'Critical').length.toString(),
+                                'Requires attention',
+                                Icons.warning_amber_rounded,
+                                AppColors.danger,
+                                isMobile,
+                              )),
+                              const SizedBox(width: 20),
+                              Expanded(child: _buildStatCard(
+                                'Safety Score',
+                                '8.4/10',
+                                'Overall performance',
+                                Icons.shield_outlined,
+                                AppColors.success,
+                                isMobile,
+                              )),
+                            ],
+                          ),
+                        ],
+                      ),
+                      1,
+                    );
+                  },
                 ),
-                SizedBox(height: isMobile ? 12 : 16),
-                _buildStatCard(
-                  'Active Drivers',
-                  vehicles.where((v) => v.status == 'Active').length.toString(),
-                  'Currently driving',
-                  Icons.people_outline,
-                  AppColors.success,
-                  isMobile,
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                _buildStatCard(
-                  'Critical Alerts',
-                  vehicles.where((v) => v.status == 'Critical').length.toString(),
-                  'Requires attention',
-                  Icons.warning_amber_rounded,
-                  AppColors.danger,
-                  isMobile,
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                _buildStatCard(
-                  'Safety Score',
-                  '8.4/10',
-                  'Overall performance',
-                  Icons.shield_outlined,
-                  AppColors.success,
-                  isMobile,
-                ),
-              ],
-            )
-          : isTablet
-              ? Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: _buildStatCard(
-                          'Total Vehicles',
-                          vehicles.length.toString(),
-                          'Fleet size',
-                          Icons.directions_car_outlined,
-                          AppColors.primary,
-                          isMobile,
-                        )),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildStatCard(
-                          'Active Drivers',
-                          vehicles.where((v) => v.status == 'Active').length.toString(),
-                          'Currently driving',
-                          Icons.people_outline,
-                          AppColors.success,
-                          isMobile,
-                        )),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(child: _buildStatCard(
-                          'Critical Alerts',
-                          vehicles.where((v) => v.status == 'Critical').length.toString(),
-                          'Requires attention',
-                          Icons.warning_amber_rounded,
-                          AppColors.danger,
-                          isMobile,
-                        )),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildStatCard(
-                          'Safety Score',
-                          '8.4/10',
-                          'Overall performance',
-                          Icons.shield_outlined,
-                          AppColors.success,
-                          isMobile,
-                        )),
-                      ],
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(child: _buildStatCard(
-                      'Total Vehicles',
-                      vehicles.length.toString(),
-                      'Fleet size',
-                      Icons.directions_car_outlined,
-                      AppColors.primary,
-                      isMobile,
-                    )),
-                    const SizedBox(width: 20),
-                    Expanded(child: _buildStatCard(
-                      'Active Drivers',
-                      vehicles.where((v) => v.status == 'Active').length.toString(),
-                      'Currently driving',
-                      Icons.people_outline,
-                      AppColors.success,
-                      isMobile,
-                    )),
-                    const SizedBox(width: 20),
-                    Expanded(child: _buildStatCard(
-                      'Critical Alerts',
-                      vehicles.where((v) => v.status == 'Critical').length.toString(),
-                      'Requires attention',
-                      Icons.warning_amber_rounded,
-                      AppColors.danger,
-                      isMobile,
-                    )),
-                    const SizedBox(width: 20),
-                    Expanded(child: _buildStatCard(
-                      'Safety Score',
-                      '8.4/10',
-                      'Overall performance',
-                      Icons.shield_outlined,
-                      AppColors.success,
-                      isMobile,
-                    )),
-                  ],
-                ),
-      1,
-    );
-  },
-),
                 SizedBox(height: isMobile ? 24 : 32),
                 _buildStaggeredItem(
                   _buildFleetOverview(),
@@ -744,19 +786,13 @@ StreamBuilder<List<Vehicle>>(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: EdgeInsets.all(isMobile ? 10 : 12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: isMobile ? 20 : 24),
-              ),
-              Icon(Icons.more_horiz, color: Colors.grey[400], size: isMobile ? 18 : 24),
-            ],
+          Container(
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: isMobile ? 20 : 24),
           ),
           SizedBox(height: isMobile ? 16 : 24),
           Text(
@@ -790,7 +826,9 @@ StreamBuilder<List<Vehicle>>(
     );
   }
 
-Widget _buildFleetOverview() {
+  Widget _buildFleetOverview() {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    
     return StreamBuilder<List<Vehicle>>(
       stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
       builder: (context, snapshot) {
@@ -817,18 +855,18 @@ Widget _buildFleetOverview() {
         // --- FILTERING ---
         List<Vehicle> filteredVehicles = vehicles.where((vehicle) {
           bool matchesSearch = _searchController.text.isEmpty ||
-    vehicle.licensePlate.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-    (vehicle.driverName?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false) ||
-    vehicle.status.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-    (vehicle.location?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false) ||
-    '${vehicle.make} ${vehicle.model}'.toLowerCase().contains(_searchController.text.toLowerCase());
+              vehicle.licensePlate.toLowerCase().contains(_searchController.text.toLowerCase()) ||
+              (vehicle.driverName?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false) ||
+              vehicle.status.toLowerCase().contains(_searchController.text.toLowerCase()) ||
+              (vehicle.location?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false) ||
+              '${vehicle.make} ${vehicle.model}'.toLowerCase().contains(_searchController.text.toLowerCase());
 
-          bool matchesFilter = _statusFilter == 'All Status' || vehicle.status == _statusFilter;
+          bool matchesStatusFilter = _statusFilter == 'All Status' || vehicle.status == _statusFilter;
+          bool matchesTypeFilter = _typeFilter == 'All Types' || vehicle.type == _typeFilter;
 
-          return matchesSearch && matchesFilter;
+          return matchesSearch && matchesStatusFilter && matchesTypeFilter;
         }).toList();
 
-        final isMobile = MediaQuery.of(context).size.width < 768;
         return Container(
           padding: EdgeInsets.all(isMobile ? 16 : 28),
           decoration: BoxDecoration(
@@ -857,43 +895,128 @@ Widget _buildFleetOverview() {
                     ),
                   ),
                   if (!isMobile)
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: isMobile ? double.infinity : 250,
-                          child: TextField(
-                          key: const Key('fleet_search_field'),
-                           controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search vehicles...',
-                            prefixIcon: const Icon(Icons.search, size: 20),
-                            suffixIcon: _showClearButton  // ✅ Use state variable instead
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear, size: 20),
-                                    onPressed: () {
-                                     _searchController.clear();
-                                    setState(() {});
-                                    },
-                                  )
-                                : null,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          ),
+                    ElevatedButton.icon(
+                      onPressed: _showAddVehicleDialog,
+                      icon: Icon(Icons.add, size: isMobile ? 16 : 18),
+                      label: Text('Add Vehicle', style: TextStyle(fontSize: isMobile ? 13 : 14)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.black,
+                        padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 12 : 20,
+                            vertical: isMobile ? 10 : 12),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Container(
+                    ),
+                ],
+              ),
+              SizedBox(height: isMobile ? 16 : 20),
+              if (!isMobile)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey[300]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                              child: DropdownButton<String>(
+                                value: _statusFilter,
+                                underline: const SizedBox(),
+                                icon: const Icon(Icons.arrow_drop_down),
+                                items: const [
+                                  DropdownMenuItem(value: 'All Status', child: Text('All Status')),
+                                  DropdownMenuItem(value: 'Active', child: Text('Active')),
+                                  DropdownMenuItem(value: 'Break', child: Text('Break')),
+                                  DropdownMenuItem(value: 'Critical', child: Text('Critical')),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    _statusFilter = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButton<String>(
+                                value: _typeFilter,
+                                underline: const SizedBox(),
+                                icon: const Icon(Icons.arrow_drop_down),
+                                items: const [
+                                  DropdownMenuItem(value: 'All Types', child: Text('All Types')),
+                                  DropdownMenuItem(value: 'Car', child: Text('Car')),
+                                  DropdownMenuItem(value: 'Bus', child: Text('Bus')),
+                                  DropdownMenuItem(value: 'Van', child: Text('Van')),
+                                  DropdownMenuItem(value: 'Truck', child: Text('Truck')),
+                                  DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    _typeFilter = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: 250,
+                      child: TextField(
+                        key: const Key('fleet_search_field'),
+                        controller: _searchController,
+                        onChanged: (value) {
+                          setState(() {
+                            // Trigger rebuild to update filtered vehicles
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search vehicles...',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: _showClearButton
+                              ? IconButton(
+                            icon: const Icon(Icons.clear, size: 20),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              if (isMobile) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey[300]!),
@@ -901,6 +1024,7 @@ Widget _buildFleetOverview() {
                         ),
                         child: DropdownButton<String>(
                           value: _statusFilter,
+                          isExpanded: true,
                           underline: const SizedBox(),
                           icon: const Icon(Icons.arrow_drop_down),
                           items: const [
@@ -916,26 +1040,61 @@ Widget _buildFleetOverview() {
                           },
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-              if (isMobile) ...[
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButton<String>(
+                          value: _typeFilter,
+                          isExpanded: true,
+                          underline: const SizedBox(),
+                          icon: const Icon(Icons.arrow_drop_down),
+                          items: const [
+                            DropdownMenuItem(value: 'All Types', child: Text('All Types')),
+                            DropdownMenuItem(value: 'Car', child: Text('Car')),
+                            DropdownMenuItem(value: 'Bus', child: Text('Bus')),
+                            DropdownMenuItem(value: 'Van', child: Text('Van')),
+                            DropdownMenuItem(value: 'Truck', child: Text('Truck')),
+                            DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _typeFilter = value!;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: TextField(
                     controller: _searchController,
+                    enabled: true,
+                    autofocus: false,
+                    onChanged: (value) {
+                      setState(() {
+                        // Trigger rebuild to update filtered vehicles
+                      });
+                    },
                     decoration: InputDecoration(
                       hintText: 'Search vehicles...',
                       prefixIcon: const Icon(Icons.search, size: 20),
                       suffixIcon: _showClearButton
                           ? IconButton(
-                              icon: const Icon(Icons.clear, size: 20),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                            )
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                        },
+                      )
                           : null,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -953,35 +1112,9 @@ Widget _buildFleetOverview() {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButton<String>(
-                    value: _statusFilter,
-                    isExpanded: true,
-                    underline: const SizedBox(),
-                    icon: const Icon(Icons.arrow_drop_down),
-                    items: const [
-                      DropdownMenuItem(value: 'All Status', child: Text('All Status')),
-                      DropdownMenuItem(value: 'Active', child: Text('Active')),
-                      DropdownMenuItem(value: 'Break', child: Text('Break')),
-                      DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _statusFilter = value!;
-                      });
-                    },
-                  ),
-                ),
               ],
               SizedBox(height: isMobile ? 16 : 16),
-            if (_searchController.text.isNotEmpty || _statusFilter != 'All Status')
+              if (_searchController.text.isNotEmpty || _statusFilter != 'All Status' || _typeFilter != 'All Types')
                 Padding(
                   padding: EdgeInsets.only(bottom: isMobile ? 8 : 12),
                   child: Row(
@@ -994,13 +1127,14 @@ Widget _buildFleetOverview() {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      if (_searchController.text.isNotEmpty || _statusFilter != 'All Status') ...[
+                      if (_searchController.text.isNotEmpty || _statusFilter != 'All Status' || _typeFilter != 'All Types') ...[
                         SizedBox(width: isMobile ? 6 : 8),
                         TextButton.icon(
                           onPressed: () {
                             setState(() {
                               _searchController.clear();
                               _statusFilter = 'All Status';
+                              _typeFilter = 'All Types';
                             });
                           },
                           icon: Icon(Icons.clear, size: isMobile ? 14 : 16),
@@ -1018,7 +1152,7 @@ Widget _buildFleetOverview() {
                   ),
                 ),
               SizedBox(height: isMobile ? 8 : 8),
-             if (filteredVehicles.isEmpty)
+              if (filteredVehicles.isEmpty)
                 Center(
                   child: Padding(
                     padding: EdgeInsets.all(isMobile ? 20 : 40),
@@ -1061,55 +1195,55 @@ Widget _buildFleetOverview() {
               else
                 isMobile
                     ? Column(
-                        children: filteredVehicles.map((vehicle) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildMobileVehicleCard(vehicle),
-                            )).toList(),
-                      )
+                  children: filteredVehicles.map((vehicle) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildMobileVehicleCard(vehicle),
+                  )).toList(),
+                )
                     : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minWidth: MediaQuery.of(context).size.width - (isMobile ? 32 : 160),
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: MediaQuery.of(context).size.width - (isMobile ? 32 : 160),
+                    ),
+                    child: Table(
+                      columnWidths: const {
+                        0: FixedColumnWidth(120),
+                        1: FixedColumnWidth(150),
+                        2: FixedColumnWidth(100),
+                        3: FixedColumnWidth(150),
+                        4: FixedColumnWidth(150),
+                        5: FixedColumnWidth(120),
+                        6: FixedColumnWidth(100),
+                      },
+                      children: [
+                        TableRow(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Table(
-                            columnWidths: const {
-                              0: FixedColumnWidth(120),
-                              1: FixedColumnWidth(150),
-                              2: FixedColumnWidth(100),
-                              3: FixedColumnWidth(150),
-                              4: FixedColumnWidth(150),
-                              5: FixedColumnWidth(120),
-                              6: FixedColumnWidth(100),
-                            },
-                            children: [
-                              TableRow(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                children: [
-                                  _buildTableHeader('License Plate', isMobile),
-                                  _buildTableHeader('Driver', isMobile),
-                                  _buildTableHeader('Status', isMobile),
-                                  _buildTableHeader('Alertness', isMobile),
-                                  _buildTableHeader('Location', isMobile),
-                                  _buildTableHeader('Last Update', isMobile),
-                                  _buildTableHeader('Actions', isMobile),
-                                ],
-                              ),
-                              ...filteredVehicles.map((vehicle) => _buildVehicleRow(vehicle, isMobile)),
-                            ],
-                          ),
+                          children: [
+                            _buildTableHeader('License Plate', isMobile),
+                            _buildTableHeader('Driver', isMobile),
+                            _buildTableHeader('Status', isMobile),
+                            _buildTableHeader('Alertness', isMobile),
+                            _buildTableHeader('Location', isMobile),
+                            _buildTableHeader('Last Update', isMobile),
+                            _buildTableHeader('Actions', isMobile),
+                          ],
                         ),
-                      ),
+                        ...filteredVehicles.map((vehicle) => _buildVehicleRow(vehicle, isMobile)),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         );
       },
     );
   }
-    Widget _buildEmergency() {
+  Widget _buildEmergency() {
     final isMobile = MediaQuery.of(context).size.width < 768;
     return SingleChildScrollView(
       child: Padding(
@@ -1136,17 +1270,22 @@ Widget _buildFleetOverview() {
             SizedBox(height: isMobile ? 24 : 32),
             isMobile
                 ? Column(
-                    children: [
-                      _buildEmergencyServiceCard(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
                         'Police',
                         '15',
                         Icons.local_police_outlined,
-                        Colors.blue[700]!,
-                        Colors.blue[50]!,
+                        const Color(0xFFE2A9F1),
+                        const Color(0xFFF5E6FA),
                         isMobile,
                       ),
-                      const SizedBox(height: 12),
-                      _buildEmergencyServiceCard(
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
                         'Ambulance',
                         '1122',
                         Icons.local_hospital_outlined,
@@ -1154,8 +1293,14 @@ Widget _buildFleetOverview() {
                         Colors.red[50]!,
                         isMobile,
                       ),
-                      const SizedBox(height: 12),
-                      _buildEmergencyServiceCard(
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
                         'Fire Department',
                         '16',
                         Icons.local_fire_department_outlined,
@@ -1163,44 +1308,77 @@ Widget _buildFleetOverview() {
                         Colors.orange[50]!,
                         isMobile,
                       ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(
-                        child: _buildEmergencyServiceCard(
-                          'Police',
-                          '15',
-                          Icons.local_police_outlined,
-                          Colors.blue[700]!,
-                          Colors.blue[50]!,
-                          isMobile,
-                        ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Motorway Police',
+                        '130',
+                        Icons.car_crash,
+                        const Color(0xFF4CAF50),
+                        const Color(0xFFE8F5E9),
+                        isMobile,
                       ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: _buildEmergencyServiceCard(
-                          'Ambulance',
-                          '1122',
-                          Icons.local_hospital_outlined,
-                          Colors.red[700]!,
-                          Colors.red[50]!,
-                          isMobile,
-                        ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+                : Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Police',
+                        '15',
+                        Icons.local_police_outlined,
+                        const Color(0xFFE2A9F1),
+                        const Color(0xFFF5E6FA),
+                        isMobile,
                       ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: _buildEmergencyServiceCard(
-                          'Fire Department',
-                          '16',
-                          Icons.local_fire_department_outlined,
-                          Colors.orange[700]!,
-                          Colors.orange[50]!,
-                          isMobile,
-                        ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Ambulance',
+                        '1122',
+                        Icons.local_hospital_outlined,
+                        Colors.red[700]!,
+                        Colors.red[50]!,
+                        isMobile,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Fire Department',
+                        '16',
+                        Icons.local_fire_department_outlined,
+                        Colors.orange[700]!,
+                        Colors.orange[50]!,
+                        isMobile,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: _buildEmergencyServiceCard(
+                        'Motorway Police',
+                        '130',
+                        Icons.car_crash,
+                        const Color(0xFF4CAF50),
+                        const Color(0xFFE8F5E9),
+                        isMobile,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             SizedBox(height: isMobile ? 24 : 32),
             _buildEmergencyContactsTable(isMobile),
           ],
@@ -1282,53 +1460,53 @@ Widget _buildFleetOverview() {
               SizedBox(height: isMobile ? 16 : 24),
               isMobile
                   ? contacts.isEmpty
-                      ? Padding(
-                          padding: EdgeInsets.all(isMobile ? 20 : 40),
-                          child: Center(
-                            child: Text(
-                              'No emergency contacts added yet',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ),
-                        )
-                      : Column(
-                          children: contacts.map((contact) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildMobileContactCard(contact),
-                              )).toList(),
-                        )
-                  : Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(1.5),
-                        1: FlexColumnWidth(1.2),
-                        2: FlexColumnWidth(1.8),
-                        3: FlexColumnWidth(1.0),
-                        4: FlexColumnWidth(1.0),
-                        5: FlexColumnWidth(0.8),
-                        6: FlexColumnWidth(1.0),
-                      },
-                      children: [
-                        TableRow(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          children: [
-                            _buildTableHeader('Name', isMobile),
-                            _buildTableHeader('Relationship', isMobile),
-                            _buildTableHeader('Contact', isMobile),
-                            _buildTableHeader('Priority', isMobile),
-                            _buildTableHeader('Methods', isMobile),
-                            _buildTableHeader('Status', isMobile),
-                            _buildTableHeader('Actions', isMobile),
-                          ],
-                        ),
-                        ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
-                      ],
+                  ? Padding(
+                padding: EdgeInsets.all(isMobile ? 20 : 40),
+                child: Center(
+                  child: Text(
+                    'No emergency contacts added yet',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
                     ),
+                  ),
+                ),
+              )
+                  : Column(
+                children: contacts.map((contact) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildMobileContactCard(contact),
+                )).toList(),
+              )
+                  : Table(
+                columnWidths: const {
+                  0: FlexColumnWidth(1.5),
+                  1: FlexColumnWidth(1.2),
+                  2: FlexColumnWidth(1.8),
+                  3: FlexColumnWidth(1.0),
+                  4: FlexColumnWidth(1.0),
+                  5: FlexColumnWidth(0.8),
+                  6: FlexColumnWidth(1.0),
+                },
+                children: [
+                  TableRow(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    children: [
+                      _buildTableHeader('Name', isMobile),
+                      _buildTableHeader('Relationship', isMobile),
+                      _buildTableHeader('Contact', isMobile),
+                      _buildTableHeader('Priority', isMobile),
+                      _buildTableHeader('Methods', isMobile),
+                      _buildTableHeader('Status', isMobile),
+                      _buildTableHeader('Actions', isMobile),
+                    ],
+                  ),
+                  ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
+                ],
+              ),
             ],
           ),
         );
@@ -1385,6 +1563,7 @@ Widget _buildFleetOverview() {
   }
 
   void _showAddContactDialog() {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final relationshipController = TextEditingController();
     final phoneController = TextEditingController();
@@ -1398,101 +1577,147 @@ Widget _buildFleetOverview() {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Add Emergency Contact'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: relationshipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (Optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: priority,
-                  decoration: const InputDecoration(
-                    labelText: 'Priority',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                    DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      priority = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text('Contact Methods:', style: TextStyle(fontWeight: FontWeight.bold)),
-                CheckboxListTile(
-                  title: const Text('Phone Call'),
-                  value: methods.contains('call'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('call');
-                      } else {
-                        methods.remove('call');
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Name is required';
                       }
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('SMS'),
-                  value: methods.contains('sms'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('sms');
-                      } else {
-                        methods.remove('sms');
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: relationshipController,
+                    decoration: const InputDecoration(
+                      labelText: 'Relationship *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Relationship is required';
                       }
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Email'),
-                  value: methods.contains('email'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('email');
-                      } else {
-                        methods.remove('email');
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number *',
+                      hintText: '03XX-1234567',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+                      _PhoneNumberFormatter(),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Phone number is required';
                       }
-                    });
-                  },
-                ),
-              ],
+                      final phone = value.trim();
+                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
+                        return 'Phone must be in format 03XX-1234567';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value != null && value.trim().isNotEmpty) {
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                          return 'Please enter a valid email address';
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: priority,
+                    decoration: const InputDecoration(
+                      labelText: 'Priority',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'primary', child: Text('Primary')),
+                      DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        priority = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
+                  CheckboxListTile(
+                    title: const Text('Phone Call'),
+                    value: methods.contains('call'),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          methods.add('call');
+                        } else {
+                          methods.remove('call');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('SMS'),
+                    value: methods.contains('sms'),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          methods.add('sms');
+                        } else {
+                          methods.remove('sms');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Email'),
+                    value: methods.contains('email'),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          methods.add('email');
+                        } else {
+                          methods.remove('email');
+                        }
+                      });
+                    },
+                  ),
+                  if (methods.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'At least one contact method is required',
+                        style: TextStyle(color: Colors.red[700], fontSize: 12),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -1502,44 +1727,48 @@ Widget _buildFleetOverview() {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isEmpty || 
-                    relationshipController.text.isEmpty || 
-                    phoneController.text.isEmpty) {
+                if (methods.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please fill in all required fields')),
+                    const SnackBar(content: Text('Please select at least one contact method')),
                   );
                   return;
                 }
                 
-                try {
-                  await _emergencyContactService.addEmergencyContact(
-                    userId: widget.user.id,
-                    userRole: 'owner',
-                    contactData: {
-                      'name': nameController.text,
-                      'relationship': relationshipController.text,
-                      'phone': phoneController.text,
-                      'email': emailController.text,
-                      'priority': priority,
-                      'methods': methods,
-                      'enabled': true,
-                    },
-                  );
-                  
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${nameController.text} added to emergency contacts')),
+                if (formKey.currentState!.validate()) {
+                  try {
+                    await _emergencyContactService.addEmergencyContact(
+                      userId: widget.user.id,
+                      userRole: 'owner',
+                      contactData: {
+                        'name': nameController.text.trim(),
+                        'relationship': relationshipController.text.trim(),
+                        'phone': phoneController.text.trim(),
+                        'email': emailController.text.trim(),
+                        'priority': priority,
+                        'methods': methods,
+                        'enabled': true,
+                      },
                     );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error adding contact: $e')),
-                    );
+
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${nameController.text} added to emergency contacts')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error adding contact: $e')),
+                      );
+                    }
                   }
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE2A9F1),
+                foregroundColor: Colors.black,
+              ),
               child: const Text('Add Contact'),
             ),
           ],
@@ -1549,6 +1778,7 @@ Widget _buildFleetOverview() {
   }
 
   void _showEditContactDialog(EmergencyContact contact) {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: contact.name);
     final relationshipController = TextEditingController(text: contact.relationship);
     final phoneController = TextEditingController(text: contact.phone);
@@ -1562,61 +1792,98 @@ Widget _buildFleetOverview() {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Edit Emergency Contact'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    border: OutlineInputBorder(),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Name is required';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: relationshipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship *',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: relationshipController,
+                    decoration: const InputDecoration(
+                      labelText: 'Relationship *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Relationship is required';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number *',
+                      hintText: '03XX-1234567',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+                      _PhoneNumberFormatter(),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Phone number is required';
+                      }
+                      final phone = value.trim();
+                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
+                        return 'Phone must be in format 03XX-1234567';
+                      }
+                      return null;
+                    },
                   ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (Optional)',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value != null && value.trim().isNotEmpty) {
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                          return 'Please enter a valid email address';
+                        }
+                      }
+                      return null;
+                    },
                   ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: priority,
-                  decoration: const InputDecoration(
-                    labelText: 'Priority',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: priority,
+                    decoration: const InputDecoration(
+                      labelText: 'Priority',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'primary', child: Text('Primary')),
+                      DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        priority = value!;
+                      });
+                    },
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                    DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      priority = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text('Contact Methods:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
                 CheckboxListTile(
                   title: const Text('Phone Call'),
                   value: methods.contains('call'),
@@ -1656,7 +1923,16 @@ Widget _buildFleetOverview() {
                     });
                   },
                 ),
-              ],
+                  if (methods.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'At least one contact method is required',
+                        style: TextStyle(color: Colors.red[700], fontSize: 12),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -1666,43 +1942,47 @@ Widget _buildFleetOverview() {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isEmpty || 
-                    relationshipController.text.isEmpty || 
-                    phoneController.text.isEmpty) {
+                if (methods.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please fill in all required fields')),
+                    const SnackBar(content: Text('Please select at least one contact method')),
                   );
                   return;
                 }
                 
-                try {
-                  await _emergencyContactService.updateEmergencyContact(
-                    contactId: contact.id,
-                    contactData: {
-                      'name': nameController.text,
-                      'relationship': relationshipController.text,
-                      'phone': phoneController.text,
-                      'email': emailController.text,
-                      'priority': priority,
-                      'methods': methods,
-                      'enabled': contact.enabled,
-                    },
-                  );
-                  
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${nameController.text} updated successfully')),
+                if (formKey.currentState!.validate()) {
+                  try {
+                    await _emergencyContactService.updateEmergencyContact(
+                      contactId: contact.id,
+                      contactData: {
+                        'name': nameController.text.trim(),
+                        'relationship': relationshipController.text.trim(),
+                        'phone': phoneController.text.trim(),
+                        'email': emailController.text.trim(),
+                        'priority': priority,
+                        'methods': methods,
+                        'enabled': contact.enabled,
+                      },
                     );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error updating contact: $e')),
-                    );
+
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${nameController.text} updated successfully')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error updating contact: $e')),
+                      );
+                    }
                   }
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE2A9F1),
+                foregroundColor: Colors.black,
+              ),
               child: const Text('Save Changes'),
             ),
           ],
@@ -1960,7 +2240,7 @@ Widget _buildFleetOverview() {
       ),
     );
   }
-  
+
   // Helper methods for fleet overview table
   Widget _buildMobileVehicleCard(Vehicle vehicle) {
     return Container(
@@ -2024,7 +2304,7 @@ Widget _buildFleetOverview() {
               const SizedBox(width: 4),
               _buildMobileRealtimeLastUpdate(vehicle),
               const Spacer(),
-              _buildActionsCell(true),
+              _buildActionsCell(vehicle, true),
             ],
           ),
         ],
@@ -2072,7 +2352,7 @@ Widget _buildFleetOverview() {
         _buildRealtimeAlertnessCell(vehicle, isMobile),
         _buildTableCell(vehicle.location ?? 'Unknown', isMobile),
         _buildRealtimeLastUpdateCell(vehicle, isMobile),
-        _buildActionsCell(isMobile),
+        _buildActionsCell(vehicle, isMobile),
       ],
     );
   }
@@ -2087,13 +2367,13 @@ Widget _buildFleetOverview() {
       stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
       builder: (context, snapshot) {
         String status = 'Inactive'; // Default to Inactive if no session
-        
+
         // If we have real-time data, determine status based on alertness
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final stats = snapshot.data!;
           final alertness = stats['alertness'];
           final drowsinessDetected = stats['drowsinessDetected'] ?? false;
-          
+
           if (alertness != null) {
             final alertnessValue = (alertness as num).toDouble();
             if (drowsinessDetected || alertnessValue < 50) {
@@ -2124,7 +2404,7 @@ Widget _buildFleetOverview() {
       stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
       builder: (context, snapshot) {
         String lastUpdate = 'No session';
-        
+
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final stats = snapshot.data!;
           final lastUpdateTimestamp = stats['lastUpdate'];
@@ -2135,7 +2415,7 @@ Widget _buildFleetOverview() {
               final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
               final now = DateTime.now();
               final difference = now.difference(dateTime);
-              
+
               if (difference.inSeconds < 60) {
                 lastUpdate = 'Just now';
               } else if (difference.inMinutes < 60) {
@@ -2250,7 +2530,7 @@ Widget _buildFleetOverview() {
       stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
       builder: (context, snapshot) {
         int alertnessValue = 0; // Default to 0 if no session
-        
+
         // If we have real-time data, use it
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final stats = snapshot.data!;
@@ -2265,7 +2545,7 @@ Widget _buildFleetOverview() {
     );
   }
 
-  Widget _buildActionsCell([bool isMobile = false]) {
+  Widget _buildActionsCell(Vehicle vehicle, [bool isMobile = false]) {
     return Padding(
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 0 : 8,
@@ -2274,25 +2554,72 @@ Widget _buildFleetOverview() {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: Icon(Icons.visibility_outlined, size: isMobile ? 18 : 20),
+            icon: Icon(Icons.delete_outline, size: isMobile ? 18 : 20, color: Colors.red[700]),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('View vehicle details'))
-              );
+              _showDeleteVehicleDialog(vehicle);
             },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
+            tooltip: 'Delete vehicle',
           ),
           SizedBox(width: isMobile ? 4 : 8),
           IconButton(
             icon: Icon(Icons.phone_outlined, size: isMobile ? 18 : 20),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Calling driver...'))
+                  const SnackBar(content: Text('Calling driver...'))
               );
             },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteVehicleDialog(Vehicle vehicle) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Vehicle'),
+        content: Text(
+          'Are you sure you want to delete vehicle ${vehicle.licensePlate}? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _vehicleService.deleteVehicle(vehicle.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Vehicle ${vehicle.licensePlate} deleted successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting vehicle: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -2339,7 +2666,7 @@ Widget _buildFleetOverview() {
       stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
       builder: (context, snapshot) {
         int alertnessValue = 0; // Default to 0 if no session
-        
+
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final stats = snapshot.data!;
           final realtimeAlertness = stats['alertness'];
@@ -2393,12 +2720,12 @@ Widget _buildFleetOverview() {
       stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
       builder: (context, snapshot) {
         String status = 'Inactive'; // Default to Inactive if no session
-        
+
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final stats = snapshot.data!;
           final alertness = stats['alertness'];
           final drowsinessDetected = stats['drowsinessDetected'] ?? false;
-          
+
           if (alertness != null) {
             final alertnessValue = (alertness as num).toDouble();
             if (drowsinessDetected || alertnessValue < 50) {
@@ -2432,7 +2759,7 @@ Widget _buildFleetOverview() {
       stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
       builder: (context, snapshot) {
         String lastUpdate = 'No session';
-        
+
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final stats = snapshot.data!;
           final lastUpdateTimestamp = stats['lastUpdate'];
@@ -2442,7 +2769,7 @@ Widget _buildFleetOverview() {
               final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
               final now = DateTime.now();
               final difference = now.difference(dateTime);
-              
+
               if (difference.inSeconds < 60) {
                 lastUpdate = 'Just now';
               } else if (difference.inMinutes < 60) {
@@ -2463,6 +2790,83 @@ Widget _buildFleetOverview() {
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         );
       },
+    );
+  }
+}
+
+// Custom formatter for phone number input (03XX-1234567 format)
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    
+    // Limit to 11 digits (03XX1234567)
+    if (text.length > 11) {
+      return oldValue;
+    }
+    
+    String formatted = text;
+    
+    // Insert dash after 4 digits if not already present
+    if (text.length > 4 && !text.contains('-')) {
+      formatted = '${text.substring(0, 4)}-${text.substring(4)}';
+    } else if (text.length <= 4) {
+      formatted = text;
+    }
+    
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+// Custom formatter for license plate input (ABC-123 format)
+class _LicensePlateFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text.toUpperCase();
+    
+    // Remove all non-alphanumeric characters except dash
+    String formatted = text.replaceAll(RegExp(r'[^A-Z0-9\-]'), '');
+    
+    // Limit to 7 characters (3 letters + dash + 3 digits)
+    if (formatted.length > 7) {
+      formatted = formatted.substring(0, 7);
+    }
+    
+    // Insert dash after 3 letters if not already present
+    if (formatted.length > 3 && !formatted.contains('-')) {
+      formatted = '${formatted.substring(0, 3)}-${formatted.substring(3)}';
+    }
+    
+    // Ensure only letters before dash and only digits after
+    if (formatted.contains('-')) {
+      final parts = formatted.split('-');
+      if (parts.length == 2) {
+        final letters = parts[0].replaceAll(RegExp(r'[^A-Z]'), '');
+        final digits = parts[1].replaceAll(RegExp(r'[^0-9]'), '');
+        formatted = '$letters-$digits';
+      }
+    } else if (formatted.length > 3) {
+      // If no dash but more than 3 chars, insert dash
+      final letters = formatted.substring(0, 3).replaceAll(RegExp(r'[^A-Z]'), '');
+      final digits = formatted.substring(3).replaceAll(RegExp(r'[^0-9]'), '');
+      formatted = '$letters-$digits';
+    } else {
+      // Only letters allowed before dash position
+      formatted = formatted.replaceAll(RegExp(r'[^A-Z]'), '');
+    }
+    
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

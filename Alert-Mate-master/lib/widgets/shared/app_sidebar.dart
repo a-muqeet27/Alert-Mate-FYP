@@ -146,7 +146,9 @@ class AppSidebar extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
-              collapsed ? role[0].toUpperCase() : role,
+              collapsed 
+                ? (role == 'owner' ? 'VO' : role[0].toUpperCase())
+                : (role == 'owner' ? 'Vehicle Owner' : role),
               style: TextStyle(
                 color: accentColor,
                 fontSize: 13,

@@ -15,6 +15,7 @@ class Vehicle {
   final String? lastUpdate;
   final bool pendingAssignment; // Waiting for ANY driver (owner said "No")
   final bool pendingOwnerAssignment; // NEW: Waiting specifically for OWNER to become driver
+  final String type; // 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw'
 
   Vehicle({
     required this.id,
@@ -33,6 +34,7 @@ class Vehicle {
     this.lastUpdate,
     this.pendingAssignment = false,
     this.pendingOwnerAssignment = false, // NEW
+    this.type = 'Car',
   });
 
   // Create Vehicle from Firestore document
@@ -54,6 +56,7 @@ class Vehicle {
       lastUpdate: map['lastUpdate'],
       pendingAssignment: map['pendingAssignment'] ?? false,
       pendingOwnerAssignment: map['pendingOwnerAssignment'] ?? false, // NEW
+      type: map['type'] ?? 'Car',
     );
   }
 
@@ -99,6 +102,7 @@ class Vehicle {
       'lastUpdate': lastUpdate,
       'pendingAssignment': pendingAssignment,
       'pendingOwnerAssignment': pendingOwnerAssignment, // NEW
+      'type': type,
     };
   }
 
@@ -120,6 +124,7 @@ class Vehicle {
     String? lastUpdate,
     bool? pendingAssignment,
     bool? pendingOwnerAssignment,
+    String? type,
   }) {
     return Vehicle(
       id: id ?? this.id,
@@ -138,6 +143,7 @@ class Vehicle {
       lastUpdate: lastUpdate ?? this.lastUpdate,
       pendingAssignment: pendingAssignment ?? this.pendingAssignment,
       pendingOwnerAssignment: pendingOwnerAssignment ?? this.pendingOwnerAssignment,
+      type: type ?? this.type,
     );
   }
 

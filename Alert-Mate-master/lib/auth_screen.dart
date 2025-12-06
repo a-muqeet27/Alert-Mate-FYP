@@ -18,7 +18,7 @@ class AuthScreen extends StatefulWidget {
   final bool isOwnerBecomingDriver; // NEW: Added this parameter
 
   const AuthScreen({
-    Key? key, 
+    Key? key,
     this.initialDashboardIndex,
     this.initialIsSignIn,
     this.isOwnerBecomingDriver = false, // NEW: Default to false
@@ -113,7 +113,7 @@ class _AuthScreenState extends State<AuthScreen>
     if (widget.initialIsSignIn != null) {
       isSignIn = widget.initialIsSignIn!;
     }
-    
+
     // NEW: If owner becoming driver, set to driver role and signup mode
     if (widget.isOwnerBecomingDriver) {
       _selectedDashboard = 0; // Driver
@@ -176,12 +176,12 @@ class _AuthScreenState extends State<AuthScreen>
         try {
           final user = await _authService.signIn(email, _passwordController.text);
           setState(() { _isLoading = false; });
-          
+
           if (user != null) {
             // NEW: Check if driver and assign vehicle if needed
             if (user.role == 'driver' || (user.roles?.contains('driver') ?? false)) {
               final vehicleService = VehicleService();
-              
+
               // Check if this is owner becoming driver
               if (widget.isOwnerBecomingDriver) {
                 // Assign vehicles waiting specifically for this owner
@@ -189,7 +189,7 @@ class _AuthScreenState extends State<AuthScreen>
                   user.id,
                   user.email,
                 );
-        } else {
+              } else {
                 // Regular driver - assign general pending vehicles
                 await vehicleService.assignGeneralPendingVehiclesToNewDriver(
                   user.id,
@@ -209,48 +209,48 @@ class _AuthScreenState extends State<AuthScreen>
         // SIGN UP FLOW
         try {
           final user = await _authService.signUp(
-          firstName: _firstNameController.text.trim(),
-          lastName: _lastNameController.text.trim(),
-          email: email,
-          phone: '$_selectedDialCode ${_phoneController.text.trim()}',
-          password: _passwordController.text,
+            firstName: _firstNameController.text.trim(),
+            lastName: _lastNameController.text.trim(),
+            email: email,
+            phone: '$_selectedDialCode ${_phoneController.text.trim()}',
+            password: _passwordController.text,
             roles: [_getSelectedRole()],
           );
-          
+
           setState(() { _isLoading = false; });
-          
+
           // NEW: Auto-assign vehicles after successful driver registration
           if (selectedRole == 'driver' && user != null) {
             final vehicleService = VehicleService();
-            
+
             // Check if this is owner becoming driver
             if (widget.isOwnerBecomingDriver) {
               print('🎯 Owner completing driver registration');
-              
+
               // Assign vehicles waiting specifically for THIS owner
               List<String> assignedVehicles = await vehicleService.assignOwnerPendingVehicles(
                 user.uid,
                 email,
               );
-              
+
               if (assignedVehicles.isNotEmpty) {
                 // Show success with vehicle count
                 _showVehicleAssignedDialog(
                   'Vehicle${assignedVehicles.length > 1 ? 's' : ''} Assigned!',
                   'Your ${assignedVehicles.length} vehicle${assignedVehicles.length > 1 ? 's have' : ' has'} been automatically assigned to you. You can now see ${assignedVehicles.length > 1 ? 'them' : 'it'} in your driver dashboard.',
                 );
-        } else {
+              } else {
                 _showSuccessDialog('Driver account created! Please verify your email.');
               }
             } else {
               print('🚗 Regular driver signup');
-              
+
               // Regular driver - assign any pending vehicle
               bool vehicleAssigned = await vehicleService.assignGeneralPendingVehiclesToNewDriver(
                 user.uid,
                 email,
               );
-              
+
               if (vehicleAssigned) {
                 _showVehicleAssignedDialog(
                   'Vehicle Assigned!',
@@ -596,7 +596,7 @@ class _AuthScreenState extends State<AuthScreen>
                             child: Container(
                               constraints: const BoxConstraints(maxWidth: 500),
                               margin:
-                                  const EdgeInsets.symmetric(horizontal: 20),
+                              const EdgeInsets.symmetric(horizontal: 20),
                               padding: const EdgeInsets.all(40),
                               decoration: BoxDecoration(
                                 color: Colors.white,
@@ -694,7 +694,7 @@ class _AuthScreenState extends State<AuthScreen>
                                         return 'Email is Required';
                                       }
                                       if (!RegExp(
-                                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
                                           .hasMatch(value)) {
                                         return 'Enter a valid Email!';
                                       }
@@ -732,32 +732,32 @@ class _AuthScreenState extends State<AuthScreen>
                                       onPressed: _isLoading ? null : _handleAuth,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
-                                            const Color(0xFF3498DB),
+                                        const Color(0xFF3498DB),
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(8),
+                                          BorderRadius.circular(8),
                                         ),
                                         elevation: 0,
                                       ),
                                       child: _isLoading
                                           ? const SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
-                                                strokeWidth: 2,
-                                              ),
-                                            )
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
                                           : Text(
-                                              isSignIn
-                                                  ? 'Sign-In as ${_getSelectedRoleLabel()}'
-                                                  : 'Sign-Up as ${_getSelectedRoleLabel()}',
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.white,
-                                              ),
-                                            ),
+                                        isSignIn
+                                            ? 'Sign-In as ${_getSelectedRoleLabel()}'
+                                            : 'Sign-Up as ${_getSelectedRoleLabel()}',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   if (isSignIn) ...[
@@ -808,12 +808,12 @@ class _AuthScreenState extends State<AuthScreen>
                 ),
                 boxShadow: isActive
                     ? [
-                        BoxShadow(
-                          color: const Color(0xFF3498DB).withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
+                  BoxShadow(
+                    color: const Color(0xFF3498DB).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
                     : null,
               ),
               child: AnimatedRotation(
@@ -846,7 +846,7 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-    Widget _buildToggleButton(String text, bool isActive, VoidCallback onTap) {
+  Widget _buildToggleButton(String text, bool isActive, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedScale(
@@ -861,12 +861,12 @@ class _AuthScreenState extends State<AuthScreen>
             borderRadius: BorderRadius.circular(8),
             boxShadow: isActive
                 ? [
-                    BoxShadow(
-                      color: const Color(0xFF3498DB).withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
+              BoxShadow(
+                color: const Color(0xFF3498DB).withValues(alpha: 0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ]
                 : null,
           ),
           child: Center(
@@ -888,11 +888,11 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Widget _buildTextField(
-    String label,
-    String hint,
-    TextEditingController controller, {
-    String? Function(String?)? validator,
-  }) {
+      String label,
+      String hint,
+      TextEditingController controller, {
+        String? Function(String?)? validator,
+      }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -934,7 +934,7 @@ class _AuthScreenState extends State<AuthScreen>
               borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ],
@@ -1020,7 +1020,7 @@ class _AuthScreenState extends State<AuthScreen>
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide:
-                        const BorderSide(color: Color(0xFF3498DB), width: 2),
+                    const BorderSide(color: Color(0xFF3498DB), width: 2),
                   ),
                   errorBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1031,7 +1031,7 @@ class _AuthScreenState extends State<AuthScreen>
                     borderSide: const BorderSide(color: Colors.red, width: 2),
                   ),
                   contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
             ),
@@ -1087,8 +1087,8 @@ class _AuthScreenState extends State<AuthScreen>
             return null;
           },
           decoration: InputDecoration(
-            hintText: isSignIn 
-                ? 'Enter a password' 
+            hintText: isSignIn
+                ? 'Enter a password'
                 : 'Mix of letters, numbers & special chars (min 8)',
             hintStyle: const TextStyle(color: Color(0xFFBDC3C7), fontSize: 13),
             filled: true,
@@ -1125,7 +1125,7 @@ class _AuthScreenState extends State<AuthScreen>
               borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
         if (!isSignIn) ...[
@@ -1140,11 +1140,11 @@ class _AuthScreenState extends State<AuthScreen>
   Widget _buildPasswordStrengthIndicator() {
     final password = _passwordController.text;
     final strength = _calculatePasswordStrength(password);
-    
+
     Color strengthColor;
     String strengthText;
     double strengthValue;
-    
+
     switch (strength) {
       case 'strong':
         strengthColor = Colors.green;
@@ -1215,9 +1215,9 @@ class _AuthScreenState extends State<AuthScreen>
   String _calculatePasswordStrength(String password) {
     if (password.isEmpty) return 'none';
     if (password.length < 8) return 'weak';
-    
+
     int strength = 0;
-    
+
     // Check for uppercase
     if (RegExp(r'[A-Z]').hasMatch(password)) strength++;
     // Check for lowercase
@@ -1228,7 +1228,7 @@ class _AuthScreenState extends State<AuthScreen>
     if (RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) strength++;
     // Check length
     if (password.length >= 12) strength++;
-    
+
     if (strength >= 4) return 'strong';
     if (strength >= 2) return 'medium';
     return 'weak';
@@ -1236,7 +1236,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   String _getPasswordRequirements(String password) {
     List<String> missing = [];
-    
+
     if (password.length < 8) {
       missing.add('8+ characters');
     }
@@ -1252,7 +1252,7 @@ class _AuthScreenState extends State<AuthScreen>
     if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) {
       missing.add('special character');
     }
-    
+
     if (missing.isEmpty) return '';
     return 'Missing: ${missing.join(', ')}';
   }

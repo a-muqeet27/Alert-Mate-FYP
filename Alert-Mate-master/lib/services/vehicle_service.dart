@@ -27,6 +27,7 @@ class VehicleService {
     required String ownerId,
     required String ownerEmail,
     required bool willOwnerDrive,
+    required String type,
   }) async {
     try {
       print('🚗 Adding vehicle: $make $model');
@@ -39,6 +40,7 @@ class VehicleService {
         'licensePlate': licensePlate,
         'ownerId': ownerId,
         'ownerEmail': ownerEmail,
+        'type': type,
         'createdAt': FieldValue.serverTimestamp(),
         'status': 'Offline',
         'alertness': 0,
@@ -78,6 +80,7 @@ class VehicleService {
               assignedDriverId: null, // Not assigned
               status: 'Offline',
               alertness: 0,
+              type: type,
             );
           }
           
@@ -98,6 +101,7 @@ class VehicleService {
             assignedDriverId: ownerId,
             status: 'Active',
             alertness: 0,
+            type: type,
           );
         } else {
           print('❌ Owner is NOT registered as driver - needs driver signup');
@@ -116,6 +120,7 @@ class VehicleService {
           ownerId: ownerId,
           status: 'Offline',
           alertness: 0,
+          type: type,
         );
       }
     } catch (e) {

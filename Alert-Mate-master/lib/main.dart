@@ -7,9 +7,26 @@ import 'constants/app_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize Firebase, handling duplicate initialization gracefully
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    // If Firebase is already initialized (duplicate-app error), ignore it
+    // This can happen during hot reload or if Firebase was auto-initialized
+    final errorString = e.toString().toLowerCase();
+    if (errorString.contains('duplicate-app') || 
+        errorString.contains('already exists') ||
+        errorString.contains('[default]')) {
+      // Firebase is already initialized, continue
+      print('Firebase already initialized, continuing...');
+    } else {
+      // Re-throw other errors
+      print('Firebase initialization error: $e');
+      rethrow;
+    }
+  }
   
   runApp(const MyApp());
 }
