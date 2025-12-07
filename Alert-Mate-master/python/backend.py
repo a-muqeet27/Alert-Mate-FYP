@@ -213,6 +213,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 # --- Drowsiness logic: copy of drowsiness_monitor_flutter.py ---
                 current_time = asyncio.get_event_loop().time()
+                
+                # Initialize drowsiness reason at start of each loop
+                drowsiness_reason = "alert"
 
                 # Check EAR condition (eyes closed)
                 if avg_ear < EAR_THRESHOLD:

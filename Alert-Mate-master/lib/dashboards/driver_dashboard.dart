@@ -64,6 +64,10 @@ class _DriverDashboardState extends State<DriverDashboard>
   bool _audioAlertsEnabled = true;
   bool _emergencyContactsEnabled = true;
   String _sensitivityLevel = 'Medium';
+  
+  // Yawning detection tracking
+  int _yawningFrameCount = 0;
+  bool _buzzerPlayed = false;
 
   @override
   void initState() {
@@ -117,12 +121,19 @@ class _DriverDashboardState extends State<DriverDashboard>
 
     // Mobile / desktop platforms
     if (Platform.isAndroid) {
-      // Android emulator: 10.0.2.2 points to host machine
-      // For physical device, replace with your computer's LAN IP (e.g. ws://192.168.1.50:8000/ws/monitor)
-      return 'ws://10.0.2.2:8000/ws/monitor';
+      // Check if running on emulator or physical device
+      // For Android emulator: 10.0.2.2 points to host machine
+      // For physical device: Use your computer's LAN IP address
+      // TODO: Replace with your actual server IP or use environment variable
+      // Example: 'ws://192.168.1.50:8000/ws/monitor'
+      // You can also use a domain name if you deploy the backend to a server
+      const String serverIp = 'const String serverIp = '192.168.18.201';'; // Change this to your server IP for physical devices
+      return 'ws://$serverIp:8000/ws/monitor';
     }
 
     // iOS simulator, desktop, etc.
+    // For iOS physical device: Replace localhost with your server IP
+    // Example: 'ws://192.168.1.50:8000/ws/monitor'
     return 'ws://localhost:8000/ws/monitor';
   }
 
@@ -169,6 +180,29 @@ class _DriverDashboardState extends State<DriverDashboard>
 
             // Update UI with real stats from your models
             if (mounted) {
+              final reason = data['reason'] as String? ?? 'alert';
+              final isYawning = reason == 'yawning';
+              
+              // Track yawning frames
+              if (isYawning) {
+                _yawningFrameCount++;
+                // Play buzzer when 5-7 frames detect yawning (only once per yawning session)
+                if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
+                  SystemSound.play(SystemSoundType.alert);
+                  _buzzerPlayed = true;
+                  print('🔔 Buzzer played - Yawning detected for $_yawningFrameCount frames');
+                }
+                // Reset after 7 frames to allow buzzer to play again if yawning continues
+                if (_yawningFrameCount > 7) {
+                  _yawningFrameCount = 0;
+                  _buzzerPlayed = false;
+                }
+              } else {
+                // Reset counter when not yawning
+                _yawningFrameCount = 0;
+                _buzzerPlayed = false;
+              }
+              
               setState(() {
                 _alertness =
                     (data['alertness'] as num?)?.toDouble() ?? _alertness;
@@ -224,6 +258,9 @@ class _DriverDashboardState extends State<DriverDashboard>
 
     setState(() {
       _isMonitoring = false;
+      // Reset yawning tracking when stopping
+      _yawningFrameCount = 0;
+      _buzzerPlayed = false;
     });
 
     _updateTimer?.cancel();
@@ -307,6 +344,29 @@ class _DriverDashboardState extends State<DriverDashboard>
 
           // Update UI with real stats
           if (mounted) {
+            final reason = data['reason'] as String? ?? 'alert';
+            final isYawning = reason == 'yawning';
+            
+            // Track yawning frames
+            if (isYawning) {
+              _yawningFrameCount++;
+              // Play buzzer when 5-7 frames detect yawning (only once per yawning session)
+              if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
+                SystemSound.play(SystemSoundType.alert);
+                _buzzerPlayed = true;
+                print('🔔 Buzzer played - Yawning detected for $_yawningFrameCount frames');
+              }
+              // Reset after 7 frames to allow buzzer to play again if yawning continues
+              if (_yawningFrameCount > 7) {
+                _yawningFrameCount = 0;
+                _buzzerPlayed = false;
+              }
+            } else {
+              // Reset counter when not yawning
+              _yawningFrameCount = 0;
+              _buzzerPlayed = false;
+            }
+            
             setState(() {
               _alertness = (data['alertness'] as num?)?.toDouble() ?? _alertness;
               _ear = (data['ear'] as num?)?.toDouble() ?? _ear;
@@ -316,7 +376,6 @@ class _DriverDashboardState extends State<DriverDashboard>
 
             // Show drowsiness alert
             if (data['isDrowsy'] == true) {
-              final reason = data['reason'] as String? ?? 'unknown';
               final reasonText = reason == 'eyes_closed' ? 'Eyes Closed' :
               reason == 'yawning' ? 'Yawning Detected' : 'Alert';
 
@@ -731,21 +790,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF3E0),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'Good',
-              style: TextStyle(
-                color: Color(0xFFFFA726),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ),
+          _buildAlertnessStatusBadge(),
           const SizedBox(height: 20),
           Stack(
             children: [
@@ -761,7 +806,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: _getAlertnessColor(),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -769,6 +814,58 @@ class _DriverDashboardState extends State<DriverDashboard>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Color _getAlertnessColor() {
+    if (_alertness >= 80) {
+      return const Color(0xFF4CAF50); // Green
+    } else if (_alertness >= 70) {
+      return const Color(0xFFFFA726); // Orange
+    } else if (_alertness >= 50) {
+      return const Color(0xFFFF9800); // Deep Orange
+    } else {
+      return const Color(0xFFE53935); // Red
+    }
+  }
+
+  Widget _buildAlertnessStatusBadge() {
+    String statusText;
+    Color backgroundColor;
+    Color textColor;
+    
+    if (_alertness >= 80) {
+      statusText = 'Excellent';
+      backgroundColor = const Color(0xFFE8F5E9);
+      textColor = const Color(0xFF4CAF50);
+    } else if (_alertness >= 70) {
+      statusText = 'Good';
+      backgroundColor = const Color(0xFFFFF3E0);
+      textColor = const Color(0xFFFFA726);
+    } else if (_alertness >= 50) {
+      statusText = 'Fair';
+      backgroundColor = const Color(0xFFFFE0B2);
+      textColor = const Color(0xFFFF9800);
+    } else {
+      statusText = 'Low';
+      backgroundColor = const Color(0xFFFFEBEE);
+      textColor = const Color(0xFFE53935);
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        statusText,
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
       ),
     );
   }
