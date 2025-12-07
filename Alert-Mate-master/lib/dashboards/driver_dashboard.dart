@@ -2022,8 +2022,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE2A9F1),
-                foregroundColor: Colors.black,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Save Changes'),
             ),
