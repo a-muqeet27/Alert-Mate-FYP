@@ -2,7 +2,11 @@ import 'package:firebase_database/firebase_database.dart';
 import 'dart:async';
 
 class MonitoringService {
-  final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  // Use the correct database URL for your region
+  final DatabaseReference _database = FirebaseDatabase.instanceFor(
+    app: FirebaseDatabase.instance.app,
+    databaseURL: 'https://alertmate-26d10-default-rtdb.asia-southeast1.firebasedatabase.app',
+  ).ref();
   String? _currentSessionId;
 
   // Start a new monitoring session
