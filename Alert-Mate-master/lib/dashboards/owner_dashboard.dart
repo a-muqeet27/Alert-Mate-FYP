@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
@@ -27,9 +28,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   int _selectedIndex = 0;
   bool _isLoading = false;
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = ''; // Separate state for search to ensure rebuilds
   String _statusFilter = 'All Status';
   String _typeFilter = 'All Types';
   bool _showClearButton = false;
+  Timer? _debounceTimer; // Debounce timer for search
 
 
   // Animation controllers
@@ -41,13 +44,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     super.initState();
     _emergencyContactService = EmergencyContactService();
     _isLoading = false;
-
-    // Add listener for search controller
-    _searchController.addListener(() {
-      setState(() {
-        _showClearButton = _searchController.text.isNotEmpty;
-      });
-    });
 
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -64,10 +60,59 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
+  }
+
+  // Debounced search update
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted && _searchQuery != value) {
+        setState(() {
+          _searchQuery = value;
+          _showClearButton = value.isNotEmpty;
+        });
+      }
+    });
+  }
+
+  // Check if driver has had a session in the last 3 days
+  Future<bool> _hasRecentSession(String driverId) async {
+    try {
+      final sessions = await _monitoringService.getDriverSessions(driverId);
+      if (sessions.isEmpty) return false;
+
+      final threeDaysAgo = DateTime.now().subtract(const Duration(days: 3)).millisecondsSinceEpoch;
+      
+      // Check if any session started in the last 3 days
+      for (final session in sessions) {
+        final startTime = session['startTime'] as int?;
+        if (startTime != null && startTime >= threeDaysAgo) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('Error checking recent session for driver $driverId: $e');
+      return false;
+    }
+  }
+
+  // Count unique drivers who have had sessions in the last 3 days
+  Future<int> _countActiveDrivers(List<String> driverIds) async {
+    if (driverIds.isEmpty) return 0;
+
+    int activeCount = 0;
+    for (final driverId in driverIds) {
+      if (await _hasRecentSession(driverId)) {
+        activeCount++;
+      }
+    }
+    return activeCount;
   }
 
   Future<void> _showAddVehicleDialog() async {
@@ -213,6 +258,60 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 onPressed: () async {
                   if (formKey.currentState!.validate()) {
                     formKey.currentState!.save();
+
+                    // Check if owner already has an assigned vehicle when they want to drive
+                    if (willDrive) {
+                      final existingVehicles = await _vehicleService.getVehiclesForOwner(widget.user.id);
+                      final alreadyDrivingVehicle = existingVehicles.any(
+                        (v) => v.assignedDriverId == widget.user.id
+                      );
+                      
+                      if (alreadyDrivingVehicle) {
+                        // Show warning that owner can't drive more than one vehicle
+                        final existingVehicle = existingVehicles.firstWhere(
+                          (v) => v.assignedDriverId == widget.user.id
+                        );
+                        
+                        final proceed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                                SizedBox(width: 12),
+                                Expanded(child: Text('Already Driving a Vehicle')),
+                              ],
+                            ),
+                            content: Text(
+                              'You are already assigned as the driver for:\n\n'
+                              '${existingVehicle.make} ${existingVehicle.model} (${existingVehicle.licensePlate})\n\n'
+                              'A driver can only be assigned to one vehicle at a time.\n\n'
+                              'Would you like to add this vehicle without assigning yourself as the driver? '
+                              'It will be available for other drivers.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Add Without Driving'),
+                              ),
+                            ],
+                          ),
+                        );
+                        
+                        if (proceed != true) return;
+                        
+                        // User chose to add without driving
+                        willDrive = false;
+                      }
+                    }
 
                     // Show confirmation dialog
                     final confirm = await showDialog<bool>(
@@ -578,7 +677,36 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     final isMobile = MediaQuery.of(context).size.width < 768;
                     final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
 
-                    return _buildStaggeredItem(
+                    // Calculate dynamic safety score based on vehicle data
+                    final criticalCount = vehicles.where((v) => v.status.toLowerCase() == 'critical').length;
+                    final vehiclesWithAlertness = vehicles.where((v) => v.alertness > 0).toList();
+                    double safetyScore = 10.0;
+                    if (vehicles.isNotEmpty) {
+                      // Calculate average alertness (0-100 scale, convert to 0-10)
+                      if (vehiclesWithAlertness.isNotEmpty) {
+                        final avgAlertness = vehiclesWithAlertness.fold<int>(0, (sum, v) => sum + v.alertness) / vehiclesWithAlertness.length;
+                        safetyScore = (avgAlertness / 10).clamp(0.0, 10.0);
+                      }
+                      // Reduce score for critical alerts
+                      safetyScore = (safetyScore - (criticalCount * 1.5)).clamp(0.0, 10.0);
+                    }
+                    final safetyScoreText = '${safetyScore.toStringAsFixed(1)}/10';
+                    final safetyColor = safetyScore >= 7.0 ? AppColors.success : (safetyScore >= 5.0 ? Colors.orange : AppColors.danger);
+
+                    // Get unique driver IDs from vehicles
+                    final driverIds = vehicles
+                        .where((v) => v.assignedDriverId != null && v.assignedDriverId!.isNotEmpty)
+                        .map((v) => v.assignedDriverId!)
+                        .toSet()
+                        .toList();
+
+                    // Check which drivers have had sessions in the last 3 days
+                    return FutureBuilder<int>(
+                      future: _countActiveDrivers(driverIds),
+                      builder: (context, activeCountSnapshot) {
+                        final activeDriverCount = activeCountSnapshot.data ?? 0;
+
+                        return _buildStaggeredItem(
                       isMobile
                           ? Column(
                         children: [
@@ -598,8 +726,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               Expanded(
                                 child: _buildStatCard(
                                   'Active Drivers',
-                                  vehicles.where((v) => v.status == 'Active').length.toString(),
-                                  'Currently driving',
+                                  activeDriverCount.toString(),
+                                  activeDriverCount == 1 ? 'Currently driving' : 'Currently driving',
                                   Icons.people_outline,
                                   AppColors.success,
                                   isMobile,
@@ -613,7 +741,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               Expanded(
                                 child: _buildStatCard(
                                   'Critical Alerts',
-                                  vehicles.where((v) => v.status == 'Critical').length.toString(),
+                                  criticalCount.toString(),
                                   'Requires attention',
                                   Icons.warning_amber_rounded,
                                   AppColors.danger,
@@ -624,10 +752,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               Expanded(
                                 child: _buildStatCard(
                                   'Safety Score',
-                                  '8.4/10',
-                                  'Overall performance',
+                                  safetyScoreText,
+                                  'Based on alertness',
                                   Icons.shield_outlined,
-                                  AppColors.success,
+                                  safetyColor,
                                   isMobile,
                                 ),
                               ),
@@ -651,8 +779,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               const SizedBox(width: 16),
                               Expanded(child: _buildStatCard(
                                 'Active Drivers',
-                                vehicles.where((v) => v.status == 'Active').length.toString(),
-                                'Currently driving',
+                                activeDriverCount.toString(),
+                                activeDriverCount == 1 ? 'Currently driving' : 'Currently driving',
                                 Icons.people_outline,
                                 AppColors.success,
                                 isMobile,
@@ -664,7 +792,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             children: [
                               Expanded(child: _buildStatCard(
                                 'Critical Alerts',
-                                vehicles.where((v) => v.status == 'Critical').length.toString(),
+                                criticalCount.toString(),
                                 'Requires attention',
                                 Icons.warning_amber_rounded,
                                 AppColors.danger,
@@ -673,10 +801,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               const SizedBox(width: 16),
                               Expanded(child: _buildStatCard(
                                 'Safety Score',
-                                '8.4/10',
-                                'Overall performance',
+                                safetyScoreText,
+                                'Based on alertness',
                                 Icons.shield_outlined,
-                                AppColors.success,
+                                safetyColor,
                                 isMobile,
                               )),
                             ],
@@ -698,8 +826,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               const SizedBox(width: 20),
                               Expanded(child: _buildStatCard(
                                 'Active Drivers',
-                                vehicles.where((v) => v.status == 'Active').length.toString(),
-                                'Currently driving',
+                                activeDriverCount.toString(),
+                                activeDriverCount == 1 ? 'Currently driving' : 'Currently driving',
                                 Icons.people_outline,
                                 AppColors.success,
                                 isMobile,
@@ -711,7 +839,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             children: [
                               Expanded(child: _buildStatCard(
                                 'Critical Alerts',
-                                vehicles.where((v) => v.status == 'Critical').length.toString(),
+                                criticalCount.toString(),
                                 'Requires attention',
                                 Icons.warning_amber_rounded,
                                 AppColors.danger,
@@ -720,10 +848,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               const SizedBox(width: 20),
                               Expanded(child: _buildStatCard(
                                 'Safety Score',
-                                '8.4/10',
-                                'Overall performance',
+                                safetyScoreText,
+                                'Based on alertness',
                                 Icons.shield_outlined,
-                                AppColors.success,
+                                safetyColor,
                                 isMobile,
                               )),
                             ],
@@ -731,6 +859,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                         ],
                       ),
                       1,
+                        );
+                      },
                     );
                   },
                 ),
@@ -853,13 +983,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         final vehicles = snapshot.data ?? [];
 
         // --- FILTERING ---
+        final searchLower = _searchQuery.toLowerCase();
         List<Vehicle> filteredVehicles = vehicles.where((vehicle) {
-          bool matchesSearch = _searchController.text.isEmpty ||
-              vehicle.licensePlate.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-              (vehicle.driverName?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false) ||
-              vehicle.status.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-              (vehicle.location?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false) ||
-              '${vehicle.make} ${vehicle.model}'.toLowerCase().contains(_searchController.text.toLowerCase());
+          bool matchesSearch = _searchQuery.isEmpty ||
+              vehicle.licensePlate.toLowerCase().contains(searchLower) ||
+              (vehicle.driverName?.toLowerCase().contains(searchLower) ?? false) ||
+              vehicle.status.toLowerCase().contains(searchLower) ||
+              (vehicle.location?.toLowerCase().contains(searchLower) ?? false) ||
+              '${vehicle.make} ${vehicle.model}'.toLowerCase().contains(searchLower);
 
           bool matchesStatusFilter = _statusFilter == 'All Status' || vehicle.status == _statusFilter;
           bool matchesTypeFilter = _typeFilter == 'All Types' || vehicle.type == _typeFilter;
@@ -977,20 +1108,20 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       child: TextField(
                         key: const Key('fleet_search_field'),
                         controller: _searchController,
-                        onChanged: (value) {
-                          setState(() {
-                            // Trigger rebuild to update filtered vehicles
-                          });
-                        },
+                        onChanged: _onSearchChanged,
                         decoration: InputDecoration(
                           hintText: 'Search vehicles...',
                           prefixIcon: const Icon(Icons.search, size: 20),
-                          suffixIcon: _showClearButton
+                          suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
                             icon: const Icon(Icons.clear, size: 20),
                             onPressed: () {
+                              _debounceTimer?.cancel();
                               _searchController.clear();
-                              setState(() {});
+                              setState(() {
+                                _searchQuery = '';
+                                _showClearButton = false;
+                              });
                             },
                           )
                               : null,
@@ -1079,20 +1210,20 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     controller: _searchController,
                     enabled: true,
                     autofocus: false,
-                    onChanged: (value) {
-                      setState(() {
-                        // Trigger rebuild to update filtered vehicles
-                      });
-                    },
+                    onChanged: _onSearchChanged,
                     decoration: InputDecoration(
                       hintText: 'Search vehicles...',
                       prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: _showClearButton
+                      suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
                         icon: const Icon(Icons.clear, size: 20),
                         onPressed: () {
+                          _debounceTimer?.cancel();
                           _searchController.clear();
-                          setState(() {});
+                          setState(() {
+                            _searchQuery = '';
+                            _showClearButton = false;
+                          });
                         },
                       )
                           : null,
@@ -1131,8 +1262,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                         SizedBox(width: isMobile ? 6 : 8),
                         TextButton.icon(
                           onPressed: () {
+                            _debounceTimer?.cancel();
+                            _searchController.clear();
                             setState(() {
-                              _searchController.clear();
+                              _searchQuery = '';
+                              _showClearButton = false;
                               _statusFilter = 'All Status';
                               _typeFilter = 'All Types';
                             });
@@ -1180,8 +1314,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           SizedBox(height: isMobile ? 6 : 8),
                           TextButton(
                             onPressed: () {
+                              _debounceTimer?.cancel();
+                              _searchController.clear();
                               setState(() {
-                                _searchController.clear();
+                                _searchQuery = '';
+                                _showClearButton = false;
                                 _statusFilter = 'All Status';
                               });
                             },
