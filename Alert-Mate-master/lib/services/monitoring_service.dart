@@ -253,4 +253,27 @@ class MonitoringService {
       rethrow;
     }
   }
+
+  // Check if a driver has an active monitoring session (one-time read)
+  Future<bool> hasActiveSession(String driverId) async {
+    try {
+      final snapshot = await _database
+          .child('drivers')
+          .child(driverId)
+          .child('current_stats')
+          .get()
+          .timeout(const Duration(seconds: 5));
+
+      if (!snapshot.exists || snapshot.value == null) {
+        return false;
+      }
+
+      final stats = snapshot.value as Map<dynamic, dynamic>?;
+      // If current_stats exists and has data, there's an active session
+      return stats != null && stats.isNotEmpty;
+    } catch (e) {
+      print('Error checking active session for driver $driverId: $e');
+      return false;
+    }
+  }
 }

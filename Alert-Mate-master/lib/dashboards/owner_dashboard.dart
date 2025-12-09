@@ -1,6 +1,5 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
@@ -27,12 +26,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   int _selectedIndex = 0;
   bool _isLoading = false;
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = ''; // Separate state for search to ensure rebuilds
   String _statusFilter = 'All Status';
   String _typeFilter = 'All Types';
-  bool _showClearButton = false;
-  Timer? _debounceTimer; // Debounce timer for search
 
 
   // Animation controllers
@@ -60,24 +55,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
-    _searchController.dispose();
     _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
-  }
-
-  // Debounced search update
-  void _onSearchChanged(String value) {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted && _searchQuery != value) {
-        setState(() {
-          _searchQuery = value;
-          _showClearButton = value.isNotEmpty;
-        });
-      }
-    });
   }
 
   // Check if driver has had a session in the last 3 days
@@ -100,6 +80,30 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       print('Error checking recent session for driver $driverId: $e');
       return false;
     }
+  }
+
+  // Build a map of driverId -> hasActiveSession for all vehicles
+  Future<Map<String, bool>> _buildActiveSessionMap(List<Vehicle> vehicles) async {
+    final Map<String, bool> activeSessionMap = {};
+    
+    // Get unique driver IDs
+    final driverIds = vehicles
+        .where((v) => v.assignedDriverId != null && v.assignedDriverId!.isNotEmpty)
+        .map((v) => v.assignedDriverId!)
+        .toSet()
+        .toList();
+    
+    // Check active session for each driver
+    for (final driverId in driverIds) {
+      try {
+        activeSessionMap[driverId] = await _monitoringService.hasActiveSession(driverId);
+      } catch (e) {
+        print('Error checking active session for driver $driverId: $e');
+        activeSessionMap[driverId] = false;
+      }
+    }
+    
+    return activeSessionMap;
   }
 
   // Count unique drivers who have had sessions in the last 3 days
@@ -982,24 +986,67 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
         final vehicles = snapshot.data ?? [];
 
-        // --- FILTERING ---
-        final searchLower = _searchQuery.toLowerCase();
-        List<Vehicle> filteredVehicles = vehicles.where((vehicle) {
-          bool matchesSearch = _searchQuery.isEmpty ||
-              vehicle.licensePlate.toLowerCase().contains(searchLower) ||
-              (vehicle.driverName?.toLowerCase().contains(searchLower) ?? false) ||
-              vehicle.status.toLowerCase().contains(searchLower) ||
-              (vehicle.location?.toLowerCase().contains(searchLower) ?? false) ||
-              '${vehicle.make} ${vehicle.model}'.toLowerCase().contains(searchLower);
+        // Build map of driverId -> hasActiveSession for filtering
+        return FutureBuilder<Map<String, bool>>(
+          future: _buildActiveSessionMap(vehicles),
+          builder: (context, sessionSnapshot) {
+            if (sessionSnapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                padding: EdgeInsets.all(isMobile ? 16 : 28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Center(child: CircularProgressIndicator()),
+              );
+            }
 
-          bool matchesStatusFilter = _statusFilter == 'All Status' || vehicle.status == _statusFilter;
-          bool matchesTypeFilter = _typeFilter == 'All Types' || vehicle.type == _typeFilter;
+            final activeSessionMap = sessionSnapshot.data ?? {};
 
-          return matchesSearch && matchesStatusFilter && matchesTypeFilter;
-        }).toList();
+            // --- FILTERING ---
+            final statusFilterActive = _statusFilter != 'All Status';
+            final typeFilterActive = _typeFilter != 'All Types';
+            
+            List<Vehicle> filteredVehicles = vehicles.where((vehicle) {
+              // Only check filters if they're active
+              bool matchesStatusFilter = true;
+              if (statusFilterActive) {
+                final filterStatusLower = _statusFilter.toLowerCase();
+                
+                // Determine real-time status: Active if has active session, Inactive otherwise
+                // A vehicle is Active if it has an assigned driver AND that driver has an active monitoring session
+                final hasActiveSession = vehicle.assignedDriverId != null && 
+                                       vehicle.assignedDriverId!.isNotEmpty &&
+                                       (activeSessionMap[vehicle.assignedDriverId] == true);
+                // A vehicle is Inactive if it has no assigned driver OR the driver has no active session
+                final isInactive = !hasActiveSession;
+                
+                // Filter based on real-time session status
+                if (filterStatusLower == 'active') {
+                  matchesStatusFilter = hasActiveSession;
+                } else if (filterStatusLower == 'inactive') {
+                  matchesStatusFilter = isInactive;
+                } else {
+                  // For other statuses (Break, Critical, Offline), check stored status
+                  final vehicleStatusLower = vehicle.status.toLowerCase();
+                  matchesStatusFilter = vehicleStatusLower == filterStatusLower;
+                }
+              }
+              
+              bool matchesTypeFilter = !typeFilterActive || vehicle.type == _typeFilter;
 
-        return Container(
-          padding: EdgeInsets.all(isMobile ? 16 : 28),
+              return matchesStatusFilter && matchesTypeFilter;
+            }).toList();
+
+            return Container(
+              padding: EdgeInsets.all(isMobile ? 16 : 28),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -1046,104 +1093,80 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               ),
               SizedBox(height: isMobile ? 16 : 20),
               if (!isMobile)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                              child: DropdownButton<String>(
-                                value: _statusFilter,
-                                underline: const SizedBox(),
-                                icon: const Icon(Icons.arrow_drop_down),
-                                items: const [
-                                  DropdownMenuItem(value: 'All Status', child: Text('All Status')),
-                                  DropdownMenuItem(value: 'Active', child: Text('Active')),
-                                  DropdownMenuItem(value: 'Break', child: Text('Break')),
-                                  DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-                                ],
-                                onChanged: (value) {
-                                  setState(() {
-                                    _statusFilter = value!;
-                                  });
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<String>(
-                                value: _typeFilter,
-                                underline: const SizedBox(),
-                                icon: const Icon(Icons.arrow_drop_down),
-                                items: const [
-                                  DropdownMenuItem(value: 'All Types', child: Text('All Types')),
-                                  DropdownMenuItem(value: 'Car', child: Text('Car')),
-                                  DropdownMenuItem(value: 'Bus', child: Text('Bus')),
-                                  DropdownMenuItem(value: 'Van', child: Text('Van')),
-                                  DropdownMenuItem(value: 'Truck', child: Text('Truck')),
-                                  DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
-                                ],
-                                onChanged: (value) {
-                                  setState(() {
-                                    _typeFilter = value!;
-                                  });
-                                },
-                              ),
-                            ),
-                        ],
+                    Text(
+                      'Filter by:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
                       ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: 250,
-                      child: TextField(
-                        key: const Key('fleet_search_field'),
-                        controller: _searchController,
-                        onChanged: _onSearchChanged,
-                        decoration: InputDecoration(
-                          hintText: 'Search vehicles...',
-                          prefixIcon: const Icon(Icons.search, size: 20),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                            icon: const Icon(Icons.clear, size: 20),
-                            onPressed: () {
-                              _debounceTimer?.cancel();
-                              _searchController.clear();
-                              setState(() {
-                                _searchQuery = '';
-                                _showClearButton = false;
-                              });
-                            },
-                          )
-                              : null,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                        ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButton<String>(
+                        value: _statusFilter,
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.arrow_drop_down),
+                        items: const [
+                          DropdownMenuItem(value: 'All Status', child: Text('All Status')),
+                          DropdownMenuItem(value: 'Active', child: Text('Active')),
+                          DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
+                          DropdownMenuItem(value: 'Break', child: Text('Break')),
+                          DropdownMenuItem(value: 'Critical', child: Text('Critical')),
+                          DropdownMenuItem(value: 'Offline', child: Text('Offline')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _statusFilter = value!;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButton<String>(
+                        value: _typeFilter,
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.arrow_drop_down),
+                        items: const [
+                          DropdownMenuItem(value: 'All Types', child: Text('All Types')),
+                          DropdownMenuItem(value: 'Car', child: Text('Car')),
+                          DropdownMenuItem(value: 'Bus', child: Text('Bus')),
+                          DropdownMenuItem(value: 'Van', child: Text('Van')),
+                          DropdownMenuItem(value: 'Truck', child: Text('Truck')),
+                          DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _typeFilter = value!;
+                          });
+                        },
                       ),
                     ),
                   ],
                 ),
               if (isMobile) ...[
+                Text(
+                  'Filter by:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -1161,8 +1184,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           items: const [
                             DropdownMenuItem(value: 'All Status', child: Text('All Status')),
                             DropdownMenuItem(value: 'Active', child: Text('Active')),
+                            DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
                             DropdownMenuItem(value: 'Break', child: Text('Break')),
                             DropdownMenuItem(value: 'Critical', child: Text('Critical')),
+                            DropdownMenuItem(value: 'Offline', child: Text('Offline')),
                           ],
                           onChanged: (value) {
                             setState(() {
@@ -1203,49 +1228,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextField(
-                    controller: _searchController,
-                    enabled: true,
-                    autofocus: false,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: 'Search vehicles...',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                        icon: const Icon(Icons.clear, size: 20),
-                        onPressed: () {
-                          _debounceTimer?.cancel();
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                            _showClearButton = false;
-                          });
-                        },
-                      )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    ),
-                  ),
-                ),
               ],
               SizedBox(height: isMobile ? 16 : 16),
-              if (_searchController.text.isNotEmpty || _statusFilter != 'All Status' || _typeFilter != 'All Types')
+              if (_statusFilter != 'All Status' || _typeFilter != 'All Types')
                 Padding(
                   padding: EdgeInsets.only(bottom: isMobile ? 8 : 12),
                   child: Row(
@@ -1258,15 +1243,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      if (_searchController.text.isNotEmpty || _statusFilter != 'All Status' || _typeFilter != 'All Types') ...[
+                      if (_statusFilter != 'All Status' || _typeFilter != 'All Types') ...[
                         SizedBox(width: isMobile ? 6 : 8),
                         TextButton.icon(
                           onPressed: () {
-                            _debounceTimer?.cancel();
-                            _searchController.clear();
                             setState(() {
-                              _searchQuery = '';
-                              _showClearButton = false;
                               _statusFilter = 'All Status';
                               _typeFilter = 'All Types';
                             });
@@ -1293,16 +1274,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     child: Column(
                       children: [
                         Icon(
-                          _searchController.text.isNotEmpty || _statusFilter != 'All Status'
-                              ? Icons.search_off
+                          _statusFilter != 'All Status' || _typeFilter != 'All Types'
+                              ? Icons.filter_alt_off
                               : Icons.directions_car_outlined,
                           size: isMobile ? 40 : 48,
                           color: Colors.grey[400],
                         ),
                         SizedBox(height: isMobile ? 12 : 16),
                         Text(
-                          _searchController.text.isNotEmpty || _statusFilter != 'All Status'
-                              ? 'No vehicles match your search'
+                          _statusFilter != 'All Status' || _typeFilter != 'All Types'
+                              ? 'No vehicles match your filters'
                               : 'No vehicles found',
                           style: TextStyle(
                             fontSize: isMobile ? 14 : 16,
@@ -1310,16 +1291,13 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        if (_searchController.text.isNotEmpty || _statusFilter != 'All Status') ...[
+                        if (_statusFilter != 'All Status' || _typeFilter != 'All Types') ...[
                           SizedBox(height: isMobile ? 6 : 8),
                           TextButton(
                             onPressed: () {
-                              _debounceTimer?.cancel();
-                              _searchController.clear();
                               setState(() {
-                                _searchQuery = '';
-                                _showClearButton = false;
                                 _statusFilter = 'All Status';
+                                _typeFilter = 'All Types';
                               });
                             },
                             child: Text('Clear filters', style: TextStyle(fontSize: isMobile ? 13 : 14)),
@@ -1376,6 +1354,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 ),
             ],
           ),
+        );
+          },
         );
       },
     );
