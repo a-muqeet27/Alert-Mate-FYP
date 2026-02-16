@@ -35,10 +35,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
 
   // Real-time data
   double _driverAlertness = 82.9;
-  double _currentSpeed = 72.7;
-  int _tripProgress = 48;
-  int _heartRate = 72;
-  double _driveTime = 2.25; // in hours
 
   Timer? _updateTimer;
 
@@ -80,9 +76,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     _updateTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       setState(() {
         _driverAlertness = 75 + _random.nextDouble() * 20;
-        _currentSpeed = 65 + _random.nextDouble() * 15;
-        _heartRate = 68 + _random.nextInt(8);
-        _driveTime += 0.01;
       });
     });
   }
@@ -257,20 +250,12 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                           children: [
                             _buildDriverAlertnessCard(),
                             const SizedBox(height: 16),
-                            _buildCurrentSpeedCard(),
-                            const SizedBox(height: 16),
-                            _buildTripProgressCard(),
-                            const SizedBox(height: 16),
                             _buildSafetyStatusCard(),
                           ],
                         )
                       : Row(
                           children: [
                             Expanded(child: _buildDriverAlertnessCard()),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildCurrentSpeedCard()),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildTripProgressCard()),
                             const SizedBox(width: 20),
                             Expanded(child: _buildSafetyStatusCard()),
                           ],
@@ -289,19 +274,14 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                               const SizedBox(height: 20),
                               _buildTripInformation(),
                             ] else if (_selectedTab == 1) ...[
-                              // Placeholder for Location Tab content if it was split
                               _buildLocationTab(),
-                            ] else ...[
-                              // Placeholder for Safety Tools Tab content
-                              _buildSafetyToolsTab(),
                             ],
                           ],
                         )
                       : Builder(
                           builder: (context) {
                             if (_selectedTab == 0) return _buildLiveStatusTab();
-                            if (_selectedTab == 1) return _buildLocationTab();
-                            return _buildSafetyToolsTab();
+                            return _buildLocationTab();
                           },
                         ),
                   5,
@@ -436,116 +416,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     );
   }
 
-  Widget _buildCurrentSpeedCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Current Speed',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-              Icon(Icons.speed, color: Colors.grey[400], size: 20),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _currentSpeed.toStringAsFixed(13),
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'mph',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Highway 101 North',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildTripProgressCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Trip Progress',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-              Icon(Icons.navigation, color: Colors.grey[400], size: 20),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            '$_tripProgress%',
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: _tripProgress / 100,
-              minHeight: 8,
-              backgroundColor: const Color(0xFFE0E0E0),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.passengerPrimary),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'ETA: 3:45 PM',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSafetyStatusCard() {
     return Container(
@@ -614,8 +485,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           _buildTab('Live Status', 0),
           const SizedBox(width: 8),
           _buildTab('Location', 1),
-          const SizedBox(width: 8),
-          _buildTab('Safety Tools', 2),
         ],
       ),
     );
@@ -744,80 +613,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           _buildTripInfoRow('Distance Remaining', '245 miles'),
           const SizedBox(height: 20),
           _buildTripInfoRow('Estimated Arrival', '3:45 PM'),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Driver Break Due',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
-              ),
-              const Text(
-                'In 45 minutes',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFFFA726),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-          const Text(
-            'Driver Health Indicators',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Real-time biometric and behavioral monitoring',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(child: _buildHealthIndicator(
-                icon: Icons.visibility,
-                value: 'Normal',
-                label: 'Eye Movement',
-                color: const Color(0xFF2196F3),
-              )),
-              const SizedBox(width: 16),
-              Expanded(child: _buildHealthIndicator(
-                icon: Icons.favorite,
-                value: '$_heartRate BPM',
-                label: 'Heart Rate',
-                color: const Color(0xFFE91E63),
-              )),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _buildHealthIndicator(
-                icon: Icons.show_chart,
-                value: 'Stable',
-                label: 'Head Position',
-                color: const Color(0xFF4CAF50),
-              )),
-              const SizedBox(width: 16),
-              Expanded(child: _buildHealthIndicator(
-                icon: Icons.access_time,
-                value: '${_driveTime.toStringAsFixed(0)}h ${((_driveTime % 1) * 60).toInt()}m',
-                label: 'Drive Time',
-                color: const Color(0xFF9C27B0),
-              )),
-            ],
-          ),
         ],
       ),
     );
@@ -843,43 +638,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildHealthIndicator({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -914,456 +672,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSafetyToolsTab() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _buildEmergencyActionsCard()),
-        const SizedBox(width: 20),
-        Expanded(child: _buildSafetyChecklistCard()),
-      ],
-    );
-  }
-
-  Widget _buildEmergencyActionsCard() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Emergency Actions',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Immediate safety controls',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Call 911 Button
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                _showCall911Dialog();
-              },
-              icon: const Icon(Icons.phone, size: 22),
-              label: const Text(
-                'Call 911',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Alert Driver Button
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                _showAlertDriverDialog();
-              },
-              icon: const Icon(Icons.warning_amber, size: 22),
-              label: const Text(
-                'Alert Driver (Sound)',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFFFA726),
-                side: const BorderSide(color: Color(0xFFFFA726), width: 2),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Contact Emergency Contacts Button
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                _showEmergencyContactsDialog();
-              },
-              icon: const Icon(Icons.contact_phone, size: 22),
-              label: const Text(
-                'Contact Emergency Contacts',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.black87,
-                side: BorderSide(color: Colors.grey[300]!, width: 2),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Share Location Button
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                _showShareLocationDialog();
-              },
-              icon: const Icon(Icons.location_on, size: 22),
-              label: const Text(
-                'Share Location with Family',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.black87,
-                side: BorderSide(color: Colors.grey[300]!, width: 2),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-
-          // Emergency Contact Information
-          const Text(
-            'Emergency Contact Information',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Quick access to important contacts',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Primary Emergency Contact
-          _buildContactCard(
-            title: 'Primary Emergency Contact',
-            name: 'Sarah Johnson (Spouse)',
-            phone: '+1 (555) 123-4567',
-          ),
-          const SizedBox(height: 16),
-
-          // Fleet Manager Contact
-          _buildContactCard(
-            title: 'Fleet Manager',
-            name: 'Mike Chen',
-            phone: '+1 (555) 987-6543',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContactCard({
-    required String title,
-    required String name,
-    required String phone,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            name,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            phone,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Calling $name...')),
-                );
-              },
-              icon: const Icon(Icons.phone, size: 18),
-              label: const Text('Call'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5E6AD2),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSafetyChecklistCard() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Safety Checklist',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Pre-trip and ongoing safety measures',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 32),
-
-          _buildChecklistItem(
-            'Driver alertness monitoring active',
-            true,
-          ),
-          const SizedBox(height: 20),
-
-          _buildChecklistItem(
-            'Emergency contacts configured',
-            true,
-          ),
-          const SizedBox(height: 20),
-
-          _buildChecklistItem(
-            'GPS tracking enabled',
-            true,
-          ),
-          const SizedBox(height: 20),
-
-          _buildChecklistItem(
-            'Driver break recommended in 45 min',
-            false,
-            isWarning: true,
-          ),
-          const SizedBox(height: 20),
-
-          _buildChecklistItem(
-            'Vehicle systems normal',
-            true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChecklistItem(String text, bool isActive, {bool isWarning = false}) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: isWarning
-                ? const Color(0xFFFFA726)
-                : (isActive ? const Color(0xFF4CAF50) : Colors.grey[400]),
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 15,
-              color: isWarning ? const Color(0xFFFFA726) : Colors.black87,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-// Dialog methods
-  void _showCall911Dialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Call 911'),
-        content: const Text('This will immediately call emergency services.\n\nAre you sure?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Calling 911...'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Call 911'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAlertDriverDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Alert Driver'),
-        content: const Text('This will play a loud alert sound to wake the driver.\n\nProceed?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Alert sound playing...'),
-                  backgroundColor: Color(0xFFFFA726),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFA726)),
-            child: const Text('Alert Driver'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEmergencyContactsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Contact Emergency Contacts'),
-        content: const Text('This will send an alert message to all emergency contacts.\n\nContinue?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Emergency contacts notified')),
-              );
-            },
-            child: const Text('Send Alert'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showShareLocationDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Share Location'),
-        content: const Text('Share your current location with family members?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Location shared with family')),
-              );
-            },
-            child: const Text('Share'),
-          ),
-        ],
       ),
     );
   }
