@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
 import '../models/emergency_contact.dart';
@@ -534,7 +534,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 8),
                   Text(
-                    'Last system test: Just now • ${contacts.length} active contacts',
+                    'Last system test: Just now â€¢ ${contacts.length} active contacts',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey[600],
@@ -2168,7 +2168,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   'type': 'vehicle_added',
                   'icon': Icons.directions_car_outlined,
                   'title': '$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'New Vehicle',
-                  'subtitle': 'Vehicle added ${plate.isNotEmpty ? "• $plate" : ""}',
+                  'subtitle': 'Vehicle added ${plate.isNotEmpty ? "â€¢ $plate" : ""}',
                   'time': createdAt,
                   'color': const Color(0xFFFF9800),
                 });
@@ -2236,7 +2236,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                         child: _buildActivityItem(
                           activity['icon'] as IconData,
                           activity['title'] as String,
-                          '${activity['subtitle']} • $timeText',
+                          '${activity['subtitle']} â€¢ $timeText',
                           activity['color'] as Color,
                         ),
                       );
@@ -3579,6 +3579,4 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       ),
     );
   }
-
-  // Removed: _buildFleetOverview, _buildGlobalFleetStatus, _buildLiveFleetMap,
 }
