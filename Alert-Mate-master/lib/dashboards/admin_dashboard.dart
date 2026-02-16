@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
 import '../models/emergency_contact.dart';
-import '../auth_screen.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../services/emergency_contact_service.dart';
@@ -19,9 +18,11 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStateMixin {
   int _selectedIndex = 0; // 0: Dashboard, 1: Emergency
-  int _selectedTab = 0;
   String _selectedRoleFilter = 'All Roles';
-  final Random _random = Random();
+  String _userTypeFilter = 'All Users';
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TextEditingController _userSearchController = TextEditingController();
+  String _userSearchQuery = '';
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -48,6 +49,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
+    _userSearchController.dispose();
     super.dispose();
   }
 
@@ -208,29 +210,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 ],
                 const SizedBox(height: 32),
                 _buildStaggeredItem(
-                  isMobile
-                      ? Column(
-                          children: [
-                            _buildStatCard('Total Users', '2,543', 'Registered users', Icons.people, Colors.black87, AppColors.primary, isMobile),
-                            SizedBox(height: isMobile ? 12 : 16),
-                            _buildStatCard('Active Sessions', '1,205', 'Currently online', Icons.devices, Colors.black87, AppColors.success, isMobile),
-                            SizedBox(height: isMobile ? 12 : 16),
-                            _buildStatCard('Alerts Today', '45', 'Require attention', Icons.warning_amber, Colors.black87, AppColors.warning, isMobile),
-                            SizedBox(height: isMobile ? 12 : 16),
-                            _buildStatCard('System Health', '98%', 'All systems operational', Icons.health_and_safety, Colors.black87, AppColors.success, isMobile),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(child: _buildStatCard('Total Users', '2,543', 'Registered users', Icons.people, Colors.black87, AppColors.primary, isMobile)),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildStatCard('Active Sessions', '1,205', 'Currently online', Icons.devices, Colors.black87, AppColors.success, isMobile)),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildStatCard('Alerts Today', '45', 'Require attention', Icons.warning_amber, Colors.black87, AppColors.warning, isMobile)),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildStatCard('System Health', '98%', 'All systems operational', Icons.health_and_safety, Colors.black87, AppColors.success, isMobile)),
-                          ],
-                        ),
+                  _buildDynamicStats(isMobile),
                   2,
                 ),
                 const SizedBox(height: 32),
@@ -1034,132 +1014,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
 
 
 
-  Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'System Administration',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Manage users, system settings, and monitor platform health',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exporting data...')));
-                  },
-                  icon: const Icon(Icons.download, size: 18),
-                  label: const Text('Export Data'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                side: BorderSide(color: Colors.grey[300]!),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Import dialog')));
-                  },
-                  icon: const Icon(Icons.upload, size: 18),
-                  label: const Text('Import'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                side: BorderSide(color: Colors.grey[300]!),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-                IconButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Open settings')));
-                  },
-                  icon: const Icon(Icons.settings_outlined),
-              style: IconButton.styleFrom(
-                padding: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.grey[300]!),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatsCards() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            'Active Users',
-            '1,247',
-            '+12% from last month',
-            Icons.people_outline,
-            Colors.black,
-            Colors.green,
-          ),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: _buildStatCard(
-            'System Health',
-            '98.5%',
-            'All systems operational',
-            Icons.favorite_border,
-            Colors.green,
-            Colors.green,
-          ),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: _buildStatCard(
-            'Active Alerts',
-            '6',
-            'Require attention',
-            Icons.warning_amber_outlined,
-            Colors.orange,
-            Colors.orange,
-          ),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: _buildStatCard(
-            'Data Storage',
-            '2.4TB',
-            '+8% this month',
-            Icons.storage_outlined,
-            Colors.black,
-            Colors.blue,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildStatCard(String title, String value, String subtitle,
       IconData icon, Color valueColor, Color subtitleColor, [bool isMobile = false]) {
     return Container(
@@ -1207,70 +1061,163 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildTabBar() {
-    final tabs = [
-      'User Management',
-      'Fleet Overview',
-      'System Settings',
-      'Analytics',
-      'Security'
-    ];
+  // --- Dynamic Stats Section ---
+  Widget _buildDynamicStats(bool isMobile) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('users').snapshots(),
+      builder: (context, usersSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: _firestore.collection('vehicles').snapshots(),
+          builder: (context, vehiclesSnapshot) {
+            // Calculate user counts
+            int totalUsers = 0;
+            int driverCount = 0;
+            int ownerCount = 0;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List.generate(tabs.length, (index) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _buildTab(tabs[index], index),
-          );
-        }),
-      ),
+            if (usersSnapshot.hasData) {
+              final users = usersSnapshot.data!.docs;
+              totalUsers = users.length;
+              for (var doc in users) {
+                final data = doc.data() as Map<String, dynamic>;
+                final roles = data['roles'] as List<dynamic>? ?? [];
+                final activeRole = (data['activeRole'] as String? ?? data['role'] as String? ?? '').toLowerCase();
+                if (roles.map((r) => r.toString().toLowerCase()).contains('driver') || activeRole == 'driver') driverCount++;
+                if (roles.map((r) => r.toString().toLowerCase()).contains('owner') || activeRole == 'owner') ownerCount++;
+              }
+            }
+
+            // Calculate vehicle stats
+            int activeVehicles = 0;
+            int alertsCount = 0;
+
+            if (vehiclesSnapshot.hasData) {
+              for (var doc in vehiclesSnapshot.data!.docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                final status = (data['status'] as String? ?? '').toLowerCase();
+                final alertness = data['alertness'] as int? ?? 0;
+                final assignedDriverId = data['assignedDriverId'] as String?;
+                if (assignedDriverId != null && assignedDriverId.isNotEmpty) activeVehicles++;
+                if (status == 'critical' || (alertness < 50 && alertness > 0)) alertsCount++;
+              }
+            }
+
+            // Determine display value based on dropdown
+            String usersValue;
+            String usersSubtitle;
+            if (_userTypeFilter == 'Drivers') {
+              usersValue = driverCount.toString();
+              usersSubtitle = 'Registered drivers';
+            } else if (_userTypeFilter == 'Owners') {
+              usersValue = ownerCount.toString();
+              usersSubtitle = 'Registered owners';
+            } else {
+              usersValue = totalUsers.toString();
+              usersSubtitle = 'Registered users';
+            }
+
+            final isLoading = !usersSnapshot.hasData || !vehiclesSnapshot.hasData;
+
+            if (isMobile) {
+              return Column(
+                children: [
+                  _buildTotalUsersCard(isLoading ? '...' : usersValue, usersSubtitle, isMobile),
+                  const SizedBox(height: 12),
+                  _buildStatCard('Active Vehicles', isLoading ? '...' : activeVehicles.toString(), 'Vehicles with drivers', Icons.directions_car, Colors.black87, AppColors.success, isMobile),
+                  const SizedBox(height: 12),
+                  _buildStatCard('Alerts', isLoading ? '...' : alertsCount.toString(), 'Require attention', Icons.warning_amber, Colors.black87, AppColors.warning, isMobile),
+                ],
+              );
+            } else {
+              return Row(
+                children: [
+                  Expanded(child: _buildTotalUsersCard(isLoading ? '...' : usersValue, usersSubtitle, isMobile)),
+                  const SizedBox(width: 20),
+                  Expanded(child: _buildStatCard('Active Vehicles', isLoading ? '...' : activeVehicles.toString(), 'Vehicles with drivers', Icons.directions_car, Colors.black87, AppColors.success, isMobile)),
+                  const SizedBox(width: 20),
+                  Expanded(child: _buildStatCard('Alerts', isLoading ? '...' : alertsCount.toString(), 'Require attention', Icons.warning_amber, Colors.black87, AppColors.warning, isMobile)),
+                ],
+              );
+            }
+          },
+        );
+      },
     );
   }
 
-  Widget _buildTab(String text, int index) {
-    final isActive = _selectedTab == index;
-    return InkWell(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: isActive
-              ? const Border(
-            bottom: BorderSide(color: Color(0xFF6366F1), width: 2),
-          )
-              : null,
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            color: isActive ? const Color(0xFF6366F1) : Colors.black54,
+  Widget _buildTotalUsersCard(String value, String subtitle, bool isMobile) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButton<String>(
+                    value: _userTypeFilter,
+                    underline: const SizedBox(),
+                    isExpanded: true,
+                    icon: const Icon(Icons.arrow_drop_down, size: 20),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'All Users', child: Text('All Users')),
+                      DropdownMenuItem(value: 'Drivers', child: Text('Drivers')),
+                      DropdownMenuItem(value: 'Owners', child: Text('Owners')),
+                    ],
+                    onChanged: (val) => setState(() => _userTypeFilter = val!),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.people, color: Colors.grey[400], size: 20),
+            ],
           ),
-        ),
+          SizedBox(height: isMobile ? 10 : 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isMobile ? 24 : 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: isMobile ? 6 : 8),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: isMobile ? 12 : 13,
+              color: AppColors.primary,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildTabContent() {
-    switch (_selectedTab) {
-      case 0:
-        return _buildUserManagement();
-      case 1:
-        return _buildFleetOverview();
-      case 2:
-        return _buildSystemSettings();
-      case 3:
-        return _buildAnalytics();
-      case 4:
-        return _buildSecurity();
-      default:
-        return _buildUserManagement();
-    }
+  // --- Helper: Format time ago ---
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final diff = now.difference(dateTime);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
   }
 
   Widget _buildUserManagement() {
@@ -1286,95 +1233,26 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return constraints.maxWidth < 600
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'User Management',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Manage user accounts and permissions',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add user dialog')));
-                              },
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Add User'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF6366F1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 0,
-                              ),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'User Management',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Manage user accounts and permissions',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add user dialog')));
-                              },
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Add User'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF6366F1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 0,
-                              ),
-                            ),
-                          ],
-                        );
-                },
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'User Management',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'View registered users and their roles',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               LayoutBuilder(
@@ -1384,9 +1262,19 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             TextField(
+                              controller: _userSearchController,
                               decoration: InputDecoration(
                                 hintText: 'Search users...',
                                 prefixIcon: const Icon(Icons.search, size: 20),
+                                suffixIcon: _userSearchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          _userSearchController.clear();
+                                          setState(() => _userSearchQuery = '');
+                                        },
+                                      )
+                                    : null,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide(color: Colors.grey[300]!),
@@ -1397,8 +1285,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               ),
+                              onChanged: (value) => setState(() => _userSearchQuery = value.trim()),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             DropdownButtonFormField<String>(
                               value: _selectedRoleFilter,
                               decoration: InputDecoration(
@@ -1408,7 +1297,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               ),
-                              items: ['All Roles', 'Admin', 'Driver', 'Passenger', 'Owner']
+                              items: ['All Roles', 'Admin', 'Driver', 'Owner']
                                   .map((role) => DropdownMenuItem(value: role, child: Text(role)))
                                   .toList(),
                               onChanged: (value) => setState(() => _selectedRoleFilter = value!),
@@ -1419,9 +1308,19 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                           children: [
                             Expanded(
                               child: TextField(
+                                controller: _userSearchController,
                                 decoration: InputDecoration(
                                   hintText: 'Search users...',
                                   prefixIcon: const Icon(Icons.search, size: 20),
+                                  suffixIcon: _userSearchQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear, size: 18),
+                                          onPressed: () {
+                                            _userSearchController.clear();
+                                            setState(() => _userSearchQuery = '');
+                                          },
+                                        )
+                                      : null,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                     borderSide: BorderSide(color: Colors.grey[300]!),
@@ -1432,16 +1331,24 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 ),
+                                onChanged: (value) => setState(() => _userSearchQuery = value.trim()),
                               ),
                             ),
                             const SizedBox(width: 16),
-                            DropdownButton<String>(
-                              value: _selectedRoleFilter,
-                              items: ['All Roles', 'Admin', 'Driver', 'Passenger', 'Owner']
-                                  .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                                  .toList(),
-                              onChanged: (value) => setState(() => _selectedRoleFilter = value!),
-                              underline: Container(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButton<String>(
+                                value: _selectedRoleFilter,
+                                items: ['All Roles', 'Admin', 'Driver', 'Owner']
+                                    .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                                    .toList(),
+                                onChanged: (value) => setState(() => _selectedRoleFilter = value!),
+                                underline: const SizedBox(),
+                              ),
                             ),
                           ],
                         );
@@ -1477,56 +1384,258 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildUserTable() {
-    final users = [
-      {'name': 'John Smith', 'email': 'john@example.com', 'role': 'driver', 'status': 'Active', 'lastLogin': '2 hours ago'},
-      {'name': 'Sarah Johnson', 'email': 'sarah@example.com', 'role': 'passenger', 'status': 'Active', 'lastLogin': '1 day ago'},
-      {'name': 'Mike Chen', 'email': 'mike@example.com', 'role': 'owner', 'status': 'Active', 'lastLogin': '30 min ago'},
-      {'name': 'Lisa Wong', 'email': 'lisa@example.com', 'role': 'driver', 'status': 'Inactive', 'lastLogin': '1 week ago'},
-      {'name': 'David Brown', 'email': 'david@example.com', 'role': 'admin', 'status': 'Active', 'lastLogin': '5 min ago'},
-    ];
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('users').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 800),
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(2),
-            1: FlexColumnWidth(2.5),
-            2: FlexColumnWidth(1.5),
-            3: FlexColumnWidth(1.5),
-            4: FlexColumnWidth(2),
-            5: FlexColumnWidth(1),
-          },
-          children: [
-            TableRow(
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(40),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.people_outline, size: 48, color: Colors.grey[400]),
+                  const SizedBox(height: 12),
+                  Text('No users found', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                ],
               ),
-              children: [
-                _buildTableHeader('Name'),
-                _buildTableHeader('Email'),
-                _buildTableHeader('Role'),
-                _buildTableHeader('Status'),
-                _buildTableHeader('Last Login'),
-                _buildTableHeader('Actions'),
-              ],
             ),
-            ...users.map((user) => TableRow(
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+          );
+        }
+
+        var users = snapshot.data!.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          data['docId'] = doc.id;
+          return data;
+        }).toList();
+
+        // Apply role filter
+        if (_selectedRoleFilter != 'All Roles') {
+          final filterRole = _selectedRoleFilter.toLowerCase();
+          users = users.where((data) {
+            final roles = (data['roles'] as List<dynamic>?)?.map((r) => r.toString().toLowerCase()).toList() ?? [];
+            final activeRole = (data['activeRole'] as String? ?? data['role'] as String? ?? '').toLowerCase();
+            return roles.contains(filterRole) || activeRole == filterRole;
+          }).toList();
+        }
+
+        // Apply search filter
+        if (_userSearchQuery.isNotEmpty) {
+          final query = _userSearchQuery.toLowerCase();
+          users = users.where((data) {
+            final name = '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.toLowerCase();
+            final email = (data['email'] as String? ?? '').toLowerCase();
+            return name.contains(query) || email.contains(query);
+          }).toList();
+        }
+
+        if (users.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(40),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                  const SizedBox(height: 12),
+                  Text('No users match the current filters', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                ],
               ),
-              children: [
-                _buildTableCell(user['name']!),
-                _buildTableCell(user['email']!),
-                _buildRoleBadge(user['role']!),
-                _buildStatusBadge(user['status']!),
-                _buildTableCell(user['lastLogin']!),
-                _buildActionButtons(),
+            ),
+          );
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 600;
+            if (isMobile) {
+              return Column(
+                children: users.map((user) => _buildMobileUserCard(user)).toList(),
+              );
+            }
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 800),
+                child: Table(
+                  columnWidths: const {
+                    0: FlexColumnWidth(2),
+                    1: FlexColumnWidth(2.5),
+                    2: FlexColumnWidth(1.5),
+                    3: FlexColumnWidth(1.5),
+                    4: FlexColumnWidth(2),
+                  },
+                  children: [
+                    TableRow(
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                      ),
+                      children: const [
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Text('Name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Text('Email', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Text('Role', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Text('Joined', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                        ),
+                      ],
+                    ),
+                    ...users.map((user) {
+                      final name = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
+                      final email = user['email'] as String? ?? '';
+                      final activeRole = user['activeRole'] as String? ?? user['role'] as String? ?? 'N/A';
+                      final isActive = user['isActive'] as bool? ?? true;
+                      final createdAt = user['createdAt'] is Timestamp
+                          ? (user['createdAt'] as Timestamp).toDate()
+                          : null;
+                      final joinedText = createdAt != null ? _formatTimeAgo(createdAt) : 'N/A';
+
+                      return TableRow(
+                        decoration: BoxDecoration(
+                          border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+                        ),
+                        children: [
+                          _buildTableCell(name.isNotEmpty ? name : 'Unknown'),
+                          _buildTableCell(email),
+                          _buildRoleBadge(activeRole),
+                          _buildStatusBadge(isActive ? 'Active' : 'Inactive'),
+                          _buildTableCell(joinedText),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileUserCard(Map<String, dynamic> user) {
+    final name = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
+    final email = user['email'] as String? ?? '';
+    final phone = user['phone'] as String? ?? '';
+    final activeRole = user['activeRole'] as String? ?? user['role'] as String? ?? 'N/A';
+    final isActive = user['isActive'] as bool? ?? true;
+    final createdAt = user['createdAt'] is Timestamp
+        ? (user['createdAt'] as Timestamp).toDate()
+        : null;
+    final joinedText = createdAt != null ? _formatTimeAgo(createdAt) : 'N/A';
+
+    final roleColors = {
+      'driver': const Color(0xFF4CAF50),
+      'owner': const Color(0xFF2196F3),
+      'admin': const Color(0xFF9C27B0),
+    };
+    final roleColor = roleColors[activeRole.toLowerCase()] ?? Colors.grey;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: roleColor.withOpacity(0.15),
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: roleColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isNotEmpty ? name : 'Unknown',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      email,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isActive ? const Color(0xFF4CAF50) : Colors.grey[400],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  isActive ? 'Active' : 'Inactive',
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: roleColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  activeRole,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (phone.isNotEmpty) ...[
+                Icon(Icons.phone, size: 14, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Text(phone, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               ],
-            )),
-          ],
-        ),
+              const Spacer(),
+              Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+              const SizedBox(width: 4),
+              Text(joinedText, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1585,61 +1694,63 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildActionButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Edit user')));
-            },
-            color: Colors.grey[600],
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User deleted')));
-            },
-            color: Colors.grey[600],
-          ),
-        ],
-      ),
-    );
-  }
+  // _buildActionButtons removed (Add User button removed per requirement)
 
   Widget _buildUserRoleDistribution() {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'User Role Distribution',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('users').snapshots(),
+      builder: (context, snapshot) {
+        int driverCount = 0;
+        int ownerCount = 0;
+        int adminCount = 0;
+        int totalCount = 0;
+
+        if (snapshot.hasData) {
+          totalCount = snapshot.data!.docs.length;
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final roles = (data['roles'] as List<dynamic>?)?.map((r) => r.toString().toLowerCase()).toList() ?? [];
+            final activeRole = (data['activeRole'] as String? ?? data['role'] as String? ?? '').toLowerCase();
+            if (roles.contains('driver') || activeRole == 'driver') driverCount++;
+            if (roles.contains('owner') || activeRole == 'owner') ownerCount++;
+            if (roles.contains('admin') || activeRole == 'admin') adminCount++;
+          }
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Breakdown of user roles',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'User Role Distribution',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Breakdown of $totalCount registered users',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              if (!snapshot.hasData)
+                const Center(child: CircularProgressIndicator())
+              else ...[
+                _buildRoleRow('Drivers', driverCount, const Color(0xFF4CAF50)),
+                _buildRoleRow('Owners', ownerCount, const Color(0xFF2196F3)),
+                _buildRoleRow('Admins', adminCount, const Color(0xFF9C27B0)),
+              ],
+            ],
           ),
-          const SizedBox(height: 24),
-          _buildRoleRow('Drivers', 847, const Color(0xFF4CAF50)),
-          _buildRoleRow('Passengers', 234, const Color(0xFFFF9800)),
-          _buildRoleRow('Owners', 156, const Color(0xFF2196F3)),
-          _buildRoleRow('Admins', 10, const Color(0xFF9C27B0)),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1677,51 +1788,72 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildRecentUserActivity() {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Recent User Activity',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('users').orderBy('createdAt', descending: true).limit(5).snapshots(),
+      builder: (context, snapshot) {
+        return Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Latest user registrations and logins',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Recent Registrations',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Latest user registrations',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              if (!snapshot.hasData)
+                const Center(child: CircularProgressIndicator())
+              else if (snapshot.data!.docs.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Center(
+                    child: Text('No recent registrations', style: TextStyle(color: Colors.grey[600])),
+                  ),
+                )
+              else
+                ...snapshot.data!.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final name = '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim();
+                  final activeRole = data['activeRole'] as String? ?? data['role'] as String? ?? 'user';
+                  final createdAt = data['createdAt'] is Timestamp
+                      ? (data['createdAt'] as Timestamp).toDate()
+                      : null;
+                  final timeText = createdAt != null ? _formatTimeAgo(createdAt) : 'Unknown';
+
+                  final roleColors = {
+                    'driver': const Color(0xFF4CAF50),
+                    'owner': const Color(0xFF2196F3),
+                    'admin': const Color(0xFF9C27B0),
+                  };
+                  final color = roleColors[activeRole.toLowerCase()] ?? Colors.grey;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildActivityItem(
+                      Icons.person_add_outlined,
+                      name.isNotEmpty ? name : 'Unknown User',
+                      '${activeRole[0].toUpperCase()}${activeRole.substring(1)} \u2022 $timeText',
+                      color,
+                    ),
+                  );
+                }),
+            ],
           ),
-          const SizedBox(height: 24),
-          _buildActivityItem(
-            Icons.person_add_outlined,
-            'New user registered',
-            'Alex Thompson - Driver - 2 min ago',
-            const Color(0xFF2196F3),
-          ),
-          const SizedBox(height: 16),
-          _buildActivityItem(
-            Icons.shield_outlined,
-            'Admin login',
-            'David Brown - 5 min ago',
-            const Color(0xFF4CAF50),
-          ),
-          const SizedBox(height: 16),
-          _buildActivityItem(
-            Icons.swap_horiz,
-            'Role updated',
-            'Lisa Wong - Driver to Owner - 1 hour ago',
-            const Color(0xFFFF9800),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1837,150 +1969,192 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildLiveFleetMap() {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Live Fleet Map',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('vehicles').snapshots(),
+      builder: (context, snapshot) {
+        int activeVehicles = 0;
+        int criticalAlerts = 0;
+        int totalVehicles = 0;
+
+        if (snapshot.hasData) {
+          totalVehicles = snapshot.data!.docs.length;
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final status = (data['status'] as String? ?? '').toLowerCase();
+            final alertness = data['alertness'] as int? ?? 0;
+            final assignedDriverId = data['assignedDriverId'] as String?;
+            if (assignedDriverId != null && assignedDriverId.isNotEmpty) activeVehicles++;
+            if (status == 'critical' || (alertness < 50 && alertness > 0)) criticalAlerts++;
+          }
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Global vehicle locations',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            height: 200,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F7FA),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.location_on, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Interactive global fleet map',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '104 vehicles currently active',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                children: [
-                  const Text(
-                    '78',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4CAF50),
-                    ),
-                  ),
-                  Text(
-                    'Active Vehicles',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                  ),
-                ],
+              const Text(
+                'Live Fleet Map',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
               ),
-              Column(
-                children: [
-                  const Text(
-                    '6',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFFF5722),
-                    ),
+              const SizedBox(height: 6),
+              Text(
+                'Global vehicle locations',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F7FA),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.location_on, size: 64, color: Colors.grey[400]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Interactive global fleet map',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$totalVehicles vehicles registered',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'Critical Alerts',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
+                    children: [
+                      Text(
+                        '$activeVehicles',
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4CAF50),
+                        ),
+                      ),
+                      Text(
+                        'Active Vehicles',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text(
+                        '$criticalAlerts',
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFFF5722),
+                        ),
+                      ),
+                      Text(
+                        'Critical Alerts',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildFleetPerformanceMetrics() {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Fleet Performance Metrics',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('vehicles').snapshots(),
+      builder: (context, snapshot) {
+        int totalVehicles = 0;
+        int criticalCount = 0;
+        double avgAlertness = 0;
+        int alertnessCount = 0;
+
+        if (snapshot.hasData) {
+          totalVehicles = snapshot.data!.docs.length;
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final alertness = data['alertness'] as int? ?? 0;
+            final status = (data['status'] as String? ?? '').toLowerCase();
+            if (alertness > 0) {
+              avgAlertness += alertness;
+              alertnessCount++;
+            }
+            if (status == 'critical' || (alertness < 50 && alertness > 0)) criticalCount++;
+          }
+          if (alertnessCount > 0) avgAlertness = avgAlertness / alertnessCount;
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Key performance indicators across all fleets',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Fleet Performance Metrics',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Key performance indicators across all fleets',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return constraints.maxWidth < 800
+                      ? Column(
+                          children: [
+                            _buildMetricCard('$totalVehicles', 'Total Vehicles', Icons.directions_car_outlined, const Color(0xFF2196F3)),
+                            const SizedBox(height: 16),
+                            _buildMetricCard('${avgAlertness.toStringAsFixed(1)}%', 'Avg Alertness', Icons.show_chart, const Color(0xFF4CAF50)),
+                            const SizedBox(height: 16),
+                            _buildMetricCard('$criticalCount', 'Critical Alerts', Icons.warning_amber_outlined, const Color(0xFFFF9800)),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(child: _buildMetricCard('$totalVehicles', 'Total Vehicles', Icons.directions_car_outlined, const Color(0xFF2196F3))),
+                            const SizedBox(width: 16),
+                            Expanded(child: _buildMetricCard('${avgAlertness.toStringAsFixed(1)}%', 'Avg Alertness', Icons.show_chart, const Color(0xFF4CAF50))),
+                            const SizedBox(width: 16),
+                            Expanded(child: _buildMetricCard('$criticalCount', 'Critical Alerts', Icons.warning_amber_outlined, const Color(0xFFFF9800))),
+                          ],
+                        );
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return constraints.maxWidth < 800
-                  ? Column(
-                      children: [
-                        _buildMetricCard('104', 'Total Vehicles', Icons.directions_car_outlined, const Color(0xFF2196F3)),
-                        const SizedBox(height: 16),
-                        _buildMetricCard('87.3%', 'Avg Alertness', Icons.show_chart, const Color(0xFF4CAF50)),
-                        const SizedBox(height: 16),
-                        _buildMetricCard('23', 'Incidents Today', Icons.warning_amber_outlined, const Color(0xFFFF9800)),
-                        const SizedBox(height: 16),
-                        _buildMetricCard('94.2%', 'Uptime', Icons.trending_up, const Color(0xFF9C27B0)),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(child: _buildMetricCard('104', 'Total Vehicles', Icons.directions_car_outlined, const Color(0xFF2196F3))),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildMetricCard('87.3%', 'Avg Alertness', Icons.show_chart, const Color(0xFF4CAF50))),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildMetricCard('23', 'Incidents Today', Icons.warning_amber_outlined, const Color(0xFFFF9800))),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildMetricCard('94.2%', 'Uptime', Icons.trending_up, const Color(0xFF9C27B0))),
-                      ],
-                    );
-            },
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -2400,66 +2574,74 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildGlobalStatistics() {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Global Statistics',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Platform-wide metrics and insights',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return constraints.maxWidth < 800
-                  ? Column(
-                      children: [
-                        _buildStatisticCard('1247', 'Total Users', '+12%', const Color(0xFF4CAF50)),
-                        const SizedBox(height: 16),
-                        _buildStatisticCard('89', 'Active Vehicles', '+5%', const Color(0xFF4CAF50)),
-                        const SizedBox(height: 16),
-                        _buildStatisticCard('99.9%', 'System Uptime', '0%', Colors.black54),
-                        const SizedBox(height: 16),
-                        _buildStatisticCard('2.4TB', 'Data Storage', '+8%', const Color(0xFF2196F3)),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatisticCard('1247', 'Total Users', '+12%', const Color(0xFF4CAF50)),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatisticCard('89', 'Active Vehicles', '+5%', const Color(0xFF4CAF50)),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatisticCard('99.9%', 'System Uptime', '0%', Colors.black54),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatisticCard('2.4TB', 'Data Storage', '+8%', const Color(0xFF2196F3)),
-                        ),
-                      ],
-                    );
-            },
-          ),
-        ],
-      ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('users').snapshots(),
+      builder: (context, usersSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: _firestore.collection('vehicles').snapshots(),
+          builder: (context, vehiclesSnapshot) {
+            final totalUsers = usersSnapshot.data?.docs.length ?? 0;
+            final totalVehicles = vehiclesSnapshot.data?.docs.length ?? 0;
+            int activeVehicles = 0;
+            if (vehiclesSnapshot.hasData) {
+              for (var doc in vehiclesSnapshot.data!.docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                if ((data['assignedDriverId'] as String?)?.isNotEmpty == true) activeVehicles++;
+              }
+            }
+
+            return Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Global Statistics',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Platform-wide metrics and insights',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 24),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return constraints.maxWidth < 800
+                          ? Column(
+                              children: [
+                                _buildStatisticCard('$totalUsers', 'Total Users', 'Live', const Color(0xFF4CAF50)),
+                                const SizedBox(height: 16),
+                                _buildStatisticCard('$totalVehicles', 'Total Vehicles', '$activeVehicles active', const Color(0xFF2196F3)),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: _buildStatisticCard('$totalUsers', 'Total Users', 'Live', const Color(0xFF4CAF50)),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildStatisticCard('$totalVehicles', 'Total Vehicles', '$activeVehicles active', const Color(0xFF2196F3)),
+                                ),
+                              ],
+                            );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
