@@ -342,6 +342,36 @@ class VehicleService {
     }
   }
 
+  /// True if there is at least one general pending vehicle waiting for ANY driver.
+  /// These vehicles are already admin-approved and sit in the general assignment pool.
+  Stream<bool> hasGeneralPendingVehiclesStream() {
+    try {
+      return _firestore
+          .collection('vehicles')
+          .where('assignedDriverId', isNull: true)
+          .where('pendingAssignment', isEqualTo: true)
+          .snapshots()
+          .map((snap) => snap.docs.isNotEmpty);
+    } catch (_) {
+      return Stream.value(false);
+    }
+  }
+
+  /// True if there is at least one pending vehicle waiting specifically for THIS owner to become driver.
+  Stream<bool> hasOwnerPendingVehiclesStream(String ownerId) {
+    try {
+      return _firestore
+          .collection('vehicles')
+          .where('ownerId', isEqualTo: ownerId)
+          .where('assignedDriverId', isNull: true)
+          .where('pendingOwnerAssignment', isEqualTo: true)
+          .snapshots()
+          .map((snap) => snap.docs.isNotEmpty);
+    } catch (_) {
+      return Stream.value(false);
+    }
+  }
+
   /// Get vehicles assigned to driver
   Future<List<Vehicle>> getAssignedVehiclesForDriver(String driverId) async {
     try {

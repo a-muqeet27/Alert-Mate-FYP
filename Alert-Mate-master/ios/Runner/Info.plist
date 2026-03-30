@@ -49,5 +49,7 @@
 	<string>This app needs camera access for drowsiness detection and monitoring</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access for emergency features</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to upload CNIC and license documents</string>
 </dict>
 </plist>

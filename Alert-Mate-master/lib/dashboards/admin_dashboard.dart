@@ -5,6 +5,10 @@ import '../models/emergency_contact.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../services/emergency_contact_service.dart';
+import '../services/driver_document_submission_service.dart';
+import '../models/driver_document_submission.dart';
+import '../services/owner_vehicle_submission_service.dart';
+import '../models/owner_vehicle_submission.dart';
 
 
 class AdminDashboard extends StatefulWidget {
@@ -29,6 +33,10 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   String _vehicleSearchQuery = '';
   String _vehicleTypeFilter = 'All Types';
   String _vehicleStatusFilter = 'All Statuses';
+
+  final DriverDocumentSubmissionService _driverDocumentSubmissionService = DriverDocumentSubmissionService();
+  final OwnerVehicleSubmissionService _ownerVehicleSubmissionService = OwnerVehicleSubmissionService();
+  String? _processingSubmissionId;
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -3224,52 +3232,196 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   // =============================================
-  // DOCUMENT APPROVAL SECTION (Static)
+  // DOCUMENT APPROVAL (Real-time)
+  // - Driver CNIC/License approval
+  // - Owner vehicle book/id card approval
   // =============================================
-  Widget _buildDocumentApproval() {
-    final List<Map<String, dynamic>> pendingDocuments = [
-      {
-        'driverName': 'Ahmed Khan',
-        'documentType': 'Driver License',
-        'submittedDate': '2 hours ago',
-        'status': 'Pending Review',
-        'icon': Icons.badge_outlined,
-        'color': const Color(0xFFFF9800),
-      },
-      {
-        'driverName': 'Muhammad Ali',
-        'documentType': 'Vehicle Registration',
-        'submittedDate': '5 hours ago',
-        'status': 'Pending Review',
-        'icon': Icons.description_outlined,
-        'color': const Color(0xFF2196F3),
-      },
-      {
-        'driverName': 'Usman Malik',
-        'documentType': 'CNIC',
-        'submittedDate': '1 day ago',
-        'status': 'Pending Review',
-        'icon': Icons.credit_card_outlined,
-        'color': const Color(0xFF9C27B0),
-      },
-      {
-        'driverName': 'Bilal Hussain',
-        'documentType': 'Driver License',
-        'submittedDate': '2 days ago',
-        'status': 'Under Verification',
-        'icon': Icons.badge_outlined,
-        'color': const Color(0xFF4CAF50),
-      },
-      {
-        'driverName': 'Tariq Ahmed',
-        'documentType': 'Medical Certificate',
-        'submittedDate': '3 days ago',
-        'status': 'Pending Review',
-        'icon': Icons.medical_information_outlined,
-        'color': Colors.red,
-      },
-    ];
+  String _formatTime(DateTime? t) {
+    if (t == null) return '—';
+    final diff = DateTime.now().difference(t);
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} h ago';
+    return '${diff.inDays} d ago';
+  }
 
+  Future<void> _approveDriverDocs(DriverDocumentSubmission s) async {
+    setState(() => _processingSubmissionId = s.id);
+    try {
+      await _driverDocumentSubmissionService.approveSubmission(s.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Driver documents approved. Vehicle assignment attempted.'),
+            backgroundColor: Color(0xFF4CAF50),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingSubmissionId = null);
+    }
+  }
+
+  Future<void> _rejectDriverDocs(DriverDocumentSubmission s) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final c = TextEditingController();
+        return AlertDialog(
+          title: const Text('Reject driver documents'),
+          content: TextField(
+            controller: c,
+            decoration: const InputDecoration(
+              labelText: 'Reason (optional)',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Reject')),
+          ],
+        );
+      },
+    );
+    if (reason == null) return;
+    setState(() => _processingSubmissionId = s.id);
+    try {
+      await _driverDocumentSubmissionService.rejectSubmission(s.id, reason: reason.isEmpty ? null : reason);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Submission rejected'), backgroundColor: Colors.orange),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingSubmissionId = null);
+    }
+  }
+
+  Future<void> _approveOwnerVehicle(OwnerVehicleSubmission s) async {
+    setState(() => _processingSubmissionId = s.id);
+    try {
+      await _ownerVehicleSubmissionService.approveSubmission(s.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vehicle booking approved. Vehicle assignment attempted (if driver queue exists).'),
+            backgroundColor: Color(0xFF4CAF50),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingSubmissionId = null);
+    }
+  }
+
+  Future<void> _rejectOwnerVehicle(OwnerVehicleSubmission s) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final c = TextEditingController();
+        return AlertDialog(
+          title: const Text('Reject vehicle submission'),
+          content: TextField(
+            controller: c,
+            decoration: const InputDecoration(
+              labelText: 'Reason (optional)',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Reject')),
+          ],
+        );
+      },
+    );
+    if (reason == null) return;
+
+    setState(() => _processingSubmissionId = s.id);
+    try {
+      await _ownerVehicleSubmissionService.rejectSubmission(s.id, reason: reason.isEmpty ? null : reason);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Submission rejected'), backgroundColor: Colors.orange),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processingSubmissionId = null);
+    }
+  }
+
+  void _showDocPreview(String url, String title) {
+    if (url.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppBar(
+                title: Text(title, style: const TextStyle(fontSize: 16)),
+                automaticallyImplyLeading: false,
+                actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))],
+              ),
+              SizedBox(
+                height: 400,
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4,
+                    child: Image.network(
+                      url,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Padding(
+                          padding: EdgeInsets.all(48),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('Could not load image'),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentApproval() {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -3286,7 +3438,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Document Approval',
+                      'Approvals (Real-time)',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
@@ -3295,7 +3447,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Review and approve driver document submissions',
+                      'Driver documents + Owner vehicle books (updates in real time)',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.black54,
@@ -3304,58 +3456,185 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF9800).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.pending_actions, size: 16, color: Color(0xFFFF9800)),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${pendingDocuments.length} Pending',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFFF9800),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isMobile = constraints.maxWidth < 600;
-              if (isMobile) {
-                return Column(
-                  children: pendingDocuments.map((doc) => _buildMobileDocumentCard(doc)).toList(),
-                );
-              }
+
+          // 1) Driver document approval
+          StreamBuilder<List<DriverDocumentSubmission>>(
+            stream: _driverDocumentSubmissionService.watchPendingSubmissions(),
+            builder: (context, snapshot) {
+              final pending = snapshot.data ?? [];
+              final count = pending.length;
+
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Table header
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Expanded(flex: 2, child: Text('Driver', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                        Expanded(flex: 2, child: Text('Document', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                        Expanded(flex: 2, child: Text('Submitted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                        Expanded(flex: 2, child: Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                        Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                      ],
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'Driver Documents',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF9800).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$count Pending',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFFF9800),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  ...pendingDocuments.map((doc) => _buildDocumentRow(doc)),
+                  const SizedBox(height: 12),
+                  if (snapshot.hasError)
+                    Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red))
+                  else if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (pending.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Text(
+                        'No driver document submissions',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    )
+                  else
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isMobile = constraints.maxWidth < 600;
+                        if (isMobile) {
+                          return Column(
+                            children: pending.map((s) => _buildMobileDriverDocCard(s)).toList(),
+                          );
+                        }
+                        return Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Expanded(flex: 3, child: Text('Driver', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 2, child: Text('Submitted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 2, child: Text('Documents', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                ],
+                              ),
+                            ),
+                            ...pending.map((s) => _buildDriverDocRow(s)),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 24),
+
+          // 2) Owner vehicle book approval
+          StreamBuilder<List<OwnerVehicleSubmission>>(
+            stream: _ownerVehicleSubmissionService.watchPendingSubmissions(),
+            builder: (context, snapshot) {
+              final pending = snapshot.data ?? [];
+              final count = pending.length;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Owner Vehicles',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2196F3).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$count Pending',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2196F3),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (snapshot.hasError)
+                    Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red))
+                  else if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (pending.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Text(
+                        'No owner vehicle submissions',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    )
+                  else
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isMobile = constraints.maxWidth < 600;
+                        if (isMobile) {
+                          return Column(
+                            children: pending.map((s) => _buildMobileOwnerVehicleCard(s)).toList(),
+                          );
+                        }
+                        return Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Expanded(flex: 2, child: Text('Owner', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 3, child: Text('Vehicle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 2, child: Text('Submitted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                ],
+                              ),
+                            ),
+                            ...pending.map((s) => _buildOwnerVehicleRow(s)),
+                          ],
+                        );
+                      },
+                    ),
                 ],
               );
             },
@@ -3365,7 +3644,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildDocumentRow(Map<String, dynamic> doc) {
+  Widget _buildDriverDocRow(DriverDocumentSubmission s) {
+    final busy = _processingSubmissionId == s.id;
+    final initial = s.driverName.isNotEmpty ? s.driverName[0].toUpperCase() : '?';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -3374,21 +3655,21 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       child: Row(
         children: [
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: (doc['color'] as Color).withOpacity(0.15),
+                  backgroundColor: const Color(0xFFFF9800).withOpacity(0.15),
                   child: Text(
-                    (doc['driverName'] as String)[0],
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: doc['color'] as Color),
+                    initial,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFFF9800)),
                   ),
                 ),
                 const SizedBox(width: 10),
-                Flexible(
+                Expanded(
                   child: Text(
-                    doc['driverName'] as String,
+                    s.driverName,
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -3398,40 +3679,26 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           ),
           Expanded(
             flex: 2,
-            child: Row(
-              children: [
-                Icon(doc['icon'] as IconData, size: 16, color: doc['color'] as Color),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    doc['documentType'] as String,
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 2,
             child: Text(
-              doc['submittedDate'] as String,
+              _formatTime(s.submittedAt),
               style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             ),
           ),
           Expanded(
             flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF9800).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                doc['status'] as String,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFFF9800)),
-                textAlign: TextAlign.center,
-              ),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                TextButton(
+                  onPressed: () => _showDocPreview(s.cnicUrl, 'CNIC'),
+                  child: const Text('CNIC', style: TextStyle(fontSize: 12)),
+                ),
+                TextButton(
+                  onPressed: () => _showDocPreview(s.licenseUrl, 'License'),
+                  child: const Text('License', style: TextStyle(fontSize: 12)),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -3439,11 +3706,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             child: Row(
               children: [
                 ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${doc['documentType']} by ${doc['driverName']} approved'), backgroundColor: const Color(0xFF4CAF50)),
-                    );
-                  },
+                  onPressed: busy ? null : () => _approveDriverDocs(s),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                     foregroundColor: Colors.white,
@@ -3452,15 +3715,17 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                     elevation: 0,
                     minimumSize: Size.zero,
                   ),
-                  child: const Text('Approve', style: TextStyle(fontSize: 12)),
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Approve', style: TextStyle(fontSize: 12)),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${doc['documentType']} by ${doc['driverName']} rejected'), backgroundColor: Colors.red),
-                    );
-                  },
+                  onPressed: busy ? null : () => _rejectDriverDocs(s),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: const BorderSide(color: Colors.red),
@@ -3478,7 +3743,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildMobileDocumentCard(Map<String, dynamic> doc) {
+  Widget _buildMobileDriverDocCard(DriverDocumentSubmission s) {
+    final busy = _processingSubmissionId == s.id;
+    final initial = s.driverName.isNotEmpty ? s.driverName[0].toUpperCase() : '?';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -3494,41 +3761,192 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: (doc['color'] as Color).withOpacity(0.15),
-                child: Text(
-                  (doc['driverName'] as String)[0],
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: doc['color'] as Color),
-                ),
+                backgroundColor: const Color(0xFFFF9800).withOpacity(0.15),
+                child: Text(initial, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFFF9800))),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      doc['driverName'] as String,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Icon(doc['icon'] as IconData, size: 14, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Text(doc['documentType'] as String, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                      ],
-                    ),
+                    Text(s.driverName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+                    const SizedBox(height: 4),
+                    Text(_formatTime(s.submittedAt), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF9800).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              OutlinedButton(onPressed: () => _showDocPreview(s.cnicUrl, 'CNIC'), child: const Text('CNIC')),
+              OutlinedButton(onPressed: () => _showDocPreview(s.licenseUrl, 'License'), child: const Text('License')),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: busy ? null : () => _approveDriverDocs(s),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50), foregroundColor: Colors.white),
+                  child: busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Approve'),
                 ),
-                child: Text(
-                  doc['status'] as String,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFFFF9800)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy ? null : () => _rejectDriverDocs(s),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                  child: const Text('Reject'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOwnerVehicleRow(OwnerVehicleSubmission s) {
+    final busy = _processingSubmissionId == s.id;
+    final initial = s.ownerName.isNotEmpty ? s.ownerName[0].toUpperCase() : '?';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: const Color(0xFF2196F3).withOpacity(0.15),
+                  child: Text(
+                    initial,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2196F3)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    s.ownerName,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              '${s.make} ${s.model} · ${s.licensePlate} (${s.type})',
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatTime(s.submittedAt),
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                TextButton(
+                  onPressed: () => _showDocPreview(s.vehicleBookUrl, 'Vehicle book'),
+                  child: const Text('View', style: TextStyle(fontSize: 12)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: busy ? null : () => _approveOwnerVehicle(s),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    elevation: 0,
+                    minimumSize: Size.zero,
+                  ),
+                  child: busy
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Approve', style: TextStyle(fontSize: 12)),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: busy ? null : () => _rejectOwnerVehicle(s),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    minimumSize: Size.zero,
+                  ),
+                  child: const Text('Reject', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileOwnerVehicleCard(OwnerVehicleSubmission s) {
+    final busy = _processingSubmissionId == s.id;
+    final initial = s.ownerName.isNotEmpty ? s.ownerName[0].toUpperCase() : '?';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFF2196F3).withOpacity(0.15),
+                child: Text(initial, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2196F3))),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(s.ownerName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+                    const SizedBox(height: 4),
+                    Text('${s.make} ${s.model} · ${s.licensePlate}', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(_formatTime(s.submittedAt), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _showDocPreview(s.vehicleBookUrl, 'Vehicle book'),
+                  child: const Text('View vehicle book'),
                 ),
               ),
             ],
@@ -3536,41 +3954,21 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
-              const SizedBox(width: 4),
-              Text(doc['submittedDate'] as String, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-              const Spacer(),
-              InkWell(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${doc['documentType']} by ${doc['driverName']} approved'), backgroundColor: const Color(0xFF4CAF50)),
-                  );
-                },
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text('Approve', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500)),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: busy ? null : () => _approveOwnerVehicle(s),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50), foregroundColor: Colors.white),
+                  child: busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Approve'),
                 ),
               ),
               const SizedBox(width: 8),
-              InkWell(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${doc['documentType']} by ${doc['driverName']} rejected'), backgroundColor: Colors.red),
-                  );
-                },
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.red),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text('Reject', style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w500)),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy ? null : () => _rejectOwnerVehicle(s),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                  child: const Text('Reject'),
                 ),
               ),
             ],

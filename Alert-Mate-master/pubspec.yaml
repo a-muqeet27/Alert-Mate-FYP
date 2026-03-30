@@ -17,6 +17,10 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.4
+  image_picker: 1.1.2
+  cloudinary_public: ^0.23.1
+  http: ^1.2.2
   fluttertoast: ^8.2.8
   pin_code_fields: ^8.0.1
   camera: ^0.11.0+2

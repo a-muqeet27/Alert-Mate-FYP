@@ -4,12 +4,13 @@
 import 'package:flutter/material.dart';
 import 'models/user.dart';
 import 'package:country_picker/country_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/firebase_auth_service.dart';
-import 'services/vehicle_service.dart';
 import 'dashboards/driver_dashboard.dart';
 import 'dashboards/passenger_dashboard.dart';
 import 'dashboards/owner_dashboard.dart';
 import 'dashboards/admin_dashboard.dart';
+import 'screens/driver_documents_gate_screen.dart';
 import 'utils/page_transitions.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -62,6 +63,34 @@ class _AuthScreenState extends State<AuthScreen>
       case 3: return 'admin';
       default: return 'driver';
     }
+  }
+
+  bool _hasRole(User user, String role) {
+    final roles = user.roles ?? [];
+    return roles.contains(role) || user.role == role;
+  }
+
+  Future<bool> _validateAndPrepareRoleAccess(User user) async {
+    final selectedRole = _getSelectedRole();
+
+    // Owner -> driver edge case: allowed only when coming from owner flow.
+    if (selectedRole == 'driver' &&
+        widget.isOwnerBecomingDriver &&
+        _hasRole(user, 'owner')) {
+      await _authService.addDriverRoleForOwner(user.id);
+      return true;
+    }
+
+    // Regular role access must already exist.
+    if (!_hasRole(user, selectedRole)) {
+      return false;
+    }
+
+    // Keep active role aligned with selected login role.
+    try {
+      await _authService.updateActiveRole(user.id, selectedRole);
+    } catch (_) {}
+    return true;
   }
 
   String _getSelectedRoleLabel() {
@@ -178,24 +207,12 @@ class _AuthScreenState extends State<AuthScreen>
           setState(() { _isLoading = false; });
 
           if (user != null) {
-            // NEW: Check if driver and assign vehicle if needed
-            if (user.role == 'driver' || (user.roles?.contains('driver') ?? false)) {
-              final vehicleService = VehicleService();
-
-              // Check if this is owner becoming driver
-              if (widget.isOwnerBecomingDriver) {
-                // Assign vehicles waiting specifically for this owner
-                await vehicleService.assignOwnerPendingVehicles(
-                  user.id,
-                  user.email,
-                );
-              } else {
-                // Regular driver - assign general pending vehicles
-                await vehicleService.assignGeneralPendingVehiclesToNewDriver(
-                  user.id,
-                  user.email,
-                );
-              }
+            final hasAccess = await _validateAndPrepareRoleAccess(user);
+            if (!hasAccess) {
+              _showErrorDialog(
+                'This account is not registered for ${_getSelectedRoleLabel()}. Please sign in with your registered role.',
+              );
+              return;
             }
             _navigateToDashboard(user);
           } else {
@@ -219,46 +236,15 @@ class _AuthScreenState extends State<AuthScreen>
 
           setState(() { _isLoading = false; });
 
-          // NEW: Auto-assign vehicles after successful driver registration
           if (selectedRole == 'driver' && user != null) {
-            final vehicleService = VehicleService();
-
-            // Check if this is owner becoming driver
             if (widget.isOwnerBecomingDriver) {
-              print('🎯 Owner completing driver registration');
-
-              // Assign vehicles waiting specifically for THIS owner
-              List<String> assignedVehicles = await vehicleService.assignOwnerPendingVehicles(
-                user.uid,
-                email,
+              _showSuccessDialog(
+                'Driver account created! Upload your vehicle documents on the driver dashboard for admin approval before your vehicle can be assigned.',
               );
-
-              if (assignedVehicles.isNotEmpty) {
-                // Show success with vehicle count
-                _showVehicleAssignedDialog(
-                  'Vehicle${assignedVehicles.length > 1 ? 's' : ''} Assigned!',
-                  'Your ${assignedVehicles.length} vehicle${assignedVehicles.length > 1 ? 's have' : ' has'} been automatically assigned to you. You can now see ${assignedVehicles.length > 1 ? 'them' : 'it'} in your driver dashboard.',
-                );
-              } else {
-                _showSuccessDialog('Driver account created! Please verify your email.');
-              }
             } else {
-              print('🚗 Regular driver signup');
-
-              // Regular driver - assign any pending vehicle
-              bool vehicleAssigned = await vehicleService.assignGeneralPendingVehiclesToNewDriver(
-                user.uid,
-                email,
+              _showSuccessDialog(
+                'Driver account created! Register your vehicle and upload CNIC, license, and other documents on the dashboard. An admin will assign a vehicle after approval.',
               );
-
-              if (vehicleAssigned) {
-                _showVehicleAssignedDialog(
-                  'Vehicle Assigned!',
-                  'A vehicle has been automatically assigned to you.',
-                );
-              } else {
-                _showSuccessDialog('Driver account created! Please verify your email.');
-              }
             }
           } else {
             _showSuccessDialog('Account created! Please verify your email.');
@@ -490,7 +476,17 @@ class _AuthScreenState extends State<AuthScreen>
 
     switch (_selectedDashboard) {
       case 0:
-        dashboardScreen = DriverDashboard(user: user);
+        // Gate driver dashboard until CNIC + license are admin-approved.
+        dashboardScreen = StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance.collection('users').doc(user.id).snapshots(),
+          builder: (context, snap) {
+            final approved = (snap.data?.data()?['driverDocsApproved'] as bool?) ?? false;
+            if (!approved) {
+              return DriverDocumentsGateScreen(user: user);
+            }
+            return DriverDashboard(user: user);
+          },
+        );
         break;
       case 1:
         dashboardScreen = PassengerDashboard(user: user);

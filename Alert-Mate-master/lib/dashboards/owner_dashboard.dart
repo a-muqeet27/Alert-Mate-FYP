@@ -1,14 +1,21 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
 import '../services/vehicle_service.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
+import '../services/owner_vehicle_submission_service.dart';
+import '../services/firebase_auth_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
-import '../auth_screen.dart';
+import '../screens/driver_documents_gate_screen.dart';
 
 class OwnerDashboard extends StatefulWidget {
   final User user;
@@ -21,6 +28,7 @@ class OwnerDashboard extends StatefulWidget {
 
 class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStateMixin {
   final VehicleService _vehicleService = VehicleService();
+  final OwnerVehicleSubmissionService _ownerVehicleSubmissionService = OwnerVehicleSubmissionService();
   final MonitoringService _monitoringService = MonitoringService();
   late EmergencyContactService _emergencyContactService;
 
@@ -58,6 +66,35 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
+  }
+
+  Future<bool> _ensureGalleryPermission() async {
+    if (kIsWeb) return true;
+
+    final platform = defaultTargetPlatform;
+    if (platform == TargetPlatform.android) {
+      final photos = await Permission.photos.request();
+      final storage = await Permission.storage.request();
+      if (photos.isGranted || storage.isGranted) return true;
+      return false;
+    }
+
+    if (platform == TargetPlatform.iOS) {
+      final photos = await Permission.photos.request();
+      return photos.isGranted;
+    }
+
+    return true;
+  }
+
+  Future<Uint8List?> _pickImageBytes() async {
+    final ok = await _ensureGalleryPermission();
+    if (!ok) return null;
+
+    final picker = ImagePicker();
+    final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (x == null) return null;
+    return x.readAsBytes();
   }
 
   // Check if driver has had a session in the last 3 days
@@ -127,6 +164,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     String year = '';
     String licensePlate = '';
     bool willDrive = false;
+    Uint8List? vehicleBookBytes;
 
     await showDialog(
       context: context,
@@ -235,15 +273,52 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     },
                     onSaved: (value) => licensePlate = value!.trim().toUpperCase(),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Vehicle id card / book *',
+                          style: TextStyle(fontSize: MediaQuery.of(context).size.width < 768 ? 13 : 14),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final bytes = await _pickImageBytes();
+                          if (bytes == null) return;
+                          setDialogState(() => vehicleBookBytes = bytes);
+                        },
+                        icon: Icon(
+                          vehicleBookBytes != null ? Icons.check_circle : Icons.upload_file,
+                          size: 18,
+                          color: vehicleBookBytes != null ? Colors.green : AppColors.primary,
+                        ),
+                        label: Text(vehicleBookBytes != null ? 'Change' : 'Upload'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   CheckboxListTile(
                     title: const Text('I will be driving this vehicle'),
                     subtitle: const Text('Assign this vehicle to me'),
                     value: willDrive,
                     onChanged: (value) {
+                      final turningOn = value == true && willDrive != true;
                       setDialogState(() {
                         willDrive = value!;
                       });
+
+                      if (turningOn && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'To assign this car to you as driver, you will need driver verification (CNIC + license) approval from admin.',
+                            ),
+                            backgroundColor: AppColors.primary,
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                      }
                     },
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
@@ -350,48 +425,41 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
                     try {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Adding vehicle...')),
+                        const SnackBar(content: Text('Submitting vehicle for admin approval...')),
                       );
 
-                      final result = await _vehicleService.addVehicleWithDriverCheck(
+                      if (vehicleBookBytes == null) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please upload the vehicle id card / book.'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      await _ownerVehicleSubmissionService.submitVehicle(
+                        ownerId: widget.user.id,
+                        ownerEmail: widget.user.email,
+                        ownerName: widget.user.fullName.trim().isEmpty ? widget.user.email : widget.user.fullName,
                         make: make,
                         model: model,
                         year: year,
                         licensePlate: licensePlate,
-                        ownerId: widget.user.id,
-                        ownerEmail: widget.user.email,
-                        willOwnerDrive: willDrive,
                         type: vehicleType,
+                        willOwnerDrive: willDrive,
+                        vehicleBookBytes: vehicleBookBytes!,
                       );
 
-                      if (result == null && willDrive) {
-                        if (mounted) {
-                          _showDriverRegistrationDialog();
-                        }
-                      } else if (result != null && willDrive && result.assignedDriverId == null) {
-                        // Vehicle was created but not assigned because owner already has one
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text(
-                                'Vehicle added! Since you already have a vehicle assigned, this one will be automatically assigned to the next driver who signs up.',
-                              ),
-                              backgroundColor: AppColors.primary,
-                              duration: const Duration(seconds: 5),
-                            ),
-                          );
-                        }
-                      } else {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(willDrive
-                                  ? 'Vehicle added and assigned to you!'
-                                  : 'Vehicle added successfully'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        }
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Submitted! Admin will approve your vehicle.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
                       }
                     } catch (e) {
                       if (mounted) {
@@ -460,18 +528,49 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             child: const Text('Not Now'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AuthScreen(
-                    initialDashboardIndex: 0,
-                    initialIsSignIn: false,
-                    isOwnerBecomingDriver: true,
+              try {
+                final authService = FirebaseAuthService();
+                await authService.addDriverRoleForOwner(widget.user.id);
+
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Driver access enabled. Complete document verification to continue.'),
+                    backgroundColor: AppColors.success,
                   ),
-                ),
-              );
+                );
+
+                final upgradedUser = User(
+                  id: widget.user.id,
+                  firstName: widget.user.firstName,
+                  lastName: widget.user.lastName,
+                  email: widget.user.email,
+                  phone: widget.user.phone,
+                  role: 'driver',
+                  roles: {
+                    ...(widget.user.roles ?? <String>[]),
+                    'owner',
+                    'driver',
+                  }.toList(),
+                );
+
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DriverDocumentsGateScreen(user: upgradedUser),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString().replaceFirst('Exception: ', '')),
+                    backgroundColor: AppColors.danger,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,

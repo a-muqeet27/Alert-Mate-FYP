@@ -5,14 +5,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
+import '../models/driver_document_submission.dart';
 import '../services/vehicle_service.dart';
+import '../services/driver_document_submission_service.dart';
+import '../widgets/driver_cnic_license_upload_panel.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -54,6 +57,7 @@ class _DriverDashboardState extends State<DriverDashboard>
   
   Vehicle? _assignedVehicle;
   final VehicleService _vehicleService = VehicleService();
+  final DriverDocumentSubmissionService _docSubmissionService = DriverDocumentSubmissionService();
   final EmergencyContactService _emergencyContactService = EmergencyContactService();
   final MonitoringService _monitoringService = MonitoringService();
   Timer? _statsUpdateTimer;
@@ -1065,69 +1069,177 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(height: 32),
                 StreamBuilder<Vehicle?>(
                   stream: _vehicleService.getVehicleByDriverStream(widget.user.id),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Text('Error loading vehicle: ${snapshot.error}');
+                  builder: (context, vehicleSnap) {
+                    if (vehicleSnap.hasError) {
+                      return Text('Error loading vehicle: ${vehicleSnap.error}');
                     }
-                    
-                    if (snapshot.connectionState == ConnectionState.waiting) {
+                    if (vehicleSnap.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    final assignedVehicle = snapshot.data;
-                    
-                    // Update local state for other widgets if needed
+                    final assignedVehicle = vehicleSnap.data;
+
                     if (assignedVehicle != null && _assignedVehicle?.id != assignedVehicle.id) {
-                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                         if (mounted) setState(() => _assignedVehicle = assignedVehicle);
-                       });
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) setState(() => _assignedVehicle = assignedVehicle);
+                      });
                     } else if (assignedVehicle == null && _assignedVehicle != null) {
-                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                         if (mounted) setState(() => _assignedVehicle = null);
-                       });
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) setState(() => _assignedVehicle = null);
+                      });
                     }
 
-                    if (assignedVehicle == null) {
-                      return const SizedBox.shrink(); // No vehicle assigned
-                    }
-
-                    final isMobile = MediaQuery.of(context).size.width < 768;
-                    return Column(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.all(isMobile ? 16 : 24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.driverPrimary.withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.directions_car, color: AppColors.primary, size: isMobile ? 20 : 24),
-                                  SizedBox(width: isMobile ? 8 : 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Assigned Vehicle: ${assignedVehicle.make} ${assignedVehicle.model} (${assignedVehicle.year})',
-                                      style: TextStyle(
-                                        fontSize: isMobile ? 14 : 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
+                    if (assignedVehicle != null) {
+                      final isMobile = MediaQuery.of(context).size.width < 768;
+                      return Column(
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.all(isMobile ? 16 : 24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.driverPrimary.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.directions_car, color: AppColors.primary, size: isMobile ? 20 : 24),
+                                    SizedBox(width: isMobile ? 8 : 12),
+                                    Expanded(
+                                      child: Text(
+                                        'Assigned Vehicle: ${assignedVehicle.make} ${assignedVehicle.model} (${assignedVehicle.year})',
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 14 : 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: isMobile ? 8 : 12),
-                              _buildVehicleInfoChip(Icons.confirmation_number, assignedVehicle.licensePlate, isMobile),
-                            ],
+                                  ],
+                                ),
+                                SizedBox(height: isMobile ? 8 : 12),
+                                _buildVehicleInfoChip(Icons.confirmation_number, assignedVehicle.licensePlate, isMobile),
+                              ],
+                            ),
                           ),
-                        ),
-                        SizedBox(height: isMobile ? 24 : 32),
-                      ],
+                          SizedBox(height: isMobile ? 24 : 32),
+                        ],
+                      );
+                    }
+
+                    return StreamBuilder<bool>(
+                      stream: _vehicleService.hasOwnerPendingVehiclesStream(widget.user.id),
+                      builder: (context, ownerSnap) {
+                        return StreamBuilder<bool>(
+                          stream: _vehicleService.hasGeneralPendingVehiclesStream(),
+                          builder: (context, generalSnap) {
+                            final ownerPending = ownerSnap.data ?? false;
+                            final generalPending = generalSnap.data ?? false;
+
+                            if (ownerSnap.hasError || generalSnap.hasError) {
+                              return Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Text(
+                                  'Could not load vehicle queue status.',
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              );
+                            }
+
+                            final waiting =
+                                ownerSnap.connectionState == ConnectionState.waiting ||
+                                generalSnap.connectionState == ConnectionState.waiting;
+
+                            if (waiting) {
+                              return const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(child: CircularProgressIndicator()),
+                              );
+                            }
+
+                            final isMobile = MediaQuery.of(context).size.width < 768;
+
+                            // If there is no vehicle waiting for this driver, do NOT ask for CNIC/license.
+                            if (!ownerPending && !generalPending) {
+                              return Column(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    padding: EdgeInsets.all(isMobile ? 16 : 24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: AppColors.driverPrimary.withOpacity(0.25)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(Icons.schedule, color: AppColors.primary, size: isMobile ? 22 : 26),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                'No vehicles in queue',
+                                                style: TextStyle(
+                                                  fontSize: isMobile ? 16 : 18,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'When an approved vehicle is waiting for you (or for any driver), you will be asked to upload CNIC and license for admin approval.',
+                                          style: TextStyle(fontSize: isMobile ? 12 : 13, color: Colors.black54),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(height: isMobile ? 24 : 32),
+                                ],
+                              );
+                            }
+
+                            return StreamBuilder<DriverDocumentSubmission?>(
+                              stream: _docSubmissionService.watchLatestForDriver(widget.user.id),
+                              builder: (context, subSnap) {
+                                if (subSnap.hasError) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Text(
+                                      'Could not load document status: ${subSnap.error}',
+                                      style: const TextStyle(color: Colors.red),
+                                    ),
+                                  );
+                                }
+
+                                if (subSnap.connectionState == ConnectionState.waiting) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(24),
+                                    child: Center(child: CircularProgressIndicator()),
+                                  );
+                                }
+
+                                return Column(
+                                  children: [
+                                    DriverCnicLicenseUploadPanel(
+                                      user: widget.user,
+                                      latestSubmission: subSnap.data,
+                                    ),
+                                    SizedBox(height: isMobile ? 24 : 32),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
                     );
                   },
                 ),

@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart' as app_models;
-import 'vehicle_service.dart';
 
 class FirebaseAuthService {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
@@ -84,15 +83,19 @@ class FirebaseAuthService {
         print('📊 User data: ${doc.data()}');
       }
 
-      // Check for auto-assignment if driver role is added
-      if (roles.contains('driver')) {
-        await _checkAndAssignVehicles(userCredential.user!.uid, email);
-      }
+      // Vehicle assignment is deferred until admin approves driver documents (see DriverVehicleSubmissionService).
 
       return userCredential.user;
     } on firebase_auth.FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
-        print('⚠️ Email already in use. Attempting to add role to existing user...');
+        // If the email already exists, treat "signup" as "add this role",
+        // but only after verifying the password by signing in.
+        // Admin role should not be self-service.
+        if (roles.contains('admin')) {
+          throw Exception('Admin role cannot be self-registered. Please contact support.');
+        }
+
+        print('⚠️ Email already in use. Attempting role add after password verification...');
         try {
           // 1. Verify password by signing in
           firebase_auth.UserCredential credential = 
@@ -105,28 +108,27 @@ class FirebaseAuthService {
           if (doc.exists) {
             Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
             List<String> existingRoles = List<String>.from(data['roles'] ?? []);
-            
-            // 3. Add new roles
+
+            // 3. Add requested roles (non-admin) if missing
             bool rolesUpdated = false;
-            for (String role in roles) {
+            for (final role in roles) {
+              if (role == 'admin') continue;
               if (!existingRoles.contains(role)) {
                 existingRoles.add(role);
                 rolesUpdated = true;
                 print('➕ Adding new role: $role');
               }
             }
-            
+
             if (rolesUpdated) {
               await _firestore.collection('users').doc(uid).update({
                 'roles': existingRoles,
+                // Make the newly requested role active (first one)
+                'activeRole': roles.isNotEmpty ? roles.first : (data['activeRole'] ?? existingRoles.first),
                 'updatedAt': FieldValue.serverTimestamp(),
               });
               print('✅ Roles updated successfully: $existingRoles');
               
-              // Check for auto-assignment if driver role was added
-              if (roles.contains('driver')) {
-                await _checkAndAssignVehicles(uid, email);
-              }
             } else {
               print('ℹ️ User already has these roles.');
             }
@@ -144,25 +146,6 @@ class FirebaseAuthService {
     } catch (e) {
       print('❌ Unexpected error during sign up: $e');
       rethrow;
-    }
-  }
-
-  // Helper for vehicle assignment
-  Future<void> _checkAndAssignVehicles(String uid, String email) async {
-    print('🚕 Checking for vehicle assignments...');
-    final VehicleService vehicleService = VehicleService();
-    
-    List<String> assignedIds = await vehicleService.assignOwnerPendingVehicles(uid, email);
-    
-    if (assignedIds.isNotEmpty) {
-      print('✅ Auto-assigned ${assignedIds.length} owner-pending vehicle(s)');
-    } else {
-      bool assigned = await vehicleService.assignGeneralPendingVehiclesToNewDriver(uid, email);
-      if (assigned) {
-        print('✅ Auto-assigned 1 vehicle from general pool');
-      } else {
-        print('ℹ️ No vehicles available for assignment at this time');
-      }
     }
   }
 
@@ -289,6 +272,34 @@ class FirebaseAuthService {
     } catch (e) {
       print('❌ Failed to add role: $e');
       throw Exception('Failed to add role: $e');
+    }
+  }
+
+  /// Restricted helper for owner -> driver edge case only.
+  Future<void> addDriverRoleForOwner(String uid) async {
+    DocumentSnapshot doc = await _firestore.collection('users').doc(uid).get();
+    if (!doc.exists) {
+      throw Exception('User profile not found');
+    }
+
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    List<String> roles = List<String>.from(data['roles'] ?? []);
+    if (!roles.contains('owner')) {
+      throw Exception('Only vehicle owners can use this driver access path.');
+    }
+
+    if (!roles.contains('driver')) {
+      roles.add('driver');
+      await _firestore.collection('users').doc(uid).update({
+        'roles': roles,
+        'activeRole': 'driver',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await _firestore.collection('users').doc(uid).update({
+        'activeRole': 'driver',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     }
   }
 
