@@ -16,6 +16,7 @@ import '../services/firebase_auth_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../screens/driver_documents_gate_screen.dart';
+import '../widgets/email_verified_guard.dart';
 
 class OwnerDashboard extends StatefulWidget {
   final User user;
@@ -625,26 +626,28 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           ),
         ],
       ) : null,
-      body: isMobile
-          ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
-          : Row(
-        children: [
-          AppSidebar(
-            role: 'owner',
-            user: widget.user is User ? widget.user : null,
-            selectedIndex: _selectedIndex,
-            onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-            menuItems: const [
-              MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-              MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-            ],
-            accentColor: AppColors.primary,
-            accentLightColor: AppColors.primaryLight,
-          ),
-          Expanded(
-            child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-          ),
-        ],
+      body: EmailVerifiedGuard(
+        child: isMobile
+            ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
+            : Row(
+                children: [
+                  AppSidebar(
+                    role: 'owner',
+                    user: widget.user is User ? widget.user : null,
+                    selectedIndex: _selectedIndex,
+                    onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+                    menuItems: const [
+                      MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+                      MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+                    ],
+                    accentColor: AppColors.primary,
+                    accentLightColor: AppColors.primaryLight,
+                  ),
+                  Expanded(
+                    child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
+                  ),
+                ],
+              ),
       ),
     );
   }

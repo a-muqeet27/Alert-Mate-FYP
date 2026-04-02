@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/vehicle.dart';
 import '../services/vehicle_service.dart';
 import '../services/monitoring_service.dart';
+import '../widgets/email_verified_guard.dart';
 
 class PassengerDashboard extends StatefulWidget {
   final User user;
@@ -232,27 +233,29 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
         ],
       ) : null,
-      body: isMobile
-          ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
-          : Row(
-              children: [
-                AppSidebar(
-                  role: 'passenger',
-                  user: widget.user,
-                  selectedIndex: _selectedIndex,
-                  onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                  menuItems: const [
-                    MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-                    MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-                  ],
-                  accentColor: AppColors.passengerPrimary,
-                  accentLightColor: AppColors.passengerLight,
-                ),
-                Expanded(
-                  child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-                ),
-              ],
-            ),
+      body: EmailVerifiedGuard(
+        child: isMobile
+            ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
+            : Row(
+                children: [
+                  AppSidebar(
+                    role: 'passenger',
+                    user: widget.user,
+                    selectedIndex: _selectedIndex,
+                    onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+                    menuItems: const [
+                      MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+                      MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+                    ],
+                    accentColor: AppColors.passengerPrimary,
+                    accentLightColor: AppColors.passengerLight,
+                  ),
+                  Expanded(
+                    child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -1264,11 +1267,14 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               ),
             ),
             SizedBox(height: isMobile ? 6 : 8),
-            Text(
-              'Quick access to emergency services and contacts',
-              style: TextStyle(
-                fontSize: isMobile ? 13 : 16,
-                color: Colors.black54,
+            SizedBox(
+              width: double.infinity,
+              child: Text(
+                'Quick access to emergency services and contacts',
+                style: TextStyle(
+                  fontSize: isMobile ? 13 : 16,
+                  color: Colors.black54,
+                ),
               ),
             ),
             SizedBox(height: isMobile ? 24 : 32),
@@ -1486,8 +1492,11 @@ class _PassengerDashboardState extends State<PassengerDashboard>
 
         final contacts = snapshot.data ?? [];
 
+        final screenW = MediaQuery.of(context).size.width;
+        final narrowHeader = screenW < 640;
+
         return Container(
-          padding: const EdgeInsets.all(28),
+          padding: EdgeInsets.all(screenW < 600 ? 16 : 28),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -1502,48 +1511,91 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Emergency Contacts',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Manage your emergency contact list',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _showContactDialog(context: context);
-                    },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Contact'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2196F3),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+              if (narrowHeader)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Emergency Contacts',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Manage your emergency contact list',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _showContactDialog(context: context);
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add Contact'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2196F3),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Emergency Contacts',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Manage your emergency contact list',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _showContactDialog(context: context);
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add Contact'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2196F3),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 24),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -1582,14 +1634,17 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               ),
               const SizedBox(height: 20),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 8),
-                  Text(
-                    'Last system test: Just now • ${contacts.length} active contacts',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
+                  Expanded(
+                    child: Text(
+                      'Last system test: Just now • ${contacts.length} active contacts',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
                     ),
                   ),
                 ],

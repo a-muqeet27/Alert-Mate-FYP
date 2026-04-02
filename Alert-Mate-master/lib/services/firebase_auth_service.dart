@@ -1,10 +1,70 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../firebase_options.dart';
 import '../models/user.dart' as app_models;
 
 class FirebaseAuthService {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// Continue URL for verification links (must match Firebase Auth authorized domains).
+  String get _emailActionContinueUrl {
+    final o = DefaultFirebaseOptions.currentPlatform;
+    final domain = o.authDomain ?? '${o.projectId}.firebaseapp.com';
+    return 'https://$domain/';
+  }
+
+  /// Sends verification email with explicit action settings (more reliable across platforms).
+  Future<void> _sendVerificationEmail(firebase_auth.User user) async {
+    final settings = firebase_auth.ActionCodeSettings(
+      url: _emailActionContinueUrl,
+      handleCodeInApp: false,
+      androidPackageName: 'com.example.alert_mate',
+      androidInstallApp: true,
+    );
+    await user.sendEmailVerification(settings);
+  }
+
+  /// [ActionCodeSettings] for email-link messages (used when the address is already verified).
+  firebase_auth.ActionCodeSettings get _signInLinkActionCodeSettings {
+    return firebase_auth.ActionCodeSettings(
+      url: _emailActionContinueUrl,
+      handleCodeInApp: true,
+      androidPackageName: 'com.example.alert_mate',
+      androidInstallApp: true,
+      iOSBundleId: 'com.example.alertMate',
+    );
+  }
+
+  /// Firebase only verifies an email **once** per account; it will not send another
+  /// `sendEmailVerification` after the address is verified. For "add another role" flows
+  /// we still send **an email with a link** every time by using [sendSignInLinkToEmail]
+  /// when the account is already verified (enable "Email link" under Email/Password in Firebase Console).
+  Future<void> _sendRoleSignupEmail(String email, firebase_auth.User user) async {
+    await user.reload();
+    final current = _auth.currentUser;
+    if (current == null) return;
+
+    if (!current.emailVerified) {
+      await _sendVerificationEmail(current);
+      return;
+    }
+
+    try {
+      await _auth.sendSignInLinkToEmail(
+        email: email,
+        actionCodeSettings: _signInLinkActionCodeSettings,
+      );
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'operation-not-allowed') {
+        throw Exception(
+          'Email link sign-in is disabled in Firebase. In Firebase Console → Authentication → '
+          'Sign-in method → Email/Password → enable "Email link (passwordless sign-in)" so we can send a confirmation link when your email is already verified.',
+        );
+      }
+      rethrow;
+    }
+  }
 
   // Check if user exists with given email (checks all roles)
   Future<bool> userExists(String email) async {
@@ -25,8 +85,9 @@ class FirebaseAuthService {
     }
   }
 
-  // Sign up new user with multiple roles
-  Future<firebase_auth.User?> signUp({
+  // Sign up new user with multiple roles.
+  // On success: verification email is sent and the session is ended so the user must verify, then sign in.
+  Future<void> signUp({
     required String email,
     required String password,
     required String firstName,
@@ -35,6 +96,12 @@ class FirebaseAuthService {
     required List<String> roles,
   }) async {
     try {
+      if (roles.contains('admin')) {
+        throw Exception(
+          'Admin accounts cannot be registered in the app. Use credentials provided by your organization.',
+        );
+      }
+
       print('🚀 Starting sign up process for: $email with roles: $roles');
       
       // Create Firebase Auth user
@@ -47,11 +114,19 @@ class FirebaseAuthService {
 
       print('✅ Firebase Auth user created: ${userCredential.user!.uid}');
 
-      // Send email verification
+      // Send email verification before Firestore so we fail fast if email cannot be sent.
       if (userCredential.user != null && !userCredential.user!.emailVerified) {
         print('📧 Sending verification email...');
-        await userCredential.user!.sendEmailVerification();
-        print('✅ Verification email sent to $email');
+        try {
+          await _sendVerificationEmail(userCredential.user!);
+          print('✅ Verification email sent to $email');
+        } catch (e) {
+          print('❌ sendEmailVerification failed: $e');
+          await _auth.signOut();
+          throw Exception(
+            'Could not send verification email. Check Firebase Auth email settings and spam folder, then try again.',
+          );
+        }
       }
 
       // Set first role as active role
@@ -83,9 +158,11 @@ class FirebaseAuthService {
         print('📊 User data: ${doc.data()}');
       }
 
-      // Vehicle assignment is deferred until admin approves driver documents (see DriverVehicleSubmissionService).
+      // End session: user must open the verification link, then sign in (no "logged in" state after signup).
+      await _auth.signOut();
+      print('👋 Signed out after signup; user must verify email then sign in.');
 
-      return userCredential.user;
+      // Vehicle assignment is deferred until admin approves driver documents (see DriverVehicleSubmissionService).
     } on firebase_auth.FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         // If the email already exists, treat "signup" as "add this role",
@@ -97,47 +174,75 @@ class FirebaseAuthService {
 
         print('⚠️ Email already in use. Attempting role add after password verification...');
         try {
-          // 1. Verify password by signing in
-          firebase_auth.UserCredential credential = 
-              await _auth.signInWithEmailAndPassword(email: email, password: password);
-          
+          // 1. Verify password by signing in (only this step maps to "wrong password")
+          late firebase_auth.UserCredential credential;
+          try {
+            credential =
+                await _auth.signInWithEmailAndPassword(email: email, password: password);
+          } on firebase_auth.FirebaseAuthException {
+            throw Exception('Account exists. Please enter the correct password to add this role.');
+          }
+
           String uid = credential.user!.uid;
           
           // 2. Get existing roles
           DocumentSnapshot doc = await _firestore.collection('users').doc(uid).get();
-          if (doc.exists) {
-            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-            List<String> existingRoles = List<String>.from(data['roles'] ?? []);
-
-            // 3. Add requested roles (non-admin) if missing
-            bool rolesUpdated = false;
-            for (final role in roles) {
-              if (role == 'admin') continue;
-              if (!existingRoles.contains(role)) {
-                existingRoles.add(role);
-                rolesUpdated = true;
-                print('➕ Adding new role: $role');
-              }
-            }
-
-            if (rolesUpdated) {
-              await _firestore.collection('users').doc(uid).update({
-                'roles': existingRoles,
-                // Make the newly requested role active (first one)
-                'activeRole': roles.isNotEmpty ? roles.first : (data['activeRole'] ?? existingRoles.first),
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
-              print('✅ Roles updated successfully: $existingRoles');
-              
-            } else {
-              print('ℹ️ User already has these roles.');
-            }
-            
-            return credential.user;
+          if (!doc.exists) {
+            await _auth.signOut();
+            throw Exception('Account exists but profile is missing. Please contact support.');
           }
+
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          List<String> existingRoles = List<String>.from(data['roles'] ?? []);
+
+          // 3. Add requested roles (non-admin) if missing
+          bool rolesUpdated = false;
+          for (final role in roles) {
+            if (role == 'admin') continue;
+            if (!existingRoles.contains(role)) {
+              existingRoles.add(role);
+              rolesUpdated = true;
+              print('➕ Adding new role: $role');
+            }
+          }
+
+          final current = _auth.currentUser;
+          if (current != null) {
+            await current.reload();
+          }
+          final refreshed = _auth.currentUser;
+          if (refreshed == null) {
+            await _auth.signOut();
+            throw Exception('Session lost. Please try again.');
+          }
+
+          // Send an email with a link every time a new role is added, or re-send verification if still pending.
+          final shouldSendEmail = rolesUpdated || !refreshed.emailVerified;
+          if (shouldSendEmail) {
+            print('📧 Sending role / verification email to $email...');
+            await _sendRoleSignupEmail(email, refreshed);
+            print('✅ Email sent to $email');
+          } else {
+            print('ℹ️ No new role and email already verified — no email sent.');
+          }
+
+          if (rolesUpdated) {
+            await _firestore.collection('users').doc(uid).update({
+              'roles': existingRoles,
+              'activeRole': roles.isNotEmpty ? roles.first : (data['activeRole'] ?? existingRoles.first),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            print('✅ Roles updated successfully: $existingRoles');
+          } else {
+            print('ℹ️ User already has these roles.');
+          }
+
+          await _auth.signOut();
+          print('👋 Signed out after role add; user must sign in after verifying if needed.');
+          return;
         } catch (signInError) {
-          print('❌ Failed to add role: Incorrect password or other error: $signInError');
-          throw Exception('Account exists. Please enter the correct password to add this role.');
+          await _auth.signOut();
+          rethrow;
         }
       }
       
@@ -161,6 +266,16 @@ class FirebaseAuthService {
       );
 
       print('✅ Sign in successful!');
+
+      // Enforce email verification before allowing dashboard access (Auth is source of truth).
+      // Do not sign out here when unverified: the session is needed for "Resend verification email".
+      await userCredential.user!.reload();
+      await userCredential.user!.getIdToken(true);
+      await userCredential.user!.reload();
+      final refreshed = _auth.currentUser;
+      if (refreshed == null || !refreshed.emailVerified) {
+        throw Exception('EMAIL_NOT_VERIFIED');
+      }
       
       // Sync email verification status from Firebase Auth to Firestore
       await syncEmailVerificationStatus();
@@ -215,6 +330,9 @@ class FirebaseAuthService {
       print('❌ Firebase Auth Error: ${e.code} - ${e.message}');
       throw Exception(_getAuthErrorMessage(e.code));
     } catch (e) {
+      if (e.toString().contains('EMAIL_NOT_VERIFIED')) {
+        throw Exception('Please verify your email before signing in.');
+      }
       print('❌ Unexpected error during sign in: $e');
       rethrow;
     }
@@ -462,7 +580,7 @@ class FirebaseAuthService {
       firebase_auth.User? user = _auth.currentUser;
       if (user != null && !user.emailVerified) {
         print('📧 Resending verification email to ${user.email}...');
-        await user.sendEmailVerification();
+        await _sendVerificationEmail(user);
         print('✅ Verification email resent!');
       } else if (user?.emailVerified == true) {
         print('⚠️ Email already verified!');
