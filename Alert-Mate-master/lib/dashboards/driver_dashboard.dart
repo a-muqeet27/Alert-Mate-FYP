@@ -1078,52 +1078,52 @@ class _DriverDashboardState extends State<DriverDashboard>
                     }
 
                     final assignedVehicle = vehicleSnap.data;
-
+                    
                     if (assignedVehicle != null && _assignedVehicle?.id != assignedVehicle.id) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) setState(() => _assignedVehicle = assignedVehicle);
-                      });
+                       WidgetsBinding.instance.addPostFrameCallback((_) {
+                         if (mounted) setState(() => _assignedVehicle = assignedVehicle);
+                       });
                     } else if (assignedVehicle == null && _assignedVehicle != null) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) setState(() => _assignedVehicle = null);
-                      });
+                       WidgetsBinding.instance.addPostFrameCallback((_) {
+                         if (mounted) setState(() => _assignedVehicle = null);
+                       });
                     }
 
                     if (assignedVehicle != null) {
-                      final isMobile = MediaQuery.of(context).size.width < 768;
-                      return Column(
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.all(isMobile ? 16 : 24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.driverPrimary.withOpacity(0.3)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.directions_car, color: AppColors.primary, size: isMobile ? 20 : 24),
-                                    SizedBox(width: isMobile ? 8 : 12),
-                                    Expanded(
-                                      child: Text(
-                                        'Assigned Vehicle: ${assignedVehicle.make} ${assignedVehicle.model} (${assignedVehicle.year})',
-                                        style: TextStyle(
-                                          fontSize: isMobile ? 14 : 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
+                    final isMobile = MediaQuery.of(context).size.width < 768;
+                    return Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(isMobile ? 16 : 24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.driverPrimary.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.directions_car, color: AppColors.primary, size: isMobile ? 20 : 24),
+                                  SizedBox(width: isMobile ? 8 : 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Assigned Vehicle: ${assignedVehicle.make} ${assignedVehicle.model} (${assignedVehicle.year})',
+                                      style: TextStyle(
+                                        fontSize: isMobile ? 14 : 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
                                       ),
                                     ),
-                                  ],
-                                ),
-                                SizedBox(height: isMobile ? 8 : 12),
-                                _buildVehicleInfoChip(Icons.confirmation_number, assignedVehicle.licensePlate, isMobile),
-                              ],
-                            ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: isMobile ? 8 : 12),
+                              _buildVehicleInfoChip(Icons.confirmation_number, assignedVehicle.licensePlate, isMobile),
+                            ],
+                          ),
                           ),
                           SizedBox(height: isMobile ? 24 : 32),
                         ],
@@ -1231,9 +1231,9 @@ class _DriverDashboardState extends State<DriverDashboard>
                                     DriverCnicLicenseUploadPanel(
                                       user: widget.user,
                                       latestSubmission: subSnap.data,
-                                    ),
-                                    SizedBox(height: isMobile ? 24 : 32),
-                                  ],
+                        ),
+                        SizedBox(height: isMobile ? 24 : 32),
+                      ],
                                 );
                               },
                             );

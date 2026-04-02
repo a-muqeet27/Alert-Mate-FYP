@@ -7,6 +7,10 @@ import '../auth_screen.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../constants/app_colors.dart';
 import '../services/emergency_contact_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/vehicle.dart';
+import '../services/vehicle_service.dart';
+import '../services/monitoring_service.dart';
 
 class PassengerDashboard extends StatefulWidget {
   final User user;
@@ -23,6 +27,17 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   int _selectedTab = 0;
   final Random _random = Random();
   late EmergencyContactService _emergencyContactService;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final VehicleService _vehicleService = VehicleService();
+  final MonitoringService _monitoringService = MonitoringService();
+  Vehicle? _selectedVehicle;
+  String? _selectedDriverId;
+  // Plate lookup state
+  final TextEditingController _plateController = TextEditingController();
+  bool _isSearchingPlate = false;
+  String? _plateError;
+  Vehicle? _lookupVehicle;
+  String? _lookupDriverId;
 
   
   // Animation controllers
@@ -72,6 +87,74 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     _startDataUpdate();
   }
 
+  // Vehicle selector
+  Widget _buildVehicleSelector() {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Select Vehicle / Driver',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<List<Vehicle>>(
+            stream: _vehiclesForPassengerStream(),
+            builder: (context, snapshot) {
+              final vehicles = snapshot.data ?? [];
+              vehicles.sort((a, b) => (b.status == 'Active' ? 1 : 0)
+                  .compareTo(a.status == 'Active' ? 1 : 0));
+              if (_selectedVehicle != null) {
+                final exists = vehicles.any((v) => v.id == _selectedVehicle!.id);
+                if (!exists) {
+                  _onSelectVehicle(null);
+                }
+              }
+              // Use vehicleId (String) as the dropdown value to avoid identity issues
+              final String? selectedId = _selectedVehicle?.id;
+              return DropdownButton<String>(
+                value: vehicles.any((v) => v.id == selectedId) ? selectedId : null,
+                hint: const Text('Choose a vehicle to follow'),
+                isExpanded: true,
+                items: vehicles.map((v) {
+                  final title = '${v.make} ${v.model} (${v.year})'
+                      '${v.driverName != null ? ' • ${v.driverName}' : ''}'
+                      ' • ${v.status}';
+                  return DropdownMenuItem<String>(
+                    value: v.id,
+                    child: Text(title, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: (vehicleId) {
+                  if (vehicleId == null) {
+                    _onSelectVehicle(null);
+                    return;
+                  }
+                  final matches = vehicles.where((v) => v.id == vehicleId);
+                  if (matches.isEmpty) {
+                    _onSelectVehicle(null);
+                  } else {
+                    _onSelectVehicle(matches.first);
+                  }
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _startDataUpdate() {
     _updateTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       setState(() {
@@ -80,11 +163,29 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     });
   }
 
+  // Stream vehicles so passenger can select which ride to follow
+  Stream<List<Vehicle>> _vehiclesForPassengerStream() {
+    return _firestore
+        .collection('vehicles')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => Vehicle.fromMap({'id': d.id, ...d.data()}))
+            .toList());
+  }
+
+  void _onSelectVehicle(Vehicle? v) {
+    setState(() {
+      _selectedVehicle = v;
+      _selectedDriverId = v?.assignedDriverId;
+    });
+  }
+
   @override
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
     _scaleController.dispose();
+    _plateController.dispose();
     _updateTimer?.cancel();
     super.dispose();
   }
@@ -244,25 +345,14 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                   2,
                 ),
                 const SizedBox(height: 24),
+                // License plate lookup section (Passenger enters plate to view live status/history)
                 _buildStaggeredItem(
-                  isMobile
-                      ? Column(
-                          children: [
-                            _buildDriverAlertnessCard(),
-                            const SizedBox(height: 16),
-                            _buildSafetyStatusCard(),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(child: _buildDriverAlertnessCard()),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildSafetyStatusCard()),
-                          ],
-                        ),
-                  3,
+                  _buildPlateLookupSection(),
+                  2,
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+                // Tab bar (Live Status / Location)
+                const SizedBox(height: 8),
                 _buildStaggeredItem(_buildTabBar(), 4),
                 const SizedBox(height: 32),
                 _buildStaggeredItem(
@@ -271,8 +361,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                           children: [
                             if (_selectedTab == 0) ...[
                               _buildDriverAlertnessTrend(),
-                              const SizedBox(height: 20),
-                              _buildTripInformation(),
                             ] else if (_selectedTab == 1) ...[
                               _buildLocationTab(),
                             ],
@@ -291,6 +379,444 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
         );
       },
+    );
+  }
+
+  // Normalize license plate: uppercase, remove spaces and hyphens
+  String _normalizePlate(String input) {
+    return input.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
+  }
+
+  // Build common formatting variants to match Firestore values exactly
+  // because Firestore equality is case/format sensitive.
+  List<String> _buildPlateVariants(String rawInput) {
+    final trimmed = rawInput.trim();
+    final upper = trimmed.toUpperCase();
+    final lower = trimmed.toLowerCase();
+    final noSepUpper = _normalizePlate(trimmed); // e.g., AAA111
+
+    // If pattern like ABC123 -> add ABC-123 and ABC 123
+    final match = RegExp(r'^([A-Za-z]+)[\s-]*([0-9]+)$').firstMatch(upper);
+    String withDash = upper;
+    String withSpace = upper;
+    if (match != null) {
+      final partA = match.group(1) ?? '';
+      final partB = match.group(2) ?? '';
+      withDash = '$partA-$partB';
+      withSpace = '$partA $partB';
+    }
+
+    // Unique, ordered attempts (most likely first)
+    final variants = <String>{
+      trimmed,
+      upper,
+      lower,
+      withDash,
+      withSpace,
+      noSepUpper,
+    }.toList();
+
+    // Remove empty strings just in case
+    return variants.where((v) => v.isNotEmpty).toList();
+  }
+
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>?> _findVehicleByPlate(
+    String rawInput,
+  ) async {
+    final variants = _buildPlateVariants(rawInput);
+    for (final value in variants) {
+      final snap = await _firestore
+          .collection('vehicles')
+          .where('licensePlate', isEqualTo: value)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        return snap.docs.first;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _searchByPlate() async {
+    final raw = _plateController.text.trim();
+    if (raw.isEmpty) {
+      setState(() {
+        _plateError = 'Enter a license plate';
+        _lookupVehicle = null;
+        _lookupDriverId = null;
+      });
+      return;
+    }
+    setState(() {
+      _isSearchingPlate = true;
+      _plateError = null;
+      _lookupVehicle = null;
+      _lookupDriverId = null;
+    });
+    try {
+      final doc = await _findVehicleByPlate(raw);
+      if (doc == null) {
+        setState(() {
+          _plateError = 'No vehicle found with this license plate';
+          _isSearchingPlate = false;
+        });
+        return;
+      }
+      final v = Vehicle.fromMap({'id': doc.id, ...doc.data() as Map<String, dynamic>});
+      final driverId = v.assignedDriverId ?? '';
+      if (driverId.isEmpty) {
+        setState(() {
+          _lookupVehicle = v;
+          _lookupDriverId = null;
+          _isSearchingPlate = false;
+          _plateError = 'No driver currently assigned to this vehicle';
+        });
+        return;
+      }
+      setState(() {
+        _lookupVehicle = v;
+        _lookupDriverId = driverId;
+        _isSearchingPlate = false;
+      });
+    } catch (e) {
+      setState(() {
+        _plateError = 'Error: $e';
+        _isSearchingPlate = false;
+      });
+    }
+  }
+
+  Widget _buildPlateLookupSection() {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Find Driver by License Plate',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _plateController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    hintText: 'Enter license plate (e.g., ABC-123)',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: _isSearchingPlate ? null : _searchByPlate,
+                  icon: const Icon(Icons.search, size: 18),
+                  label: Text(_isSearchingPlate ? 'Searching...' : 'Search'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.passengerPrimary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_plateError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _plateError!,
+              style: const TextStyle(fontSize: 13, color: Colors.red),
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildPlateLookupResults(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlateLookupResults() {
+    final v = _lookupVehicle;
+    final driverId = _lookupDriverId;
+    if (v == null && driverId == null) {
+      // Nothing to show yet
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Basic vehicle & driver info from Firestore
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Vehicle & Driver',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+              const SizedBox(height: 8),
+              if (v != null) ...[
+                _buildTripInfoRow('Driver', v.driverName ?? (driverId ?? 'Unknown')),
+                const SizedBox(height: 8),
+                _buildTripInfoRow('Vehicle', '${v.make} ${v.model}'),
+                const SizedBox(height: 8),
+                _buildTripInfoRow('License Plate', v.licensePlate),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (driverId != null && driverId.isNotEmpty)
+          _buildLiveStatusCards(driverId)
+        else
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: const Text('No live data (no driver assigned)', style: TextStyle(fontSize: 13, color: Colors.black54)),
+          ),
+        const SizedBox(height: 16),
+        // History from RTDB history node
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'History',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+              const SizedBox(height: 8),
+              if (driverId == null || driverId.isEmpty)
+                const Text('No history available', style: TextStyle(fontSize: 13, color: Colors.black54))
+              else
+                StreamBuilder<Map<String, dynamic>>(
+                  stream: _monitoringService.getDriverHistory(driverId),
+                  builder: (context, snapshot) {
+                    final history = snapshot.data ?? {};
+                    if (history.isEmpty) {
+                      return const Text('No history recorded yet', style: TextStyle(fontSize: 13, color: Colors.black54));
+                    }
+                    // Render as simple key/value table
+                    final entries = history.entries.toList();
+                    // Not all nodes have time keys; show as-is
+                    return Table(
+                      columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(3)},
+                      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                      children: [
+                        const TableRow(
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Text('Field', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Text('Value', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                          ],
+                        ),
+                        ...entries.map((e) => TableRow(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Text(e.key.toString(), style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Text(e.value.toString(), style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                            ),
+                          ],
+                        )),
+                      ],
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Two-card row: Driver Alertness + Safety Status based on live RTDB stats
+  Widget _buildLiveStatusCards(String driverId) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final cards = StreamBuilder<Map<String, dynamic>>(
+      stream: _monitoringService.getCurrentStats(driverId),
+      builder: (context, snapshot) {
+        final hasLive = snapshot.hasData && (snapshot.data?.isNotEmpty == true);
+        if (!hasLive) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: const Text('Driver is not active', style: TextStyle(fontSize: 13, color: Colors.black54)),
+          );
+        }
+        final data = snapshot.data!;
+        final drowsy = data['drowsinessDetected'] == true;
+        final safe = !drowsy;
+        final statusColor = safe ? const Color(0xFF4CAF50) : Colors.red;
+        return isMobile
+            ? Column(
+                children: [
+                  _buildDriverStateBadgeCard(drowsy),
+                  const SizedBox(height: 16),
+                  _buildSafetyStatusCardUI(safe, drowsy, statusColor),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: _buildDriverStateBadgeCard(drowsy)),
+                  const SizedBox(width: 20),
+                  Expanded(child: _buildSafetyStatusCardUI(safe, drowsy, statusColor)),
+                ],
+              );
+      },
+    );
+    return cards;
+  }
+
+  Widget _buildDriverStateBadgeCard(bool drowsy) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Live Driver Status',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+              Icon(Icons.podcasts, color: Colors.grey[400], size: 20),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Icon(drowsy ? Icons.warning_amber : Icons.check_circle,
+                  color: drowsy ? Colors.red : AppColors.success, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                drowsy ? 'Drowsy' : 'Normal',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: drowsy ? Colors.red : AppColors.success,
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSafetyStatusCardUI(bool safe, bool drowsy, Color statusColor) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Safety Status',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+              Icon(Icons.shield_outlined, color: Colors.grey[400], size: 20),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                safe ? 'Safe' : (drowsy ? 'Critical' : 'Break Recommended'),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            safe ? 'All systems active' : (drowsy ? 'Drowsiness detected' : 'Consider taking a short break'),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -524,16 +1050,12 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ? Column(
                 children: [
                   _buildDriverAlertnessTrend(),
-                  const SizedBox(height: 20),
-                  _buildTripInformation(),
                 ],
               )
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(child: _buildDriverAlertnessTrend()),
-                  const SizedBox(width: 20),
-                  Expanded(child: _buildTripInformation()),
                 ],
               );
       },
@@ -541,8 +1063,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   Widget _buildDriverAlertnessTrend() {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final driverId = _lookupDriverId;
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 20 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -551,7 +1075,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Driver Alertness Trend',
+            'Live Driver Status',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -560,20 +1084,63 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
           const SizedBox(height: 6),
           Text(
-            'Real-time monitoring over the last 90 minutes',
+            'Real-time alertness and drowsiness indicators',
             style: TextStyle(
               fontSize: 13,
               color: Colors.grey[600],
             ),
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            height: 300,
-            child: CustomPaint(
-              painter: AlertnessTrendPainter(),
-              size: const Size(double.infinity, 300),
+          const SizedBox(height: 20),
+          if (driverId == null || driverId.isEmpty)
+            Text(
+              'Search by license plate to view live status',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            )
+          else
+            StreamBuilder<Map<String, dynamic>>(
+              stream: _monitoringService.getCurrentStats(driverId),
+              builder: (context, snapshot) {
+                final hasLive = snapshot.hasData && (snapshot.data?.isNotEmpty == true);
+                if (!hasLive) {
+                  return const Text(
+                    'Driver is not active',
+                    style: TextStyle(fontSize: 13, color: Colors.black54),
+                  );
+                }
+                final data = snapshot.data!;
+                final drowsy = data['drowsinessDetected'] == true;
+                final lastUpdateMs = data['lastUpdate'] as int?;
+                String lastText = '';
+                if (lastUpdateMs != null) {
+                  final dt = DateTime.fromMillisecondsSinceEpoch(lastUpdateMs);
+                  lastText = 'Last update: ${dt.toLocal().toString().split(".").first}';
+                }
+                final color = drowsy ? AppColors.danger : AppColors.success;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          drowsy ? Icons.warning_amber : Icons.check_circle,
+                          color: color,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          drowsy ? 'Drowsy' : 'Normal',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color),
+                        ),
+                      ],
+                    ),
+                    if (lastText.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(lastText, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    ],
+                  ],
+                );
+              },
             ),
-          ),
         ],
       ),
     );
@@ -613,6 +1180,9 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           _buildTripInfoRow('Distance Remaining', '245 miles'),
           const SizedBox(height: 20),
           _buildTripInfoRow('Estimated Arrival', '3:45 PM'),
+          const SizedBox(height: 20),
+          if (_selectedVehicle?.location != null && _selectedVehicle!.location!.isNotEmpty)
+            _buildTripInfoRow('Current Location', _selectedVehicle!.location!),
         ],
       ),
     );
