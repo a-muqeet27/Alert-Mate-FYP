@@ -495,13 +495,11 @@ class _AuthScreenState extends State<AuthScreen>
 
   /// After sign-up the Firebase session is ended; user must verify email, then use Sign In.
   void _showPostSignupVerifyEmailDialog(String selectedRole) {
-    String extra = '';
+    String tip = '';
     if (selectedRole == 'driver') {
-      extra =
-          '\n\nAfter you sign in with a verified email, you will upload your CNIC and driving license for admin approval. A vehicle is assigned only after approval.';
+      tip = ' After you sign in, complete driver verification for vehicle access.';
     } else if (selectedRole == 'owner') {
-      extra =
-          '\n\nAfter you sign in, you can add vehicles; vehicle documents may require admin approval.';
+      tip = ' After you sign in, you can add vehicles from your dashboard.';
     }
 
     showDialog(
@@ -509,13 +507,10 @@ class _AuthScreenState extends State<AuthScreen>
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Verify your email'),
-        content: SingleChildScrollView(
-          child: Text(
-            'We sent an email to your address with a link. If this is your first account on this email, open the link to verify, then sign in here.\n\n'
-            'If you already verified this email before and you just added another role, Firebase may send a sign-in link instead (same inbox)—you can open that link or simply use Sign In with your password after the role is added.${extra}\n\n'
-            'If you do not see the message, check your spam folder. You must verify before you can access your dashboard.',
-            style: const TextStyle(fontSize: 14, height: 1.4),
-          ),
+        content: Text(
+          'We sent a link to your inbox—open it to verify, then sign in here. '
+          'Check spam if you do not see it.$tip',
+          style: const TextStyle(fontSize: 14, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -690,9 +685,7 @@ class _AuthScreenState extends State<AuthScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _isAdminRole
-                                        ? 'Admin sign-in'
-                                        : (isSignIn ? 'Welcome!' : 'Create Account'),
+                                    isSignIn ? 'Welcome!' : 'Create Account',
                                     style: const TextStyle(
                                       fontSize: 24,
                                       fontWeight: FontWeight.w600,
@@ -701,53 +694,47 @@ class _AuthScreenState extends State<AuthScreen>
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _isAdminRole
-                                        ? 'Only existing admin accounts can sign in. New admins are added by your organization.'
-                                        : (isSignIn
-                                            ? 'Sign-in to access your ${_getSelectedRoleLabel()} Dashboard'
-                                            : 'Register as ${_getSelectedRoleLabel()} to get started'),
+                                    isSignIn
+                                        ? 'Sign-in to access your ${_getSelectedRoleLabel()} Dashboard'
+                                        : 'Register as ${_getSelectedRoleLabel()} to get started',
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: Color(0xFF7F8C8D),
                                     ),
                                   ),
                                   const SizedBox(height: 30),
-                                  if (_isAdminRole)
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFE8F4FD),
-                                        borderRadius: BorderRadius.circular(8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildToggleButton(
+                                            'Sign-In', isSignIn, () {
+                                          if (!isSignIn) _toggleAuthMode();
+                                        }),
                                       ),
-                                      child: const Text(
-                                        'Sign-in only — registration as Admin is disabled',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF3498DB),
-                                        ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: _isAdminRole
+                                            ? Opacity(
+                                                opacity: 0.45,
+                                                child: _buildToggleButton(
+                                                    'Sign-Up', false, () {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Admin sign-up is not available. Use credentials from your organization.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }),
+                                              )
+                                            : _buildToggleButton(
+                                                'Sign-Up', !isSignIn, () {
+                                              if (isSignIn) _toggleAuthMode();
+                                            }),
                                       ),
-                                    )
-                                  else
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildToggleButton(
-                                              'Sign-In', isSignIn, () {
-                                            if (!isSignIn) _toggleAuthMode();
-                                          }),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: _buildToggleButton(
-                                              'Sign-Up', !isSignIn, () {
-                                            if (isSignIn) _toggleAuthMode();
-                                          }),
-                                        ),
-                                      ],
-                                    ),
+                                    ],
+                                  ),
                                   const SizedBox(height: 30),
                                   if (!isSignIn) ...[
                                     Row(

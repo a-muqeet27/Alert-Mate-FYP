@@ -274,34 +274,55 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             isMobile
                 ? Column(
                     children: [
-                      _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 12),
-                      _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
-                      const SizedBox(height: 12),
-                      _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
-                      const SizedBox(height: 12),
-                      _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                          ),
+                        ],
+                      ),
                     ],
                   )
-                : Wrap(
-                    spacing: 20,
-                    runSpacing: 20,
+                : Column(
                     children: [
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
+                          ),
+                        ],
                       ),
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
-                      ),
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
-                      ),
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -353,7 +374,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           Text(
             number,
             style: TextStyle(
-              fontSize: isMobile ? 28 : 32,
+              fontSize: isMobile ? 24 : 32,
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -440,29 +461,32 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Emergency Contacts',
-                        style: TextStyle(
-                          fontSize: isMobile ? 16 : 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Emergency Contacts',
+                          style: TextStyle(
+                            fontSize: isMobile ? 18 : 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: isMobile ? 2 : 4),
-                      Text(
-                        'Manage your emergency contact list',
-                        style: TextStyle(
-                          fontSize: isMobile ? 12 : 14,
-                          color: Colors.grey[600],
+                        SizedBox(height: isMobile ? 2 : 4),
+                        Text(
+                          'Manage your emergency contact list',
+                          style: TextStyle(
+                            fontSize: isMobile ? 12 : 14,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  SizedBox(width: isMobile ? 8 : 12),
                   ElevatedButton.icon(
                     onPressed: () {
                       _showContactDialog(context: context);
@@ -539,16 +563,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                         ),
                       ),
                     ),
-              const SizedBox(height: 20),
+              SizedBox(height: isMobile ? 16 : 20),
               Row(
                 children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Last system test: Just now • ${contacts.length} active contacts',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
+                  Icon(Icons.info_outline, size: isMobile ? 14 : 16, color: Colors.grey[600]),
+                  SizedBox(width: isMobile ? 6 : 8),
+                  Flexible(
+                    child: Text(
+                      'Last system test: Just now • ${contacts.length} active contacts',
+                      style: TextStyle(
+                        fontSize: isMobile ? 11 : 13,
+                        color: Colors.grey[600],
+                      ),
                     ),
                   ),
                 ],
@@ -622,8 +648,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               ),
               const SizedBox(width: 8),
               _buildStatusToggleCell(contact, true),
-              const SizedBox(width: 8),
-              _buildMethodsCell(contact.methods, true),
             ],
           ),
         ],
