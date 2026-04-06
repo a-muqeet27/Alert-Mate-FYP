@@ -4,6 +4,7 @@ import '../models/user.dart';
 import '../models/emergency_contact.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
+import '../widgets/shared/live_map.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/driver_document_submission_service.dart';
 import '../models/driver_document_submission.dart';
@@ -229,11 +230,16 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   2,
                 ),
                 const SizedBox(height: 32),
-                _buildStaggeredItem(_buildUserManagement(), 3),
+                _buildStaggeredItem(
+                  const LiveMap(),
+                  3,
+                ),
                 const SizedBox(height: 32),
-                _buildStaggeredItem(_buildVehicleManagement(), 4),
+                _buildStaggeredItem(_buildUserManagement(), 4),
                 const SizedBox(height: 32),
-                _buildStaggeredItem(_buildDocumentApproval(), 5),
+                _buildStaggeredItem(_buildVehicleManagement(), 5),
+                const SizedBox(height: 32),
+                _buildStaggeredItem(_buildDocumentApproval(), 6),
               ],
             ),
           ),

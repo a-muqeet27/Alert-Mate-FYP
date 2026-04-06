@@ -15,6 +15,7 @@ import '../services/owner_vehicle_submission_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
+import '../widgets/shared/live_map.dart';
 import '../screens/driver_documents_gate_screen.dart';
 
 class OwnerDashboard extends StatefulWidget {
@@ -972,11 +973,34 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   _buildFleetOverview(),
                   2,
                 ),
+                SizedBox(height: isMobile ? 24 : 32),
+                _buildStaggeredItem(
+                  _buildOwnerLiveMapSection(),
+                  3,
+                ),
                 const SizedBox(height: 32),
               ],
             ),
           ),
         );
+      },
+    );
+  }
+
+  /// Builds the LiveMap section filtered to only show drivers assigned
+  /// to this owner's vehicles.
+  Widget _buildOwnerLiveMapSection() {
+    return StreamBuilder<List<Vehicle>>(
+      stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
+      builder: (context, snapshot) {
+        final vehicles = snapshot.data ?? [];
+        final driverIds = vehicles
+            .where((v) => v.assignedDriverId != null && v.assignedDriverId!.isNotEmpty)
+            .map((v) => v.assignedDriverId!)
+            .toSet()
+            .toList();
+
+        return LiveMap(filterDriverIds: driverIds);
       },
     );
   }
