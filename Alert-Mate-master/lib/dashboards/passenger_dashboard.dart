@@ -5,6 +5,7 @@ import '../models/user.dart';
 import '../models/emergency_contact.dart';
 import '../auth_screen.dart';
 import '../widgets/shared/app_sidebar.dart';
+import '../widgets/shared/live_map.dart';
 import '../constants/app_colors.dart';
 import '../services/emergency_contact_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1213,37 +1214,50 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   Widget _buildLocationTab() {
-    return Container(
-      padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.location_on_outlined, size: 80, color: Colors.grey[400]),
-            const SizedBox(height: 20),
-            Text(
-              'Live Location Tracking',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'GPS tracking and route display coming soon',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
+    final driverId = _lookupDriverId;
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    // No plate searched yet — show prompt
+    if (driverId == null || driverId.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(isMobile ? 24 : 40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
         ),
-      ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.location_on_outlined, size: isMobile ? 56 : 80, color: Colors.grey[400]),
+              SizedBox(height: isMobile ? 14 : 20),
+              Text(
+                'Live Location Tracking',
+                style: TextStyle(
+                  fontSize: isMobile ? 18 : 24,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[800],
+                ),
+              ),
+              SizedBox(height: isMobile ? 8 : 12),
+              Text(
+                'Search by license plate above to see your driver\'s live location',
+                style: TextStyle(
+                  fontSize: isMobile ? 13 : 16,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Driver found via plate lookup — show their live location on the map
+    return LiveMap(
+      filterDriverIds: [driverId],
+      height: isMobile ? 350 : 450,
     );
   }
 
