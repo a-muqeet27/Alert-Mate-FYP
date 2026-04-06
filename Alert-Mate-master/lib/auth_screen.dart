@@ -2,6 +2,7 @@
 // Replace your _handleAuth() method with this updated version
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'models/user.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -103,6 +104,8 @@ class _AuthScreenState extends State<AuthScreen>
     }
   }
 
+  bool get _isAdminRole => _selectedDashboard == 3;
+
   @override
   void initState() {
     super.initState();
@@ -143,6 +146,11 @@ class _AuthScreenState extends State<AuthScreen>
       isSignIn = widget.initialIsSignIn!;
     }
 
+    // Admin: sign-in only (no self-service registration).
+    if (widget.initialDashboardIndex == 3) {
+      isSignIn = true;
+    }
+
     // NEW: If owner becoming driver, set to driver role and signup mode
     if (widget.isOwnerBecomingDriver) {
       _selectedDashboard = 0; // Driver
@@ -165,6 +173,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   // ... your existing methods stay the same ...
   void _toggleAuthMode() {
+    if (_isAdminRole) return;
     setState(() {
       isSignIn = !isSignIn;
     });
@@ -181,6 +190,7 @@ class _AuthScreenState extends State<AuthScreen>
         _emailController.clear();
         _phoneController.clear();
         _passwordController.clear();
+        // Admin is sign-in only; other roles default to sign-in when switching.
         isSignIn = true;
       });
       _animationController.reset();
@@ -200,6 +210,14 @@ class _AuthScreenState extends State<AuthScreen>
       final selectedRole = _getSelectedRole();
       final email = _emailController.text.trim();
 
+      if (!isSignIn && selectedRole == 'admin') {
+        setState(() => _isLoading = false);
+        _showErrorDialog(
+          'Admin accounts cannot be registered here. Use the credentials provided by your organization.',
+        );
+        return;
+      }
+
       if (isSignIn) {
         // SIGN IN FLOW
         try {
@@ -214,18 +232,23 @@ class _AuthScreenState extends State<AuthScreen>
               );
               return;
             }
-            _navigateToDashboard(user);
+            await _navigateToDashboard(user);
           } else {
             _showErrorDialog('User data not found');
           }
         } catch (e) {
           setState(() { _isLoading = false; });
-          _showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
+          final msg = e.toString().replaceFirst('Exception: ', '');
+          if (msg.toLowerCase().contains('verify your email')) {
+            _showVerificationDialog();
+          } else {
+            _showErrorDialog(msg);
+          }
         }
       } else {
         // SIGN UP FLOW
         try {
-          final user = await _authService.signUp(
+          await _authService.signUp(
             firstName: _firstNameController.text.trim(),
             lastName: _lastNameController.text.trim(),
             email: email,
@@ -236,19 +259,7 @@ class _AuthScreenState extends State<AuthScreen>
 
           setState(() { _isLoading = false; });
 
-          if (selectedRole == 'driver' && user != null) {
-            if (widget.isOwnerBecomingDriver) {
-              _showSuccessDialog(
-                'Driver account created! Upload your vehicle documents on the driver dashboard for admin approval before your vehicle can be assigned.',
-              );
-            } else {
-              _showSuccessDialog(
-                'Driver account created! Register your vehicle and upload CNIC, license, and other documents on the dashboard. An admin will assign a vehicle after approval.',
-              );
-            }
-          } else {
-            _showSuccessDialog('Account created! Please verify your email.');
-          }
+          _showPostSignupVerifyEmailDialog(selectedRole);
         } catch (e) {
           setState(() { _isLoading = false; });
           _showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
@@ -353,11 +364,22 @@ class _AuthScreenState extends State<AuthScreen>
                 setState(() {
                   _isLoading = true;
                 });
-                final result = await _authService.resendVerificationEmail();
-                setState(() {
-                  _isLoading = false;
-                });
-                _showErrorDialog('Password reset email sent! Check your inbox.');
+                try {
+                  await _authService.resendVerificationEmail();
+                  if (mounted) {
+                    _showErrorDialog('Verification email sent. Check your inbox and spam folder.');
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    _showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                  }
+                }
               },
               child: const Text('Resend Verification Email'),
             ),
@@ -471,7 +493,61 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  void _navigateToDashboard(User user) {
+  /// After sign-up the Firebase session is ended; user must verify email, then use Sign In.
+  void _showPostSignupVerifyEmailDialog(String selectedRole) {
+    String tip = '';
+    if (selectedRole == 'driver') {
+      tip = ' After you sign in, complete driver verification for vehicle access.';
+    } else if (selectedRole == 'owner') {
+      tip = ' After you sign in, you can add vehicles from your dashboard.';
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Verify your email'),
+        content: Text(
+          'We sent a link to your inbox—open it to verify, then sign in here. '
+          'Check spam if you do not see it.$tip',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                isSignIn = true;
+                _firstNameController.clear();
+                _lastNameController.clear();
+                _phoneController.clear();
+                _passwordController.clear();
+              });
+            },
+            child: const Text('Continue to Sign In'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _navigateToDashboard(User user) async {
+    final fb = FirebaseAuth.instance.currentUser;
+    if (fb == null) {
+      _showErrorDialog('Session expired. Please sign in again.');
+      return;
+    }
+    await fb.reload();
+    await fb.getIdToken(true);
+    await fb.reload();
+    final fresh = FirebaseAuth.instance.currentUser;
+    if (fresh == null || !fresh.emailVerified) {
+      if (mounted) {
+        _showVerificationDialog();
+      }
+      return;
+    }
+
     Widget dashboardScreen;
 
     switch (_selectedDashboard) {
@@ -637,10 +713,25 @@ class _AuthScreenState extends State<AuthScreen>
                                       ),
                                       const SizedBox(width: 16),
                                       Expanded(
-                                        child: _buildToggleButton(
-                                            'Sign-Up', !isSignIn, () {
-                                          if (isSignIn) _toggleAuthMode();
-                                        }),
+                                        child: _isAdminRole
+                                            ? Opacity(
+                                                opacity: 0.45,
+                                                child: _buildToggleButton(
+                                                    'Sign-Up', false, () {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Admin sign-up is not available. Use credentials from your organization.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }),
+                                              )
+                                            : _buildToggleButton(
+                                                'Sign-Up', !isSignIn, () {
+                                              if (isSignIn) _toggleAuthMode();
+                                            }),
                                       ),
                                     ],
                                   ),
@@ -756,7 +847,7 @@ class _AuthScreenState extends State<AuthScreen>
                                       ),
                                     ),
                                   ),
-                                  if (isSignIn) ...[
+                                  if (isSignIn && !_isAdminRole) ...[
                                     const SizedBox(height: 16),
                                     _buildSignUpLink(),
                                   ],

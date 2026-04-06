@@ -10,6 +10,7 @@ import '../services/driver_document_submission_service.dart';
 import '../models/driver_document_submission.dart';
 import '../services/owner_vehicle_submission_service.dart';
 import '../models/owner_vehicle_submission.dart';
+import '../widgets/email_verified_guard.dart';
 
 
 class AdminDashboard extends StatefulWidget {
@@ -137,16 +138,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           ),
         ],
       ) : null,
-      body: isMobile
-          ? _selectedIndex == 0 ? _buildMainContent() : _buildEmergency()
-          : Row(
-              children: [
-                _buildSidebar(),
-                Expanded(
-                  child: _selectedIndex == 0 ? _buildMainContent() : _buildEmergency(),
-                ),
-              ],
-            ),
+      body: EmailVerifiedGuard(
+        child: isMobile
+            ? _selectedIndex == 0 ? _buildMainContent() : _buildEmergency()
+            : Row(
+                children: [
+                  _buildSidebar(),
+                  Expanded(
+                    child: _selectedIndex == 0 ? _buildMainContent() : _buildEmergency(),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -277,34 +280,55 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             isMobile
                 ? Column(
                     children: [
-                      _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 12),
-                      _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
-                      const SizedBox(height: 12),
-                      _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
-                      const SizedBox(height: 12),
-                      _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                          ),
+                        ],
+                      ),
                     ],
                   )
-                : Wrap(
-                    spacing: 20,
-                    runSpacing: 20,
+                : Column(
                     children: [
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
+                          ),
+                        ],
                       ),
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile),
-                      ),
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
-                      ),
-                      SizedBox(
-                        width: 280,
-                        child: _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: _buildEmergencyServiceCard('Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -356,7 +380,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           Text(
             number,
             style: TextStyle(
-              fontSize: isMobile ? 28 : 32,
+              fontSize: isMobile ? 24 : 32,
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -443,29 +467,32 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Emergency Contacts',
-                        style: TextStyle(
-                          fontSize: isMobile ? 16 : 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Emergency Contacts',
+                          style: TextStyle(
+                            fontSize: isMobile ? 18 : 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: isMobile ? 2 : 4),
-                      Text(
-                        'Manage your emergency contact list',
-                        style: TextStyle(
-                          fontSize: isMobile ? 12 : 14,
-                          color: Colors.grey[600],
+                        SizedBox(height: isMobile ? 2 : 4),
+                        Text(
+                          'Manage your emergency contact list',
+                          style: TextStyle(
+                            fontSize: isMobile ? 12 : 14,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  SizedBox(width: isMobile ? 8 : 12),
                   ElevatedButton.icon(
                     onPressed: () {
                       _showContactDialog(context: context);
@@ -542,16 +569,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                         ),
                       ),
                     ),
-              const SizedBox(height: 20),
+              SizedBox(height: isMobile ? 16 : 20),
               Row(
                 children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Last system test: Just now • ${contacts.length} active contacts',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
+                  Icon(Icons.info_outline, size: isMobile ? 14 : 16, color: Colors.grey[600]),
+                  SizedBox(width: isMobile ? 6 : 8),
+                  Flexible(
+                    child: Text(
+                      'Last system test: Just now • ${contacts.length} active contacts',
+                      style: TextStyle(
+                        fontSize: isMobile ? 11 : 13,
+                        color: Colors.grey[600],
+                      ),
                     ),
                   ),
                 ],
@@ -625,8 +654,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               ),
               const SizedBox(width: 8),
               _buildStatusToggleCell(contact, true),
-              const SizedBox(width: 8),
-              _buildMethodsCell(contact.methods, true),
             ],
           ),
         ],
@@ -2314,11 +2341,13 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   // VEHICLE MANAGEMENT SECTION
   // =============================================
   Widget _buildVehicleManagement() {
+    final narrow = MediaQuery.of(context).size.width < 600;
+    final pad = narrow ? 12.0 : 32.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(pad),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -2350,7 +2379,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               const SizedBox(height: 24),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  return constraints.maxWidth < 600
+                  return constraints.maxWidth < 900
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -2376,47 +2405,44 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide(color: Colors.grey[300]!),
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                isDense: true,
                               ),
                               onChanged: (value) => setState(() => _vehicleSearchQuery = value.trim()),
                             ),
                             const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    value: _vehicleTypeFilter,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    ),
-                                    items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                                        .toList(),
-                                    onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
-                                  ),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              value: _vehicleTypeFilter,
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    value: _vehicleStatusFilter,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    ),
-                                    items: ['All Statuses', 'Active', 'Offline', 'Critical']
-                                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                                        .toList(),
-                                    onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
-                                  ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                isDense: true,
+                              ),
+                              items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
+                                  .map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis)))
+                                  .toList(),
+                              onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              value: _vehicleStatusFilter,
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
                                 ),
-                              ],
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                isDense: true,
+                              ),
+                              items: ['All Statuses', 'Active', 'Offline', 'Critical']
+                                  .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
+                                  .toList(),
+                              onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
                             ),
                           ],
                         )
@@ -2451,36 +2477,44 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                                 onChanged: (value) => setState(() => _vehicleSearchQuery = value.trim()),
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<String>(
-                                value: _vehicleTypeFilter,
-                                items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                                    .toList(),
-                                onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
-                                underline: const SizedBox(),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: DropdownButton<String>(
+                                  isExpanded: true,
+                                  value: _vehicleTypeFilter,
+                                  items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
+                                      .map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis)))
+                                      .toList(),
+                                  onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
+                                  underline: const SizedBox(),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<String>(
-                                value: _vehicleStatusFilter,
-                                items: ['All Statuses', 'Active', 'Offline', 'Critical']
-                                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                                    .toList(),
-                                onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
-                                underline: const SizedBox(),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: DropdownButton<String>(
+                                  isExpanded: true,
+                                  value: _vehicleStatusFilter,
+                                  items: ['All Statuses', 'Active', 'Offline', 'Critical']
+                                      .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
+                                      .toList(),
+                                  onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
+                                  underline: const SizedBox(),
+                                ),
                               ),
                             ),
                           ],

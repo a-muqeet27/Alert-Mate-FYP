@@ -23,6 +23,7 @@ import '../auth_screen.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../constants/app_colors.dart';
 import '../screens/driver_history_screen.dart';
+import '../widgets/email_verified_guard.dart';
 
 class DriverDashboard extends StatefulWidget {
   final User user;
@@ -899,27 +900,29 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
         ],
       ) : null,
-      body: isMobile
-          ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
-          : Row(
-              children: [
-                AppSidebar(
-            role: 'Driver',
-                  user: widget.user,
-                  selectedIndex: _selectedIndex,
-                  onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                  menuItems: const [
-                    MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-                    MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-                  ],
-            accentColor: AppColors.primary,
-                  accentLightColor: AppColors.driverLight,
-                ),
-                Expanded(
-                  child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-                ),
-              ],
-            ),
+      body: EmailVerifiedGuard(
+        child: isMobile
+            ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
+            : Row(
+                children: [
+                  AppSidebar(
+                    role: 'Driver',
+                    user: widget.user,
+                    selectedIndex: _selectedIndex,
+                    onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+                    menuItems: const [
+                      MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+                      MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+                    ],
+                    accentColor: AppColors.primary,
+                    accentLightColor: AppColors.driverLight,
+                  ),
+                  Expanded(
+                    child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 

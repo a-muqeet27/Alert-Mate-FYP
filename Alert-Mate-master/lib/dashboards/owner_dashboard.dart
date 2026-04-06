@@ -17,6 +17,8 @@ import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
 import '../screens/driver_documents_gate_screen.dart';
+import '../widgets/email_verified_guard.dart';
+import '../constants/vehicle_catalog.dart';
 
 class OwnerDashboard extends StatefulWidget {
   final User user;
@@ -160,8 +162,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   Future<void> _showAddVehicleDialog() async {
     final formKey = GlobalKey<FormState>();
     String vehicleType = 'Car';
-    String make = '';
-    String model = '';
+    String make = VehicleCatalog.defaultMake('Car') ?? '';
+    String model = (make.isNotEmpty)
+        ? (VehicleCatalog.defaultModel('Car', make) ?? '')
+        : '';
     String year = '';
     String licensePlate = '';
     bool willDrive = false;
@@ -180,15 +184,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   mainAxisSize: MainAxisSize.min,
                   children: [
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     value: vehicleType,
                     decoration: const InputDecoration(labelText: 'Type *'),
-                    items: const [
-                      DropdownMenuItem(value: 'Car', child: Text('Car')),
-                      DropdownMenuItem(value: 'Bus', child: Text('Bus')),
-                      DropdownMenuItem(value: 'Van', child: Text('Van')),
-                      DropdownMenuItem(value: 'Truck', child: Text('Truck')),
-                      DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
-                    ],
+                    items: VehicleCatalog.vehicleTypes
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Type is required';
@@ -196,39 +197,65 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       return null;
                     },
                     onChanged: (value) {
+                      if (value == null) return;
                       setDialogState(() {
-                        vehicleType = value!;
+                        vehicleType = value;
+                        final m = VehicleCatalog.defaultMake(value) ?? '';
+                        make = m;
+                        model = m.isNotEmpty
+                            ? (VehicleCatalog.defaultModel(value, m) ?? '')
+                            : '';
                       });
                     },
-                    onSaved: (value) => vehicleType = value!,
                   ),
                   const SizedBox(height: 8),
-                  TextFormField(
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    value: make.isNotEmpty &&
+                            VehicleCatalog.makesFor(vehicleType).contains(make)
+                        ? make
+                        : null,
                     decoration: const InputDecoration(labelText: 'Make *'),
+                    items: VehicleCatalog.makesFor(vehicleType)
+                        .map((m) =>
+                            DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis)))
+                        .toList(),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
+                      if (value == null || value.isEmpty) {
                         return 'Make is required';
                       }
-                      if (value.trim().length < 2) {
-                        return 'Make must be at least 2 characters';
-                      }
                       return null;
                     },
-                    onSaved: (value) => make = value!.trim(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() {
+                        make = value;
+                        model = VehicleCatalog.defaultModel(vehicleType, value) ?? '';
+                      });
+                    },
                   ),
                   const SizedBox(height: 8),
-                  TextFormField(
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    value: model.isNotEmpty &&
+                            VehicleCatalog.modelsFor(vehicleType, make).contains(model)
+                        ? model
+                        : null,
                     decoration: const InputDecoration(labelText: 'Model *'),
+                    items: VehicleCatalog.modelsFor(vehicleType, make)
+                        .map((m) =>
+                            DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis)))
+                        .toList(),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
+                      if (value == null || value.isEmpty) {
                         return 'Model is required';
-                      }
-                      if (value.trim().length < 2) {
-                        return 'Model must be at least 2 characters';
                       }
                       return null;
                     },
-                    onSaved: (value) => model = value!.trim(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() => model = value);
+                    },
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
@@ -626,26 +653,28 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           ),
         ],
       ) : null,
-      body: isMobile
-          ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
-          : Row(
-        children: [
-          AppSidebar(
-            role: 'owner',
-            user: widget.user is User ? widget.user : null,
-            selectedIndex: _selectedIndex,
-            onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-            menuItems: const [
-              MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-              MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-            ],
-            accentColor: AppColors.primary,
-            accentLightColor: AppColors.primaryLight,
-          ),
-          Expanded(
-            child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-          ),
-        ],
+      body: EmailVerifiedGuard(
+        child: isMobile
+            ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
+            : Row(
+                children: [
+                  AppSidebar(
+                    role: 'owner',
+                    user: widget.user is User ? widget.user : null,
+                    selectedIndex: _selectedIndex,
+                    onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+                    menuItems: const [
+                      MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+                      MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+                    ],
+                    accentColor: AppColors.primary,
+                    accentLightColor: AppColors.primaryLight,
+                  ),
+                  Expanded(
+                    child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
+                  ),
+                ],
+              ),
       ),
     );
   }
