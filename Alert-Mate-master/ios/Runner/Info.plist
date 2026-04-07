@@ -51,5 +51,9 @@
 	<string>This app needs microphone access for emergency features</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs photo library access to upload CNIC and license documents</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AlertMate needs your location to share your real-time position with the owner and passengers during a trip.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>AlertMate uses your location in the background to keep your position updated on the live map during an active trip.</string>
 </dict>
 </plist>

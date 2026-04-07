@@ -18,10 +18,12 @@ import '../services/driver_document_submission_service.dart';
 import '../widgets/driver_cnic_license_upload_panel.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
+import '../services/driver_location_update_service.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../auth_screen.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_config.dart';
 import '../screens/driver_history_screen.dart';
 import '../widgets/email_verified_guard.dart';
 
@@ -61,8 +63,11 @@ class _DriverDashboardState extends State<DriverDashboard>
   final DriverDocumentSubmissionService _docSubmissionService = DriverDocumentSubmissionService();
   final EmergencyContactService _emergencyContactService = EmergencyContactService();
   final MonitoringService _monitoringService = MonitoringService();
+  final DriverLocationUpdateService _locationUpdateService = DriverLocationUpdateService();
   Timer? _statsUpdateTimer;
   String? _currentSessionId;
+  // Track last drowsy state to avoid unnecessary Firestore writes
+  bool _lastDrowsyState = false;
   
   
   // Animation controllers
@@ -118,6 +123,9 @@ class _DriverDashboardState extends State<DriverDashboard>
     
     // Initialize camera early to avoid delay when starting monitoring
     _initializeCamera();
+
+    // Mark driver as online (idle) in Firestore so the map shows them
+    _locationUpdateService.goOnline(widget.user.id, widget.user.fullName);
   }
 
   @override
@@ -130,6 +138,9 @@ class _DriverDashboardState extends State<DriverDashboard>
     _statsUpdateTimer?.cancel();
     _cameraController?.dispose();
     _frameCaptureTimer?.cancel();
+    // Mark driver offline so they disappear from all maps
+    _locationUpdateService.goOffline(widget.user.id);
+    _locationUpdateService.dispose();
     super.dispose();
   }
   
@@ -260,56 +271,16 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   String _getWebSocketUrl() {
-    // Web: use browser's localhost
-    if (kIsWeb) {
-      print('🌐 Running on Web - using localhost');
-      return 'ws://localhost:8000/ws/monitor';
-    }
-
-    // Android Platform
-    if (Platform.isAndroid) {
-      // IMPORTANT: Choose based on your connection method
-
-      // ═══════════════════════════════════════════════════════════
-      // OPTION A: Using Windows Mobile Hotspot (RECOMMENDED)
-      // ═══════════════════════════════════════════════════════════
-      // When your phone is connected to your PC's Windows hotspot,
-      // Windows always assigns itself the IP: 192.168.137.1
-      // IMPORTANT: Change this to your PC's actual IP address
-      // USING WINDOWS MOBILE HOTSPOT - IP is always 192.168.137.1
-      // If using WiFi instead, change to your PC's IP (run 'ipconfig' to find it)
-      const String serverIp = '192.168.137.1'; // Windows Mobile Hotspot IP (PC's IP, not phone's)
-      print('📱 Android - connecting to $serverIp:8000');
-      print('⚠️ Make sure phone is connected to PC\'s Mobile Hotspot');
-      return 'ws://$serverIp:8000/ws/monitor';
-
-      // ═══════════════════════════════════════════════════════════
-      // OPTION B: Using Same WiFi Network (if router allows)
-      // ═══════════════════════════════════════════════════════════
-      // Uncomment this if both devices are on same WiFi and router
-      // doesn't have AP Isolation enabled
-      // const String serverIp = '192.168.1.21';
-      // print('📱 Android - connecting via WiFi to $serverIp');
-      // return 'ws://$serverIp:8000/ws/monitor';
-
-      // ═══════════════════════════════════════════════════════════
-      // OPTION C: Android Emulator Only
-      // ═══════════════════════════════════════════════════════════
-      // Use 10.0.2.2 to access host machine's localhost
-      // return 'ws://10.0.2.2:8000/ws/monitor';
-    }
-
-    // iOS Platform
-    if (Platform.isIOS) {
-      // For iOS devices connected to Windows hotspot
-      const String serverIp = '192.168.137.1';
-      print('📱 iOS - connecting to $serverIp');
-      return 'ws://$serverIp:8000/ws/monitor';
-    }
-
-    // Desktop (Windows, macOS, Linux) or fallback
-    print('🖥️ Desktop/Other - using localhost');
-    return 'ws://localhost:8000/ws/monitor';
+    // ── ngrok public tunnel ─────────────────────────────────────────────────
+    // Works on every platform (Android, iOS, Web, Desktop) without any
+    // IP-address changes or mobile-hotspot setup.
+    //
+    // ngrok is HTTPS  →  WebSocket must use wss:// (secure), not ws://.
+    // To update the URL when ngrok restarts, edit AppConfig.ngrokBaseUrl
+    // in lib/constants/app_config.dart — change it in one place only.
+    final url = AppConfig.wsMonitorUrl;
+    print('🔌 Connecting to backend via ngrok: $url');
+    return url;
   }
 
   void _startMonitoring() async {
@@ -607,6 +578,9 @@ class _DriverDashboardState extends State<DriverDashboard>
 
     // Start camera stream to send frames to backend
     await _startCameraStream();
+
+    // Mark driver on_trip in Firestore and start periodic GPS updates
+    await _locationUpdateService.goOnTrip(driverId);
     
     // Start Firebase stats update timer
     print('⏱️ Starting Firebase stats update timer (1s interval)');
@@ -617,14 +591,22 @@ class _DriverDashboardState extends State<DriverDashboard>
         return;
       }
 
+      final isDrowsy = _alertness < 70;
+
       _monitoringService.updateRealtimeStats(
         driverId: driverId,
         alertness: _alertness,
         ear: _ear,
         mar: _mar,
         eyeClosure: _eyeClosurePercentage,
-        drowsinessDetected: _alertness < 70,
+        drowsinessDetected: isDrowsy,
       );
+
+      // Sync drowsinessAlert to Firestore only when it changes (avoid excessive writes)
+      if (isDrowsy != _lastDrowsyState) {
+        _lastDrowsyState = isDrowsy;
+        _locationUpdateService.updateDrowsinessAlert(driverId, isDrowsy);
+      }
     });
 
     print('✅ Monitoring started successfully');
@@ -685,6 +667,10 @@ class _DriverDashboardState extends State<DriverDashboard>
         print('⚠️ Error ending Firebase session: $e');
       }
     }
+
+    // Revert driver to idle in Firestore and stop GPS updates
+    _lastDrowsyState = false;
+    await _locationUpdateService.goIdle(driverId);
 
     print('✅ Monitoring stopped successfully');
 

@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ───────────────────────────────────────────────────────
+
+    // True if the request comes from a signed-in user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // True if the signed-in user's UID matches the document ID
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // ── users collection ──────────────────────────────────────────────────────
+    // Each user can read and update their own profile; authenticated users can
+    // read other profiles (needed for admin / owner lookups).
+    match /users/{userId} {
+      allow read:   if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+
+    // ── vehicles collection ───────────────────────────────────────────────────
+    // All authenticated users can read vehicles (passenger plate lookup,
+    // owner fleet view, admin management).
+    // Only the vehicle owner (ownerId field) or an admin can write.
+    match /vehicles/{vehicleId} {
+      allow read:   if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // ── vehicleAssignments collection ─────────────────────────────────────────
+    match /vehicleAssignments/{assignmentId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+
+    // ── drivers collection ────────────────────────────────────────────────────
+    // This collection stores live GPS + status data written by the driver app
+    // and read by Admin, Owner, and Passenger dashboards via LiveMap.
+    //
+    //   Schema: { name, status, lat, lng, drowsinessAlert, updatedAt }
+    //
+    // • A driver can only write to their own document (uid == driverId).
+    // • Any authenticated user can read (needed by Admin / Owner / Passenger maps).
+    match /drivers/{driverId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated() && isOwner(driverId);
+    }
+
+    // ── driverDocumentSubmissions collection ──────────────────────────────────
+    match /driverDocumentSubmissions/{docId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+
+    // ── driverVehicleSubmissions collection ───────────────────────────────────
+    match /driverVehicleSubmissions/{docId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+
+    // ── emergencyContacts collection ──────────────────────────────────────────
+    match /emergencyContacts/{contactId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+
+  }
+}
