@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "drivers": {
+      "$driverId": {
+        // The driver owning this node can read and write everything under it
+        // (monitoring_sessions, current_stats, history).
+        // Any authenticated user (owner, passenger, admin) can read,
+        // so dashboards can stream live alertness data.
+        ".read":  "auth != null",
+        ".write": "auth != null && auth.uid === $driverId"
+      }
+    }
+  }
+}
