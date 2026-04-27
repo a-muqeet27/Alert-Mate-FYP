@@ -13,6 +13,7 @@ import '../models/vehicle.dart';
 import '../services/vehicle_service.dart';
 import '../services/monitoring_service.dart';
 import '../widgets/email_verified_guard.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PassengerDashboard extends StatefulWidget {
   final User user;
@@ -1460,9 +1461,17 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                final msg = number == '911' ? 'Calling emergency services...' : 'Calling $number...';
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              onPressed: () async {
+                final Uri url = Uri.parse('tel:$number');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Could not launch dialer')),
+                    );
+                  }
+                }
               },
               icon: const Icon(Icons.phone, size: 18),
               label: const Text('Call Now'),

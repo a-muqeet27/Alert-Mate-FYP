@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
@@ -345,9 +346,12 @@ class _DriverDashboardState extends State<DriverDashboard>
     try {
       final wsUrl = _getWebSocketUrl();
       print('🔌 Connecting to FastAPI server at $wsUrl...');
-      print('📱 Platform: ${Platform.operatingSystem}');
-      print('📱 Is Android: ${Platform.isAndroid}');
-      print('📱 Is iOS: ${Platform.isIOS}');
+      if (!kIsWeb) {
+        // Platform.* is dart:io only — unavailable on Flutter Web
+        print('📱 Platform: ${Platform.operatingSystem}');
+        print('📱 Is Android: ${Platform.isAndroid}');
+        print('📱 Is iOS: ${Platform.isIOS}');
+      }
 
       // Connect to WebSocket with proper error handling
       try {
@@ -685,6 +689,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     }
   }
  Future<void> _launchPythonMonitor() async {
+  if (kIsWeb) return; // dart:io (Platform, Process, Directory) unavailable on web
   try {
     final projectRoot = Directory.current.path;
     
@@ -2186,9 +2191,17 @@ class _DriverDashboardState extends State<DriverDashboard>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                final msg = number == '911' ? 'Calling emergency services...' : 'Calling $number...';
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              onPressed: () async {
+                final Uri url = Uri.parse('tel:$number');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Could not launch dialer')),
+                    );
+                  }
+                }
               },
               icon: const Icon(Icons.phone, size: 18),
               label: const Text('Call Now'),

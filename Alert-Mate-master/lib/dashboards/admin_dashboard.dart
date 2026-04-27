@@ -11,7 +11,7 @@ import '../models/driver_document_submission.dart';
 import '../services/owner_vehicle_submission_service.dart';
 import '../models/owner_vehicle_submission.dart';
 import '../widgets/email_verified_guard.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 
 class AdminDashboard extends StatefulWidget {
   final User user;
@@ -389,7 +389,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () async {
+                final Uri url = Uri.parse('tel:$number');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Could not launch dialer')),
+                    );
+                  }
+                }
+              },
               icon: const Icon(Icons.phone, size: 18),
               label: const Text('Call Now'),
               style: ElevatedButton.styleFrom(
