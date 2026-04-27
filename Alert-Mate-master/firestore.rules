@@ -54,14 +54,20 @@ service cloud.firestore {
       allow write:  if isAuthenticated() && isOwner(driverId);
     }
 
-    // ── driverDocumentSubmissions collection ──────────────────────────────────
-    match /driverDocumentSubmissions/{docId} {
+    // ── driver_document_submissions collection ─────────────────────────────────
+    match /driver_document_submissions/{docId} {
       allow read:   if isAuthenticated();
       allow write:  if isAuthenticated();
     }
 
-    // ── driverVehicleSubmissions collection ───────────────────────────────────
-    match /driverVehicleSubmissions/{docId} {
+    // ── driver_vehicle_submissions collection ────────────────────────────────
+    match /driver_vehicle_submissions/{docId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+
+    // ── owner_vehicle_submissions collection ─────────────────────────────────
+    match /owner_vehicle_submissions/{docId} {
       allow read:   if isAuthenticated();
       allow write:  if isAuthenticated();
     }
