@@ -279,21 +279,27 @@ class VehicleService {
         return false;
       }
       
-      // Find vehicles with pendingAssignment=true (owner said they won't drive)
-      QuerySnapshot unassignedVehicles = await _firestore
+      // Avoid Firestore index/orderBy edge cases here; sort safely in Dart.
+      final unassignedVehicles = await _firestore
           .collection('vehicles')
           .where('pendingAssignment', isEqualTo: true)
-          .orderBy('createdAt', descending: false) // Oldest first
           .get();
-        
-      // Filter for vehicles without an assigned driver
-      var availableVehicles = unassignedVehicles.docs.where((doc) {
-        var data = doc.data() as Map<String, dynamic>;
+
+      // Filter for vehicles without an assigned driver and sort oldest first.
+      final availableVehicles = unassignedVehicles.docs.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
         return data['assignedDriverId'] == null || data['assignedDriverId'] == '';
-      }).toList();
+      }).toList()
+        ..sort((a, b) {
+          final ad = (a.data() as Map<String, dynamic>)['createdAt'];
+          final bd = (b.data() as Map<String, dynamic>)['createdAt'];
+          final at = ad is Timestamp ? ad.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          final bt = bd is Timestamp ? bd.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          return at.compareTo(bt);
+        });
 
       if (availableVehicles.isNotEmpty) {
-        String vehicleId = availableVehicles.first.id;      
+        final vehicleId = availableVehicles.first.id;
         await assignVehicleToDriver(
           vehicleId: vehicleId,
           driverId: driverId,

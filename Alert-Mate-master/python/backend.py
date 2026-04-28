@@ -10,12 +10,13 @@ import numpy as np
 import json
 import asyncio
 import base64
-from io import BytesIO
+from pathlib import Path
+import os
+import zipfile
 from PIL import Image
+import Testing as custom_testing
 
 app = FastAPI()
-
-# Enable CORS for Flutter web
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,20 +25,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Model configuration (match drowsiness_monitor_flutter.py)
 IMG_SIZE = 256
 HEATMAP_SIZE = 64
 NUM_LANDMARKS = 68
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Detection thresholds and timing (same as CLI script)
 EAR_THRESHOLD = 0.2
 EAR_TIME_THRESHOLD = 0.5
 MAR_THRESHOLD = 0.6
 MAR_TIME_THRESHOLD = 2.5
 DROWSY_FRAME_THRESHOLD = 15
 
-# Model definitions
+
 class HeatmapHead(nn.Module):
     def __init__(self, in_channels, num_landmarks):
         super().__init__()
@@ -48,12 +46,13 @@ class HeatmapHead(nn.Module):
         self.up2 = nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1)
         self.bn3 = nn.BatchNorm2d(64)
         self.out = nn.Conv2d(64, num_landmarks, 1)
-   
+
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.up1(x)))
         x = F.relu(self.bn3(self.up2(x)))
         return self.out(x)
+
 
 class LandmarkNet(nn.Module):
     def __init__(self, num_landmarks=NUM_LANDMARKS):
@@ -68,7 +67,7 @@ class LandmarkNet(nn.Module):
         self.layer3 = res.layer3
         self.layer4 = res.layer4
         self.head = HeatmapHead(512, num_landmarks)
-   
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -79,236 +78,306 @@ class LandmarkNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         hm = self.head(x)
-        hm = F.interpolate(hm, size=(HEATMAP_SIZE, HEATMAP_SIZE), mode='bilinear', align_corners=False)
+        hm = F.interpolate(hm, size=(HEATMAP_SIZE, HEATMAP_SIZE), mode="bilinear", align_corners=False)
         return hm
 
+
 def heatmaps_to_landmarks(heatmaps, img_size):
-    B, N, Hh, Wh = heatmaps.shape
-    coords = torch.zeros((B, N, 2), device=heatmaps.device)
-   
-    for b in range(B):
-        for k in range(N):
-            hm = heatmaps[b, k]
-            val, idx = torch.max(hm.view(-1), dim=0)
-            y = (idx // Wh).float()
-            x = (idx % Wh).float()
-            coords[b, k, 0] = x * (img_size / Wh)
-            coords[b, k, 1] = y * (img_size / Hh)
-   
+    b, n, hh, wh = heatmaps.shape
+    coords = torch.zeros((b, n, 2), device=heatmaps.device)
+    for i in range(b):
+        for k in range(n):
+            hm = heatmaps[i, k]
+            _, idx = torch.max(hm.view(-1), dim=0)
+            y = (idx // wh).float()
+            x = (idx % wh).float()
+            coords[i, k, 0] = x * (img_size / wh)
+            coords[i, k, 1] = y * (img_size / hh)
     return coords
 
-# Load your models
-print("Loading models...")
-landmark_model = LandmarkNet().to(DEVICE)
-landmark_model.load_state_dict(torch.load('landmark_detector.pth', map_location=DEVICE))
-landmark_model.eval()
-
-with open('drowsiness_classifier.pkl', 'rb') as f:
-    drowsy_data = pickle.load(f)
-    # Handle both dict format and direct model format
-    if isinstance(drowsy_data, dict) and 'model' in drowsy_data:
-        drowsiness_model = drowsy_data['model']
-    else:
-        drowsiness_model = drowsy_data
-
-print("✅ Models loaded!")
 
 def calculate_ear(eye_points):
-    """Calculate Eye Aspect Ratio"""
-    # Vertical distances
-    A = np.linalg.norm(eye_points[1] - eye_points[5])
-    B = np.linalg.norm(eye_points[2] - eye_points[4])
-    # Horizontal distance
-    C = np.linalg.norm(eye_points[0] - eye_points[3])
-    if C < 1e-6:
+    a = np.linalg.norm(eye_points[1] - eye_points[5])
+    b = np.linalg.norm(eye_points[2] - eye_points[4])
+    c = np.linalg.norm(eye_points[0] - eye_points[3])
+    if c < 1e-6:
         return 0.0
-    ear = (A + B) / (2.0 * C)
-    return ear
+    return (a + b) / (2.0 * c)
+
 
 def calculate_mar(mouth_points):
-    """Calculate Mouth Aspect Ratio"""
-    # Vertical distances
-    A = np.linalg.norm(mouth_points[2] - mouth_points[10])
-    B = np.linalg.norm(mouth_points[4] - mouth_points[8])
-    # Horizontal distance
-    C = np.linalg.norm(mouth_points[0] - mouth_points[6])
-    if C < 1e-6:
+    a = np.linalg.norm(mouth_points[2] - mouth_points[10])
+    b = np.linalg.norm(mouth_points[4] - mouth_points[8])
+    c = np.linalg.norm(mouth_points[0] - mouth_points[6])
+    if c < 1e-6:
         return 0.0
-    mar = (A + B) / (2.0 * C)
-    return mar
+    return (a + b) / (2.0 * c)
+
+
+def _resolve_model_path(path_value: str) -> str:
+    model_path = Path(path_value)
+    if model_path.suffix.lower() != ".zip":
+        return str(model_path)
+    with zipfile.ZipFile(model_path, "r") as zf:
+        # Torch checkpoints can themselves be zip containers (data.pkl + data/*).
+        # If this structure exists, torch.load can read the .zip file directly.
+        names = zf.namelist()
+        if any(name.endswith("/data.pkl") for name in names):
+            return str(model_path)
+        pth_members = [n for n in zf.namelist() if n.lower().endswith(".pth")]
+        if not pth_members:
+            raise RuntimeError(f"No .pth model found in {model_path}")
+        member = pth_members[0]
+        extracted = model_path.parent / Path(member).name
+        if not extracted.exists():
+            print(f"Extracting {member} from {model_path.name}...")
+            zf.extract(member, path=model_path.parent)
+            original = model_path.parent / member
+            if original != extracted:
+                original.replace(extracted)
+        return str(extracted)
+
+
+class CustomDetectorAdapter:
+    def __init__(self, model_path: str):
+        self.model = custom_testing.LandmarkCNN().to(DEVICE)
+        state = torch.load(model_path, map_location=DEVICE)
+        self.model.load_state_dict(state)
+        self.model.eval()
+        self.face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        self.tracker = custom_testing.FaceTracker()
+        self.ear_state = custom_testing.AdaptiveEARState()
+        self.mar_state = custom_testing.AdaptiveMARState()
+        self.drowsy_event_count = 0
+        self.prev_drowsy_eye = False
+        self.prev_drowsy_yawn = False
+
+    def process_frame(self, frame: np.ndarray) -> dict:
+        frame_h, frame_w = frame.shape[:2]
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        faces = self.face_detector.detectMultiScale(gray, scaleFactor=1.15, minNeighbors=5, minSize=(80, 80))
+
+        if len(faces) > 0:
+            self.tracker.mark_found()
+            raw_box = max(faces, key=lambda b: int(b[2]) * int(b[3]))
+            raw_box = np.array([int(v) for v in raw_box], dtype=np.int32)
+            bx, by, bw, bh = map(int, self.tracker.smooth_box(raw_box))
+        elif self.tracker.prev_box is not None and not self.tracker.mark_lost():
+            bx, by, bw, bh = self.tracker.prev_box.astype(int)
+        else:
+            self.ear_state.reset()
+            self.mar_state.reset()
+            return {"alertness": 100.0, "ear": 0.0, "mar": 0.0, "eyeClosure": 0.0, "isDrowsy": False, "reason": "no_face", "drowsyCounter": self.drowsy_event_count, "frame": frame}
+
+        ex, ey, ew, eh = custom_testing.expand_face_box(bx, by, bw, bh, frame_w, frame_h, custom_testing.CROP_EXPAND_RATIO)
+        x2 = min(frame_w, ex + ew)
+        y2 = min(frame_h, ey + eh)
+        face_roi = frame[ey:y2, ex:x2]
+        if face_roi.size == 0:
+            return {"alertness": 100.0, "ear": 0.0, "mar": 0.0, "eyeClosure": 0.0, "isDrowsy": False, "reason": "invalid_face_roi", "drowsyCounter": self.drowsy_event_count, "frame": frame}
+
+        inp = custom_testing.preprocess_face(face_roi).to(DEVICE)
+        with torch.no_grad():
+            pred = self.model(inp).squeeze(0).detach().cpu().numpy()
+        if pred.size != custom_testing.LANDMARK_DIM:
+            return {"alertness": 100.0, "ear": 0.0, "mar": 0.0, "eyeClosure": 0.0, "isDrowsy": False, "reason": "invalid_landmarks", "drowsyCounter": self.drowsy_event_count, "frame": frame}
+
+        pred = pred.reshape(custom_testing.NUM_LANDMARKS, 3).astype(np.float32)
+        pred = custom_testing.denormalize_xy_to_frame(pred, (ex, ey, x2 - ex, y2 - ey))
+        pred = self.tracker.smooth_landmarks(pred)
+        pts_xy = pred[:, :2]
+        ear = custom_testing.compute_ear(pts_xy)
+        mar = custom_testing.compute_mar(pts_xy)
+        now = asyncio.get_event_loop().time()
+        ear_info = self.ear_state.update(ear, now)
+        mar_info = self.mar_state.update(mar, now)
+        drowsy_eye = bool(ear_info["alert_active"])
+        drowsy_yawn = bool(mar_info["drowsy_by_yawn"])
+        if (drowsy_eye and not self.prev_drowsy_eye) or (drowsy_yawn and not self.prev_drowsy_yawn):
+            self.drowsy_event_count += 1
+        self.prev_drowsy_eye = drowsy_eye
+        self.prev_drowsy_yawn = drowsy_yawn
+
+        eye_closure = max(0.0, min(100.0, ear_info["drop_ratio"] * 100.0))
+        alertness = max(0.0, 100.0 - eye_closure - (mar_info["rise_ratio"] * 30.0))
+        reason = "eyes_closed" if drowsy_eye else ("yawning" if drowsy_yawn else "alert")
+        return {
+            "alertness": float(round(alertness, 2)),
+            "ear": float(round(ear, 3)),
+            "mar": float(round(mar, 3)),
+            "eyeClosure": float(round(eye_closure, 2)),
+            "isDrowsy": bool(drowsy_eye or drowsy_yawn),
+            "reason": reason,
+            "drowsyCounter": int(self.drowsy_event_count),
+            "frame": frame,
+        }
+
+
+DROWSINESS_MODE = os.getenv("DROWSINESS_MODE", "custom").strip().lower()
+CUSTOM_MODEL_PATH = os.getenv("CUSTOM_MODEL_PATH", str(Path(__file__).resolve().parent / "drowsiness_model.pth.zip"))
+custom_detector = None
+landmark_model = None
+if DROWSINESS_MODE == "custom":
+    resolved_model = _resolve_model_path(CUSTOM_MODEL_PATH)
+    custom_detector = CustomDetectorAdapter(resolved_model)
+    print(f"Custom model loaded from: {resolved_model}")
+else:
+    print("Loading pretrained models...")
+    landmark_model = LandmarkNet().to(DEVICE)
+    landmark_model.load_state_dict(torch.load("landmark_detector.pth", map_location=DEVICE))
+    landmark_model.eval()
+    with open("drowsiness_classifier.pkl", "rb") as f:
+        drowsy_data = pickle.load(f)
+        _ = drowsy_data["model"] if isinstance(drowsy_data, dict) and "model" in drowsy_data else drowsy_data
+    print("Pretrained models loaded!")
+
 
 @app.get("/")
 async def root():
-    return {"status": "FastAPI Drowsiness Detection Server Running"}
+    return {"status": "FastAPI Drowsiness Detection Server Running", "mode": DROWSINESS_MODE}
+
 
 @app.websocket("/ws/monitor")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    print("✅ Client connected")
-    
-    # Send acknowledgment to client so it knows connection is established
-    await websocket.send_json({"status": "connected", "message": "Server ready to receive frames"})
-    print("📱 Sent connection acknowledgment, waiting for camera frames from mobile device...")
+    await websocket.send_json({"status": "connected", "mode": DROWSINESS_MODE, "message": "Server ready to receive frames"})
 
-    # State for drowsiness logic (match CLI script)
     drowsy_counter = 0
     alert_counter = 0
     ear_low_start = None
     mar_high_start = None
-    last_output_time = 0.0  # for throttling UI updates
-    # Image preprocessing transform
+    last_output_time = 0.0
     to_tensor = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    
+
     try:
         while True:
-            # Receive frame from mobile device
             try:
-                data = await websocket.receive_text()
-                message = json.loads(data)
-                
-                if 'frame' not in message:
+                raw = await websocket.receive_text()
+                message = json.loads(raw)
+                if "frame" not in message:
                     continue
-                
-                # Decode base64 frame from mobile
-                frame_bytes = base64.b64decode(message['frame'])
-                nparr = np.frombuffer(frame_bytes, np.uint8)
-                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                
+                frame_bytes = base64.b64decode(message["frame"])
+                frame = cv2.imdecode(np.frombuffer(frame_bytes, np.uint8), cv2.IMREAD_COLOR)
                 if frame is None:
                     continue
-                
+
+                current_time = asyncio.get_event_loop().time()
+
+                if DROWSINESS_MODE == "custom":
+                    if custom_detector is None:
+                        raise RuntimeError("Custom mode enabled but model not initialized.")
+                    result = custom_detector.process_frame(frame)
+                    is_drowsy = bool(result["isDrowsy"])
+                    if (current_time - last_output_time >= 1.0) or is_drowsy:
+                        last_output_time = current_time
+                        _, buffer = cv2.imencode(".jpg", result["frame"])
+                        payload = {
+                            "alertness": result["alertness"],
+                            "ear": result["ear"],
+                            "mar": result["mar"],
+                            "eyeClosure": result["eyeClosure"],
+                            "isDrowsy": is_drowsy,
+                            "reason": result["reason"],
+                            "drowsyCounter": int(result["drowsyCounter"]),
+                            "frame": base64.b64encode(buffer).decode("utf-8"),
+                        }
+                        await websocket.send_json(payload)
+                    await asyncio.sleep(0.01)
+                    continue
+
                 h, w = frame.shape[:2]
-                
-                # Convert frame to RGB
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                
-                # Resize for model input
                 resized = cv2.resize(rgb_frame, (IMG_SIZE, IMG_SIZE))
-                
-                # Convert to PIL Image and apply transforms
                 pil_image = Image.fromarray(resized)
                 img_tensor = to_tensor(pil_image).unsqueeze(0).to(DEVICE)
-                
-                # Get landmarks from heatmaps
                 with torch.no_grad():
                     heatmaps = landmark_model(img_tensor)
                     coords = heatmaps_to_landmarks(heatmaps, IMG_SIZE)
                     landmarks = coords[0].cpu().numpy()
-                    # Scale landmarks back to original frame size
                     landmarks[:, 0] = landmarks[:, 0] * (w / IMG_SIZE)
                     landmarks[:, 1] = landmarks[:, 1] * (h / IMG_SIZE)
-                
-                # Calculate EAR and MAR (adjust indices based on your model)
-                # These are example indices - adjust for your landmark model
+
                 left_eye_indices = [36, 37, 38, 39, 40, 41]
                 right_eye_indices = [42, 43, 44, 45, 46, 47]
                 mouth_indices = list(range(48, 68))
-                
-                if len(landmarks) > max(left_eye_indices + right_eye_indices + mouth_indices):
-                    left_eye = landmarks[left_eye_indices]
-                    right_eye = landmarks[right_eye_indices]
-                    mouth = landmarks[mouth_indices]
-                    
-                    left_ear = calculate_ear(left_eye)
-                    right_ear = calculate_ear(right_eye)
-                    avg_ear = (left_ear + right_ear) / 2.0
-                    mar = calculate_mar(mouth)
+                if len(landmarks) <= max(left_eye_indices + right_eye_indices + mouth_indices):
+                    await asyncio.sleep(0.01)
+                    continue
 
-                    # --- Drowsiness logic: copy of drowsiness_monitor_flutter.py ---
-                    current_time = asyncio.get_event_loop().time()
-                    
-                    # Initialize drowsiness reason at start of each loop
+                left_eye = landmarks[left_eye_indices]
+                right_eye = landmarks[right_eye_indices]
+                mouth = landmarks[mouth_indices]
+                avg_ear = (calculate_ear(left_eye) + calculate_ear(right_eye)) / 2.0
+                mar = calculate_mar(mouth)
+                drowsiness_reason = "alert"
+
+                if avg_ear < EAR_THRESHOLD:
+                    if ear_low_start is None:
+                        ear_low_start = current_time
+                    if current_time - ear_low_start >= EAR_TIME_THRESHOLD:
+                        drowsy_counter += 1
+                        alert_counter = 0
+                        drowsiness_reason = "eyes_closed"
+                else:
+                    ear_low_start = None
+
+                if mar > MAR_THRESHOLD:
+                    if mar_high_start is None:
+                        mar_high_start = current_time
+                    if current_time - mar_high_start >= MAR_TIME_THRESHOLD:
+                        drowsy_counter += 1
+                        alert_counter = 0
+                        drowsiness_reason = "yawning"
+                else:
+                    mar_high_start = None
+
+                if avg_ear >= EAR_THRESHOLD and mar <= MAR_THRESHOLD:
+                    alert_counter += 1
+                    drowsy_counter = 0
                     drowsiness_reason = "alert"
 
-                    # Check EAR condition (eyes closed)
-                    if avg_ear < EAR_THRESHOLD:
-                        if ear_low_start is None:
-                            ear_low_start = current_time
-                        ear_duration = current_time - ear_low_start
+                ear_score = min(100, (avg_ear / 0.3) * 100)
+                mar_score = max(0, 100 - (mar / MAR_THRESHOLD) * 100)
+                alertness = (ear_score * 0.7 + mar_score * 0.3)
+                if drowsy_counter > 0:
+                    alertness = max(0, alertness - (drowsy_counter * 2))
+                eye_closure = max(0, min(100, (1 - (avg_ear / 0.3)) * 100))
+                is_drowsy = drowsy_counter > DROWSY_FRAME_THRESHOLD
 
-                        if ear_duration >= EAR_TIME_THRESHOLD:
-                            drowsy_counter += 1
-                            alert_counter = 0
-                            drowsiness_reason = "eyes_closed"
-                    else:
-                        ear_low_start = None
-
-                    # Check MAR condition (yawning)
-                    if mar > MAR_THRESHOLD:
-                        if mar_high_start is None:
-                            mar_high_start = current_time
-                        mar_duration = current_time - mar_high_start
-
-                        if mar_duration >= MAR_TIME_THRESHOLD:
-                            drowsy_counter += 1
-                            alert_counter = 0
-                            drowsiness_reason = "yawning"
-                    else:
-                        mar_high_start = None
-
-                    # If neither condition met
-                    if avg_ear >= EAR_THRESHOLD and mar <= MAR_THRESHOLD:
-                        alert_counter += 1
-                        drowsy_counter = 0
-                        drowsiness_reason = "alert"
-
-                    # Calculate alertness percentage (0-100)
-                    ear_score = min(100, (avg_ear / 0.3) * 100)  # 0.3 is wide awake
-                    mar_score = max(0, 100 - (mar / MAR_THRESHOLD) * 100)
-                    alertness = (ear_score * 0.7 + mar_score * 0.3)
-
-                    # Reduce alertness if drowsy
-                    if drowsy_counter > 0:
-                        alertness = max(0, alertness - (drowsy_counter * 2))
-
-                    # Calculate eye closure percentage
-                    eye_closure = max(0, min(100, (1 - (avg_ear / 0.3)) * 100))
-
-                    # Decide if drowsy based on frame counter
-                    is_drowsy = drowsy_counter > DROWSY_FRAME_THRESHOLD
-
-                    # Throttle sends: every 1.0s or immediately if drowsy (smoother, less flicker)
-                    if (current_time - last_output_time >= 1.0) or is_drowsy:
-                        last_output_time = current_time
-
-                        # Encode frame as base64 for display
-                        _, buffer = cv2.imencode(".jpg", frame)
-                        frame_base64 = base64.b64encode(buffer).decode("utf-8")
-
-                        data = {
-                            "alertness": float(round(alertness, 2)),
-                            "ear": float(round(avg_ear, 3)),
-                            "mar": float(round(mar, 3)),
-                            "eyeClosure": float(round(eye_closure, 2)),
-                            "isDrowsy": bool(is_drowsy),
-                            "reason": drowsiness_reason,
-                            "drowsyCounter": int(drowsy_counter),
-                        }
-
-                        # Add frame for UI
-                        data["frame"] = frame_base64
-
-                        await websocket.send_json(data)
+                if (current_time - last_output_time >= 1.0) or is_drowsy:
+                    last_output_time = current_time
+                    _, buffer = cv2.imencode(".jpg", frame)
+                    payload = {
+                        "alertness": float(round(alertness, 2)),
+                        "ear": float(round(avg_ear, 3)),
+                        "mar": float(round(mar, 3)),
+                        "eyeClosure": float(round(eye_closure, 2)),
+                        "isDrowsy": bool(is_drowsy),
+                        "reason": drowsiness_reason,
+                        "drowsyCounter": int(drowsy_counter),
+                        "frame": base64.b64encode(buffer).decode("utf-8"),
+                    }
+                    await websocket.send_json(payload)
             except Exception as e:
-                print(f"❌ Error processing frame: {e}")
+                print(f"Error processing frame: {e}")
                 continue
 
-            # Small delay to avoid busy-looping the CPU
             await asyncio.sleep(0.01)
-            
     except WebSocketDisconnect:
-        print("❌ Client disconnected")
+        print("Client disconnected")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         try:
             await websocket.send_json({"error": str(e)})
-        except:
+        except Exception:
             pass
     finally:
-        print("🛑 Monitoring stopped")
+        print("Monitoring stopped")
+
 
 if __name__ == "__main__":
     import uvicorn

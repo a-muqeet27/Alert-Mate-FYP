@@ -450,15 +450,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     if (confirm != true) return;
 
                     Navigator.pop(context);
+                    if (!mounted) return;
+                    final parentContext = this.context;
 
                     try {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
                         const SnackBar(content: Text('Submitting vehicle for admin approval...')),
                       );
 
                       if (vehicleBookBytes == null) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(parentContext).showSnackBar(
                             const SnackBar(
                               content: Text('Please upload the vehicle id card / book.'),
                               backgroundColor: Colors.orange,
@@ -482,7 +484,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       );
 
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(parentContext).showSnackBar(
                           SnackBar(
                             content: const Text('Submitted! Admin will approve your vehicle.'),
                             backgroundColor: AppColors.success,
@@ -493,7 +495,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       if (mounted) {
                         // Show error in a dialog for better visibility
                         showDialog(
-                          context: context,
+                          context: parentContext,
                           builder: (context) => AlertDialog(
                             title: const Row(
                               children: [

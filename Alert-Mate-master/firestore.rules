@@ -14,14 +14,24 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
+    // True if signed-in user has admin role in their user profile.
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeRole == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          ('admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles)
+        );
+    }
+
     // ── users collection ──────────────────────────────────────────────────────
     // Each user can read and update their own profile; authenticated users can
     // read other profiles (needed for admin / owner lookups).
     match /users/{userId} {
       allow read:   if isAuthenticated();
       allow create: if isAuthenticated() && isOwner(userId);
-      allow update: if isAuthenticated() && isOwner(userId);
-      allow delete: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
     }
 
     // ── vehicles collection ───────────────────────────────────────────────────
