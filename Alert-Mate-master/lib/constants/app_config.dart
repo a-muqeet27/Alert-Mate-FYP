@@ -8,7 +8,7 @@ class AppConfig {
   /// The public ngrok HTTPS base URL for the Python drowsiness backend.
   /// ⚠️  No trailing slash.
   static const String ngrokBaseUrl =
-      'http://192.168.44.1:8000';
+      'http://192.168.18.13:8000';
 
   /// WebSocket endpoint for real-time drowsiness monitoring.
   /// Converts https:// → wss:// automatically.

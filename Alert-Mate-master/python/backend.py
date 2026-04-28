@@ -187,6 +187,12 @@ class CustomDetectorAdapter:
         pred = custom_testing.denormalize_xy_to_frame(pred, (ex, ey, x2 - ex, y2 - ey))
         pred = self.tracker.smooth_landmarks(pred)
         pts_xy = pred[:, :2]
+
+        # Draw face landmark mesh/pattern on outgoing frame, similar to Testing.py preview.
+        custom_testing.draw_dense_mesh_delaunay(frame, pts_xy, custom_testing.NUM_LANDMARKS)
+        custom_testing.draw_feature_style_overlay(frame, pts_xy, custom_testing.NUM_LANDMARKS)
+        custom_testing.draw_landmark_dots(frame, pts_xy, custom_testing.NUM_LANDMARKS)
+
         ear = custom_testing.compute_ear(pts_xy)
         mar = custom_testing.compute_mar(pts_xy)
         now = asyncio.get_event_loop().time()
@@ -362,6 +368,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         "frame": base64.b64encode(buffer).decode("utf-8"),
                     }
                     await websocket.send_json(payload)
+            except WebSocketDisconnect:
+                # Normal path when user presses Stop Monitoring.
+                raise
             except Exception as e:
                 print(f"Error processing frame: {e}")
                 continue
