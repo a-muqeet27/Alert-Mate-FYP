@@ -255,7 +255,11 @@ class FirebaseAuthService {
   }
 
   // Sign in existing user
-  Future<app_models.User?> signIn(String email, String password) async {
+  Future<app_models.User?> signIn(
+    String email,
+    String password, {
+    bool skipEmailVerification = false,
+  }) async {
     try {
       print('🔐 Attempting sign in for: $email');
       
@@ -273,7 +277,8 @@ class FirebaseAuthService {
       await userCredential.user!.getIdToken(true);
       await userCredential.user!.reload();
       final refreshed = _auth.currentUser;
-      if (refreshed == null || !refreshed.emailVerified) {
+      if (!skipEmailVerification &&
+          (refreshed == null || !refreshed.emailVerified)) {
         throw Exception('EMAIL_NOT_VERIFIED');
       }
       

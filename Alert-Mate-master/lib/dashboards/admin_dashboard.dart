@@ -139,6 +139,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         ],
       ) : null,
       body: EmailVerifiedGuard(
+        enforceVerification: false,
         child: isMobile
             ? _selectedIndex == 0 ? _buildMainContent() : _buildEmergency()
             : Row(

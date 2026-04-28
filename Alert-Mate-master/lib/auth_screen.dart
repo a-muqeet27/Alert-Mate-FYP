@@ -221,7 +221,11 @@ class _AuthScreenState extends State<AuthScreen>
       if (isSignIn) {
         // SIGN IN FLOW
         try {
-          final user = await _authService.signIn(email, _passwordController.text);
+          final user = await _authService.signIn(
+            email,
+            _passwordController.text,
+            skipEmailVerification: selectedRole == 'admin',
+          );
           setState(() { _isLoading = false; });
 
           if (user != null) {
@@ -537,6 +541,14 @@ class _AuthScreenState extends State<AuthScreen>
       _showErrorDialog('Session expired. Please sign in again.');
       return;
     }
+    if (_selectedDashboard == 3) {
+      Navigator.pushReplacement(
+        context,
+        FadeScalePageRoute(page: AdminDashboard(user: user)),
+      );
+      return;
+    }
+
     await fb.reload();
     await fb.getIdToken(true);
     await fb.reload();

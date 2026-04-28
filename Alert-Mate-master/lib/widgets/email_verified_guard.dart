@@ -10,8 +10,13 @@ import '../utils/page_transitions.dart';
 /// Redirects to [AuthScreen] if the session exists but the address is not verified (e.g. stale state).
 class EmailVerifiedGuard extends StatefulWidget {
   final Widget child;
+  final bool enforceVerification;
 
-  const EmailVerifiedGuard({super.key, required this.child});
+  const EmailVerifiedGuard({
+    super.key,
+    required this.child,
+    this.enforceVerification = true,
+  });
 
   @override
   State<EmailVerifiedGuard> createState() => _EmailVerifiedGuardState();
@@ -34,6 +39,8 @@ class _EmailVerifiedGuardState extends State<EmailVerifiedGuard> {
   }
 
   Future<void> _check() async {
+    if (!widget.enforceVerification) return;
+
     final u = firebase_auth.FirebaseAuth.instance.currentUser;
     if (u == null) return;
     try {
