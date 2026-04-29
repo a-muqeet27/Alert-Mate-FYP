@@ -10,6 +10,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
@@ -52,6 +53,7 @@ class _DriverDashboardState extends State<DriverDashboard>
   Timer? _updateTimer;
   final Random _random = Random();
   Uint8List? _cameraFrameBytes;
+  final ValueNotifier<Uint8List?> _cameraFrameNotifier = ValueNotifier<Uint8List?>(null);
   
   // Camera controller
   CameraController? _cameraController;
@@ -87,6 +89,13 @@ class _DriverDashboardState extends State<DriverDashboard>
   // Yawning detection tracking
   int _yawningFrameCount = 0;
   bool _buzzerPlayed = false;
+  Timer? _drowsyBuzzerTimer;
+  DateTime _lastBuzzerAt = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastMetricsUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  static const Duration _buzzerCooldown = Duration(milliseconds: 1200);
+  static const Duration _metricsUiThrottle = Duration(milliseconds: 300);
+  static const double _drowsyAlertnessValue = 0.0;
+  static const double _alertAlertnessValue = 98.0;
 
   @override
   void initState() {
@@ -139,6 +148,8 @@ class _DriverDashboardState extends State<DriverDashboard>
     _statsUpdateTimer?.cancel();
     _cameraController?.dispose();
     _frameCaptureTimer?.cancel();
+    _setDrowsyAlarmActive(false);
+    _cameraFrameNotifier.dispose();
     // Mark driver offline so they disappear from all maps
     _locationUpdateService.goOffline(widget.user.id);
     _locationUpdateService.dispose();
@@ -269,6 +280,49 @@ class _DriverDashboardState extends State<DriverDashboard>
     } catch (e) {
       print('❌ Error starting camera stream: $e');
     }
+  }
+
+  void _updateCameraFrame(Uint8List? frameBytes) {
+    _cameraFrameBytes = frameBytes;
+    _cameraFrameNotifier.value = frameBytes;
+  }
+
+  void _playBuzzerIfAllowed({bool force = false}) {
+    if (!_audioAlertsEnabled) return;
+    final now = DateTime.now();
+    if (!force && now.difference(_lastBuzzerAt) < _buzzerCooldown) return;
+    _lastBuzzerAt = now;
+    try {
+      FlutterRingtonePlayer().playAlarm(
+        looping: false,
+        volume: 1.0,
+        asAlarm: true,
+      );
+    } catch (_) {
+      SystemSound.play(SystemSoundType.alert);
+    }
+    HapticFeedback.heavyImpact();
+  }
+
+  void _setDrowsyAlarmActive(bool active) {
+    if (!active || !_audioAlertsEnabled) {
+      _drowsyBuzzerTimer?.cancel();
+      _drowsyBuzzerTimer = null;
+      try {
+        FlutterRingtonePlayer().stop();
+      } catch (_) {}
+      return;
+    }
+
+    if (_drowsyBuzzerTimer != null) return;
+    _playBuzzerIfAllowed(force: true);
+    _drowsyBuzzerTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!_isMonitoring || !_audioAlertsEnabled) {
+        _setDrowsyAlarmActive(false);
+        return;
+      }
+      _playBuzzerIfAllowed();
+    });
   }
 
   String _getWebSocketUrl() {
@@ -422,6 +476,14 @@ class _DriverDashboardState extends State<DriverDashboard>
             if (mounted) {
               final reason = data['reason'] as String? ?? 'alert';
               final isYawning = reason == 'yawning';
+              final nextAlertness = (data['alertness'] as num?)?.toDouble() ?? _alertness;
+              final nextEar = (data['ear'] as num?)?.toDouble() ?? _ear;
+              final nextMar = (data['mar'] as num?)?.toDouble() ?? _mar;
+              final nextEyeClosure =
+                  (data['eyeClosure'] as num?)?.toDouble() ?? _eyeClosurePercentage;
+              final isDrowsy = (data['isDrowsy'] == true) ||
+                  reason == 'eyes_closed' ||
+                  reason == 'yawning';
 
               // Track yawning frames for buzzer
               if (isYawning) {
@@ -430,7 +492,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
                 // Play buzzer when 5-7 frames detect yawning (only once per session)
                 if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
-                  SystemSound.play(SystemSoundType.alert);
+                  _playBuzzerIfAllowed();
                   _buzzerPlayed = true;
                   print('🔔 Buzzer played - Yawning detected for $_yawningFrameCount frames');
                 }
@@ -450,33 +512,36 @@ class _DriverDashboardState extends State<DriverDashboard>
                 _buzzerPlayed = false;
               }
 
-              setState(() {
-                // Update monitoring metrics
-                _alertness = (data['alertness'] as num?)?.toDouble() ?? _alertness;
-                _ear = (data['ear'] as num?)?.toDouble() ?? _ear;
-                _mar = (data['mar'] as num?)?.toDouble() ?? _mar;
-                _eyeClosurePercentage = (data['eyeClosure'] as num?)?.toDouble() ?? _eyeClosurePercentage;
+              _alertness = isDrowsy ? _drowsyAlertnessValue : _alertAlertnessValue;
+              _ear = nextEar;
+              _mar = nextMar;
+              _eyeClosurePercentage = nextEyeClosure;
 
-                // Log metrics periodically (every 10th message to avoid spam)
-                if (DateTime.now().second % 10 == 0) {
-                  print('📊 Metrics - Alertness: ${_alertness.toStringAsFixed(1)}%, EAR: ${_ear.toStringAsFixed(2)}, MAR: ${_mar.toStringAsFixed(2)}');
-                }
+              final now = DateTime.now();
+              if (now.difference(_lastMetricsUiUpdate) >= _metricsUiThrottle) {
+                _lastMetricsUiUpdate = now;
+                setState(() {});
+              }
 
-                // Decode and store camera frame
-                if (data.containsKey('frame') && data['frame'] != null) {
-                  try {
-                    final frameBase64 = data['frame'] as String;
-                    _cameraFrameBytes = base64Decode(frameBase64);
+              // Log metrics periodically (every 10th second to avoid spam)
+              if (DateTime.now().second % 10 == 0) {
+                print('📊 Metrics - Alertness: ${_alertness.toStringAsFixed(1)}%, EAR: ${_ear.toStringAsFixed(2)}, MAR: ${_mar.toStringAsFixed(2)}');
+              }
 
-                    // Log first successful frame
-                    if (_cameraFrameBytes != null && _cameraFrameBytes!.length > 0) {
-                      print('📸 Camera frame received (${_cameraFrameBytes!.length} bytes)');
-                    }
-                  } catch (e) {
-                    print('❌ Error decoding frame: $e');
+              if (data.containsKey('frame') && data['frame'] != null) {
+                try {
+                  final frameBase64 = data['frame'] as String;
+                  final decodedFrame = base64Decode(frameBase64);
+                  _updateCameraFrame(decodedFrame);
+                  if (decodedFrame.isNotEmpty) {
+                    print('📸 Camera frame received (${decodedFrame.length} bytes)');
                   }
+                } catch (e) {
+                  print('❌ Error decoding frame: $e');
                 }
-              });
+              }
+
+              _setDrowsyAlarmActive(isDrowsy);
             }
           } catch (e, stackTrace) {
             print('❌ Error parsing message: $e');
@@ -490,6 +555,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             setState(() {
               _isMonitoring = false;
             });
+            _setDrowsyAlarmActive(false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Column(
@@ -534,6 +600,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               _yawningFrameCount = 0;
               _buzzerPlayed = false;
             });
+            _setDrowsyAlarmActive(false);
           }
         },
       );
@@ -548,6 +615,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         setState(() {
           _isMonitoring = false;
         });
+        _setDrowsyAlarmActive(false);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -595,7 +663,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         return;
       }
 
-      final isDrowsy = _alertness < 70;
+      final isDrowsy = _alertness < 80;
 
       _monitoringService.updateRealtimeStats(
         driverId: driverId,
@@ -630,6 +698,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       _yawningFrameCount = 0;
       _buzzerPlayed = false;
     });
+    _setDrowsyAlarmActive(false);
 
     // Cancel timers
     if (_updateTimer != null) {
@@ -656,9 +725,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     }
     
     // Clear camera frame
-    setState(() {
-      _cameraFrameBytes = null;
-    });
+    _updateCameraFrame(null);
     print('📸 Camera frame cleared');
     
     // End Firebase session
@@ -754,13 +821,21 @@ class _DriverDashboardState extends State<DriverDashboard>
         if (mounted) {
             final reason = data['reason'] as String? ?? 'alert';
             final isYawning = reason == 'yawning';
+            final nextAlertness = (data['alertness'] as num?)?.toDouble() ?? _alertness;
+            final nextEar = (data['ear'] as num?)?.toDouble() ?? _ear;
+            final nextMar = (data['mar'] as num?)?.toDouble() ?? _mar;
+            final nextEyeClosure =
+                (data['eyeClosure'] as num?)?.toDouble() ?? _eyeClosurePercentage;
+            final isDrowsy = (data['isDrowsy'] == true) ||
+                reason == 'eyes_closed' ||
+                reason == 'yawning';
             
             // Track yawning frames
             if (isYawning) {
               _yawningFrameCount++;
               // Play buzzer when 5-7 frames detect yawning (only once per yawning session)
               if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
-                SystemSound.play(SystemSoundType.alert);
+                _playBuzzerIfAllowed();
                 _buzzerPlayed = true;
                 print('🔔 Buzzer played - Yawning detected for $_yawningFrameCount frames');
               }
@@ -775,12 +850,16 @@ class _DriverDashboardState extends State<DriverDashboard>
               _buzzerPlayed = false;
             }
             
-          setState(() {
-            _alertness = (data['alertness'] as num?)?.toDouble() ?? _alertness;
-            _ear = (data['ear'] as num?)?.toDouble() ?? _ear;
-            _mar = (data['mar'] as num?)?.toDouble() ?? _mar;
-            _eyeClosurePercentage = (data['eyeClosure'] as num?)?.toDouble() ?? _eyeClosurePercentage;
-          });
+          _alertness = isDrowsy ? _drowsyAlertnessValue : _alertAlertnessValue;
+          _ear = nextEar;
+          _mar = nextMar;
+          _eyeClosurePercentage = nextEyeClosure;
+          final now = DateTime.now();
+          if (now.difference(_lastMetricsUiUpdate) >= _metricsUiThrottle) {
+            _lastMetricsUiUpdate = now;
+            setState(() {});
+          }
+          _setDrowsyAlarmActive(isDrowsy);
           
           // Show drowsiness alert
           if (data['isDrowsy'] == true) {
@@ -813,6 +892,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         setState(() {
           _isMonitoring = false;
         });
+        _setDrowsyAlarmActive(false);
       }
     });
     
@@ -1543,7 +1623,14 @@ class _DriverDashboardState extends State<DriverDashboard>
                 (value) => setState(() => _audioAlertsEnabled = value),
             actionWidget: Switch(
               value: _audioAlertsEnabled,
-              onChanged: (value) => setState(() => _audioAlertsEnabled = value),
+              onChanged: (value) {
+                setState(() => _audioAlertsEnabled = value);
+                if (!value) {
+                  _setDrowsyAlarmActive(false);
+                } else if (_isMonitoring && _alertness < 80.0) {
+                  _setDrowsyAlarmActive(true);
+                }
+              },
               activeColor: AppColors.primary,
             ),
           ),
@@ -1792,31 +1879,35 @@ class _DriverDashboardState extends State<DriverDashboard>
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: _cameraFrameBytes != null && (_isMonitoring || _isCameraTesting)
-                    ? Image.memory(
-                        _cameraFrameBytes!,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        filterQuality: FilterQuality.low,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Error loading camera feed',
-                                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      )
-                    : Center(
+                child: ValueListenableBuilder<Uint8List?>(
+                    valueListenable: _cameraFrameNotifier,
+                    builder: (context, frameBytes, _) {
+                      if (frameBytes != null && (_isMonitoring || _isCameraTesting)) {
+                        return Image.memory(
+                          frameBytes,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          filterQuality: FilterQuality.low,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Error loading camera feed',
+                                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      }
+                      return Center(
                         child: _isCameraTesting
                             ? Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1835,7 +1926,9 @@ class _DriverDashboardState extends State<DriverDashboard>
                                 'Click "Test Camera" to start',
                                 style: TextStyle(color: Colors.grey[400], fontSize: 14),
                               ),
-                      ),
+                      );
+                    })
+                    ,
               ),
             ),
           ),
@@ -1882,31 +1975,35 @@ class _DriverDashboardState extends State<DriverDashboard>
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: _cameraFrameBytes != null && _isMonitoring
-                    ? Image.memory(
-                        _cameraFrameBytes!,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        filterQuality: FilterQuality.low,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Error loading camera feed',
-                                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      )
-                    : Center(
+                child: ValueListenableBuilder<Uint8List?>(
+                    valueListenable: _cameraFrameNotifier,
+                    builder: (context, frameBytes, _) {
+                      if (frameBytes != null && _isMonitoring) {
+                        return Image.memory(
+                          frameBytes,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          filterQuality: FilterQuality.low,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Error loading camera feed',
+                                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      }
+                      return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -1924,7 +2021,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                             ),
                           ],
                         ),
-                      ),
+                      );
+                    }),
               ),
             ),
           ),
