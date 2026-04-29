@@ -13,6 +13,7 @@ import 'dashboards/owner_dashboard.dart';
 import 'dashboards/admin_dashboard.dart';
 import 'screens/driver_documents_gate_screen.dart';
 import 'utils/page_transitions.dart';
+import 'constants/app_colors.dart';
 
 class AuthScreen extends StatefulWidget {
   final int? initialDashboardIndex;
@@ -105,6 +106,44 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   bool get _isAdminRole => _selectedDashboard == 3;
+
+  String _phoneHintForCountry() {
+    switch (_selectedCountryIso.toUpperCase()) {
+      case 'PK':
+        return '03XX-XXXXXXX';
+      case 'US':
+      case 'CA':
+        return '(XXX) XXX-XXXX';
+      case 'GB':
+        return '07XXX XXXXXX';
+      case 'IN':
+        return 'XXXXX-XXXXX';
+      default:
+        return 'Enter local phone number';
+    }
+  }
+
+  String? _validatePhoneByCountry(String value) {
+    final cleaned = value.replaceAll(RegExp(r'[^0-9]'), '');
+    switch (_selectedCountryIso.toUpperCase()) {
+      case 'PK':
+        if (!RegExp(r'^03\d{9}$').hasMatch(cleaned)) {
+          return 'Use format 03XX-XXXXXXX';
+        }
+        break;
+      case 'US':
+      case 'CA':
+        if (!RegExp(r'^\d{10}$').hasMatch(cleaned)) {
+          return 'Use 10-digit phone number';
+        }
+        break;
+      default:
+        if (cleaned.length < 7 || cleaned.length > 15) {
+          return 'Enter valid phone number';
+        }
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -668,7 +707,7 @@ class _AuthScreenState extends State<AuthScreen>
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF3498DB),
+                              color: AppColors.primary,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -816,7 +855,7 @@ class _AuthScreenState extends State<AuthScreen>
                                         child: const Text(
                                           'Forgot Password?',
                                           style: TextStyle(
-                                            color: Color(0xFF3498DB),
+                                            color: AppColors.primary,
                                             fontSize: 14,
                                           ),
                                         ),
@@ -831,7 +870,7 @@ class _AuthScreenState extends State<AuthScreen>
                                       onPressed: _isLoading ? null : _handleAuth,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
-                                        const Color(0xFF3498DB),
+                                        AppColors.primary,
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
                                           BorderRadius.circular(8),
@@ -901,14 +940,14 @@ class _AuthScreenState extends State<AuthScreen>
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isActive
-                      ? const Color(0xFF3498DB)
+                      ? AppColors.primary
                       : const Color(0xFFE0E0E0),
                   width: 2,
                 ),
                 boxShadow: isActive
                     ? [
                   BoxShadow(
-                    color: const Color(0xFF3498DB).withValues(alpha: 0.3),
+                    color: AppColors.primary.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -921,7 +960,7 @@ class _AuthScreenState extends State<AuthScreen>
                 child: Icon(
                   icon,
                   color: isActive
-                      ? const Color(0xFF3498DB)
+                      ? AppColors.primary
                       : const Color(0xFF95A5A6),
                   size: 28,
                 ),
@@ -934,7 +973,7 @@ class _AuthScreenState extends State<AuthScreen>
                 fontSize: 12,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                 color: isActive
-                    ? const Color(0xFF3498DB)
+                    ? AppColors.primary
                     : const Color(0xFF7F8C8D),
               ),
               child: Text(label),
@@ -961,7 +1000,7 @@ class _AuthScreenState extends State<AuthScreen>
             boxShadow: isActive
                 ? [
               BoxShadow(
-                color: const Color(0xFF3498DB).withValues(alpha: 0.2),
+                color: AppColors.primary.withValues(alpha: 0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -975,7 +1014,7 @@ class _AuthScreenState extends State<AuthScreen>
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: isActive
-                    ? const Color(0xFF3498DB)
+                    ? AppColors.primary
                     : const Color(0xFF7F8C8D),
               ),
               child: Text(text),
@@ -1022,7 +1061,7 @@ class _AuthScreenState extends State<AuthScreen>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF3498DB), width: 2),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -1101,10 +1140,13 @@ class _AuthScreenState extends State<AuthScreen>
                   if (!isSignIn && (value == null || value.isEmpty)) {
                     return 'Phone Number is Required';
                   }
+                  if (!isSignIn && value != null && value.isNotEmpty) {
+                    return _validatePhoneByCountry(value.trim());
+                  }
                   return null;
                 },
                 decoration: InputDecoration(
-                  hintText: 'Phone (e.g., 321 1234567)',
+                  hintText: _phoneHintForCountry(),
                   hintStyle: const TextStyle(color: Color(0xFFBDC3C7)),
                   filled: true,
                   fillColor: const Color(0xFFF8F9FA),
@@ -1119,7 +1161,7 @@ class _AuthScreenState extends State<AuthScreen>
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide:
-                    const BorderSide(color: Color(0xFF3498DB), width: 2),
+                    BorderSide(color: AppColors.primary, width: 2),
                   ),
                   errorBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1213,7 +1255,7 @@ class _AuthScreenState extends State<AuthScreen>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF3498DB), width: 2),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -1378,7 +1420,7 @@ class _AuthScreenState extends State<AuthScreen>
                 child: const Text(
                   'Sign-Up',
                   style: TextStyle(
-                    color: Color(0xFF3498DB),
+                    color: AppColors.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

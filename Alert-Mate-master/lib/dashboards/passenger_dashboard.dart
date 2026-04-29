@@ -41,6 +41,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   String? _plateError;
   Vehicle? _lookupVehicle;
   String? _lookupDriverId;
+  DateTime? _lookupStartedAt;
 
   
   // Animation controllers
@@ -356,7 +357,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                   2,
                 ),
                 const SizedBox(height: 24),
-                // Tab bar (Live Status / Location)
+                // Tab bar (Location only)
                 const SizedBox(height: 8),
                 _buildStaggeredItem(_buildTabBar(), 4),
                 const SizedBox(height: 32),
@@ -365,16 +366,21 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                       ? Column(
                           children: [
                             if (_selectedTab == 0) ...[
-                              _buildDriverAlertnessTrend(),
-                            ] else if (_selectedTab == 1) ...[
+                              _buildTripInformation(),
+                              const SizedBox(height: 16),
                               _buildLocationTab(),
                             ],
                           ],
                         )
                       : Builder(
                           builder: (context) {
-                            if (_selectedTab == 0) return _buildLiveStatusTab();
-                            return _buildLocationTab();
+                            return Column(
+                              children: [
+                                _buildTripInformation(),
+                                const SizedBox(height: 16),
+                                _buildLocationTab(),
+                              ],
+                            );
                           },
                         ),
                   5,
@@ -481,6 +487,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       setState(() {
         _lookupVehicle = v;
         _lookupDriverId = driverId;
+        _lookupStartedAt = DateTime.now();
         _isSearchingPlate = false;
       });
     } catch (e) {
@@ -608,72 +615,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
             child: const Text('No live data (no driver assigned)', style: TextStyle(fontSize: 13, color: Colors.black54)),
           ),
-        const SizedBox(height: 16),
-        // History from RTDB history node
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'History',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
-              ),
-              const SizedBox(height: 8),
-              if (driverId == null || driverId.isEmpty)
-                const Text('No history available', style: TextStyle(fontSize: 13, color: Colors.black54))
-              else
-                StreamBuilder<Map<String, dynamic>>(
-                  stream: _monitoringService.getDriverHistory(driverId),
-                  builder: (context, snapshot) {
-                    final history = snapshot.data ?? {};
-                    if (history.isEmpty) {
-                      return const Text('No history recorded yet', style: TextStyle(fontSize: 13, color: Colors.black54));
-                    }
-                    // Render as simple key/value table
-                    final entries = history.entries.toList();
-                    // Not all nodes have time keys; show as-is
-                    return Table(
-                      columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(3)},
-                      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                      children: [
-                        const TableRow(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.symmetric(vertical: 6),
-                              child: Text('Field', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.symmetric(vertical: 6),
-                              child: Text('Value', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
-                            ),
-                          ],
-                        ),
-                        ...entries.map((e) => TableRow(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Text(e.key.toString(), style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Text(e.value.toString(), style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            ),
-                          ],
-                        )),
-                      ],
-                    );
-                  },
-                ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -836,7 +777,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       child: Column(
         children: [
           Text(
-            'In-vehicle alarm',
+            'Emergency Alert',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -845,7 +786,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
           const SizedBox(height: 8),
           Text(
-            'Press to sound the buzzer and alert the driver',
+            'Send alert to driver, owner and admin',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -859,7 +800,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               onPressed: _showBuzzerDialog,
               icon: const Icon(Icons.notifications_active, size: 24),
               label: const Text(
-                'SOUND BUZZER / ALARM',
+                'SEND EMERGENCY ALERT',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -1011,9 +952,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildTab('Live Status', 0),
-          const SizedBox(width: 8),
-          _buildTab('Location', 1),
+          _buildTab('Location', 0),
         ],
       ),
     );
@@ -1150,6 +1089,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   Widget _buildTripInformation() {
+    final driverId = _lookupDriverId;
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
@@ -1169,23 +1109,39 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
           const SizedBox(height: 6),
           Text(
-            'Current journey details',
+            'Current vehicle monitoring details',
             style: TextStyle(
               fontSize: 13,
               color: Colors.grey[600],
             ),
           ),
-          const SizedBox(height: 32),
-          _buildTripInfoRow('Departure', 'San Francisco, CA'),
           const SizedBox(height: 20),
-          _buildTripInfoRow('Destination', 'Los Angeles, CA'),
-          const SizedBox(height: 20),
-          _buildTripInfoRow('Distance Remaining', '245 miles'),
-          const SizedBox(height: 20),
-          _buildTripInfoRow('Estimated Arrival', '3:45 PM'),
-          const SizedBox(height: 20),
-          if (_selectedVehicle?.location != null && _selectedVehicle!.location!.isNotEmpty)
-            _buildTripInfoRow('Current Location', _selectedVehicle!.location!),
+          if (driverId == null || driverId.isEmpty)
+            Text('Search by license plate to view live trip information',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]))
+          else
+            StreamBuilder<Map<String, dynamic>>(
+              stream: _monitoringService.getCurrentStats(driverId),
+              builder: (context, statsSnap) {
+                final stats = statsSnap.data ?? {};
+                final currentAlerts = (stats['drowsinessDetected'] == true) ? 1 : 0;
+                final avgAlertness = (stats['alertness'] as num?)?.toDouble() ?? 0.0;
+                final started = _lookupStartedAt;
+                final drivingMinutes = started == null ? 0 : DateTime.now().difference(started).inMinutes;
+                return Column(
+                  children: [
+                    _buildTripInfoRow('Current Alerts', '$currentAlerts'),
+                    const SizedBox(height: 14),
+                    _buildTripInfoRow('Driving Minutes', '$drivingMinutes'),
+                    const SizedBox(height: 14),
+                    _buildTripInfoRow('Avg Alertness', '${avgAlertness.toStringAsFixed(1)}%'),
+                    const SizedBox(height: 14),
+                    if (_selectedVehicle?.location != null && _selectedVehicle!.location!.isNotEmpty)
+                      _buildTripInfoRow('Current Location', _selectedVehicle!.location!),
+                  ],
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1256,9 +1212,36 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     }
 
     // Driver found via plate lookup — show their live location on the map
-    return LiveMap(
-      filterDriverIds: [driverId],
-      height: isMobile ? 350 : 450,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              final locationText = _selectedVehicle?.location ?? 'Current location unavailable';
+              final plate = _selectedVehicle?.licensePlate ?? '';
+              final message = Uri.encodeComponent('Live location for vehicle $plate: $locationText');
+              final whatsApp = Uri.parse('https://wa.me/?text=$message');
+              if (await canLaunchUrl(whatsApp)) {
+                await launchUrl(whatsApp, mode: LaunchMode.externalApplication);
+              } else {
+                final sms = Uri.parse('sms:?body=$message');
+                if (await canLaunchUrl(sms)) {
+                  await launchUrl(sms);
+                }
+              }
+            },
+            icon: const Icon(Icons.share_outlined),
+            label: const Text('Share Location'),
+          ),
+        ),
+        const SizedBox(height: 10),
+        LiveMap(
+          filterDriverIds: [driverId],
+          height: isMobile ? 350 : 450,
+        ),
+      ],
     );
   }
 
@@ -1980,12 +1963,19 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   void _showBuzzerDialog() {
+    final vehicleToAlert = _lookupVehicle ?? _selectedVehicle;
+    if (vehicleToAlert == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please find driver by license plate first.')),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sound buzzer?'),
+        title: const Text('Send emergency alert?'),
         content: const Text(
-          'This will trigger the in-vehicle alarm so the driver notices you.',
+          'This will notify the assigned driver, vehicle owner and admins immediately.',
         ),
         actions: [
           TextButton(
@@ -1993,17 +1983,30 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
+              final vehicle = vehicleToAlert;
+              if (vehicle == null) return;
+              await _firestore.collection('passenger_alerts').add({
+                'passengerId': widget.user.id,
+                'passengerName': widget.user.fullName,
+                'vehicleId': vehicle.id,
+                'licensePlate': vehicle.licensePlate,
+                'driverId': vehicle.assignedDriverId,
+                'ownerId': vehicle.ownerId,
+                'targetRoles': ['driver', 'owner', 'admin'],
+                'createdAt': FieldValue.serverTimestamp(),
+                'status': 'new',
+              });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: const Text('Buzzer / alarm signal sent'),
+                  content: const Text('Emergency alert sent to driver, owner and admin'),
                   backgroundColor: AppColors.primaryDark,
                 ),
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Sound alarm'),
+            child: const Text('Send Alert'),
           ),
         ],
       ),

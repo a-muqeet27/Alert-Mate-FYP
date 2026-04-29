@@ -243,7 +243,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 const SizedBox(height: 32),
                 _buildStaggeredItem(_buildVehicleManagement(), 5),
                 const SizedBox(height: 32),
-                _buildStaggeredItem(_buildDocumentApproval(), 6),
+                _buildStaggeredItem(_buildRecentActivities(), 6),
+                const SizedBox(height: 32),
+                _buildStaggeredItem(_buildDocumentApproval(), 7),
               ],
             ),
           ),
@@ -343,7 +345,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildEmergencyServiceCard(String title, String number, IconData icon, Color color, Color bgColor, [bool isMobile = false]) {
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
       padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -416,6 +420,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -1137,6 +1142,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             int totalUsers = 0;
             int driverCount = 0;
             int ownerCount = 0;
+            int passengerCount = 0;
 
             if (usersSnapshot.hasData) {
               final users = usersSnapshot.data!.docs;
@@ -1147,6 +1153,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 final activeRole = (data['activeRole'] as String? ?? data['role'] as String? ?? '').toLowerCase();
                 if (roles.map((r) => r.toString().toLowerCase()).contains('driver') || activeRole == 'driver') driverCount++;
                 if (roles.map((r) => r.toString().toLowerCase()).contains('owner') || activeRole == 'owner') ownerCount++;
+                if (roles.map((r) => r.toString().toLowerCase()).contains('passenger') || activeRole == 'passenger') passengerCount++;
               }
             }
 
@@ -1174,6 +1181,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             } else if (_userTypeFilter == 'Owners') {
               usersValue = ownerCount.toString();
               usersSubtitle = 'Registered owners';
+            } else if (_userTypeFilter == 'Passengers') {
+              usersValue = passengerCount.toString();
+              usersSubtitle = 'Registered passengers';
             } else {
               usersValue = totalUsers.toString();
               usersSubtitle = 'Registered users';
@@ -1242,6 +1252,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                       DropdownMenuItem(value: 'All Users', child: Text('All Users')),
                       DropdownMenuItem(value: 'Drivers', child: Text('Drivers')),
                       DropdownMenuItem(value: 'Owners', child: Text('Owners')),
+                      DropdownMenuItem(value: 'Passengers', child: Text('Passengers')),
                     ],
                     onChanged: (val) => setState(() => _userTypeFilter = val!),
                   ),
@@ -1267,6 +1278,29 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               fontSize: isMobile ? 12 : 13,
               color: AppColors.primary,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showStatsDetailsDialog(String title, List<String> rows) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: rows.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(e),
+          )).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -1361,7 +1395,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               ),
-                              items: ['All Roles', 'Admin', 'Driver', 'Owner']
+                              items: ['All Roles', 'Admin', 'Driver', 'Owner', 'Passenger']
                                   .map((role) => DropdownMenuItem(value: role, child: Text(role)))
                                   .toList(),
                               onChanged: (value) => setState(() => _selectedRoleFilter = value!),
@@ -1407,7 +1441,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                               ),
                               child: DropdownButton<String>(
                                 value: _selectedRoleFilter,
-                                items: ['All Roles', 'Admin', 'Driver', 'Owner']
+                                items: ['All Roles', 'Admin', 'Driver', 'Owner', 'Passenger']
                                     .map((role) => DropdownMenuItem(value: role, child: Text(role)))
                                     .toList(),
                                 onChanged: (value) => setState(() => _selectedRoleFilter = value!),
@@ -1424,25 +1458,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           ),
         ),
         const SizedBox(height: 24),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return constraints.maxWidth < 900
-                ? Column(
-                    children: [
-                      _buildUserRoleDistribution(),
-                      const SizedBox(height: 24),
-                      _buildRecentActivities(),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(child: _buildUserRoleDistribution()),
-                      const SizedBox(width: 24),
-                      Expanded(child: _buildRecentActivities()),
-                    ],
-                  );
-          },
-        ),
       ],
     );
   }
@@ -1514,88 +1529,27 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           );
         }
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final isMobile = constraints.maxWidth < 600;
-            if (isMobile) {
-              return Column(
-                children: users.map((user) => _buildMobileUserCard(user)).toList(),
-              );
-            }
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 800),
-                child: Table(
-                  columnWidths: const {
-                    0: FlexColumnWidth(2),
-                    1: FlexColumnWidth(2.5),
-                    2: FlexColumnWidth(1.5),
-                    3: FlexColumnWidth(1.5),
-                    4: FlexColumnWidth(1.5),
-                    5: FlexColumnWidth(1.2),
-                  },
-                  children: [
-                    TableRow(
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-                      ),
-                      children: const [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Email', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Role', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Joined', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                      ],
-                    ),
-                    ...users.map((user) {
-                      final name = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
-                      final email = user['email'] as String? ?? '';
-                      final activeRole = user['activeRole'] as String? ?? user['role'] as String? ?? 'N/A';
-                      final isActive = user['isActive'] as bool? ?? true;
-                      final createdAt = user['createdAt'] is Timestamp
-                          ? (user['createdAt'] as Timestamp).toDate()
-                          : null;
-                      final joinedText = createdAt != null ? _formatTimeAgo(createdAt) : 'N/A';
-
-                      return TableRow(
-                        decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
-                        ),
-                        children: [
-                          _buildTableCell(name.isNotEmpty ? name : 'Unknown'),
-                          _buildTableCell(email),
-                          _buildRoleBadge(activeRole),
-                          _buildStatusBadge(isActive ? 'Active' : 'Inactive'),
-                          _buildTableCell(joinedText),
-                          _buildUserActionsCell(user),
-                        ],
-                      );
-                    }),
-                  ],
-                ),
+        return Column(
+          children: users.map((user) {
+            final name = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
+            final activeRole = (user['activeRole'] as String? ?? user['role'] as String? ?? 'user').toLowerCase();
+            final icon = activeRole == 'owner'
+                ? Icons.business
+                : activeRole == 'admin'
+                    ? Icons.admin_panel_settings
+                    : activeRole == 'passenger'
+                        ? Icons.person
+                        : Icons.drive_eta;
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                child: Icon(icon, color: AppColors.primary),
               ),
+              title: Text(name.isNotEmpty ? name : 'Unknown User'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showUserQuickDetails(user),
             );
-          },
+          }).toList(),
         );
       },
     );
@@ -1619,7 +1573,10 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     };
     final roleColor = roleColors[activeRole.toLowerCase()] ?? Colors.grey;
 
-    return Container(
+    return InkWell(
+      onTap: () => _showUserQuickDetails(user),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1705,54 +1662,14 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               Text(joinedText, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              InkWell(
-                onTap: () => _showEditUserDialog(user),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2196F3).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_outlined, size: 15, color: Color(0xFF2196F3)),
-                      SizedBox(width: 4),
-                      Text('Edit', style: TextStyle(fontSize: 12, color: Color(0xFF2196F3), fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => _confirmDeleteUser(user),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.delete_outline, size: 15, color: Colors.red),
-                      SizedBox(width: 4),
-                      Text('Delete', style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            'Tap for details',
+            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
           ),
         ],
       ),
-    );
+    ));
   }
 
 
@@ -1835,6 +1752,51 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
+  Future<void> _showUserQuickDetails(Map<String, dynamic> user) async {
+    final name = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
+    final email = user['email'] as String? ?? 'N/A';
+    final phone = user['phone'] as String? ?? 'N/A';
+    final role = user['activeRole'] as String? ?? user['role'] as String? ?? 'N/A';
+    final roleLabel = role.isNotEmpty ? '${role[0].toUpperCase()}${role.substring(1)}' : 'N/A';
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(name.isNotEmpty ? name : 'User Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Email: $email'),
+            const SizedBox(height: 6),
+            Text('Phone: $phone'),
+            const SizedBox(height: 6),
+            Text('Role: $roleLabel'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmDeleteUser(user);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEditUserDialog(user);
+            },
+            child: const Text('Edit'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showEditUserDialog(Map<String, dynamic> user) async {
     final docId = user['docId'] as String?;
     if (docId == null || docId.isEmpty) {
@@ -1908,7 +1870,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
-                      items: ['driver', 'owner', 'admin']
+                      items: ['driver', 'owner', 'passenger', 'admin']
                           .map((r) => DropdownMenuItem(
                                 value: r,
                                 child: Text(r[0].toUpperCase() + r.substring(1)),
@@ -2622,95 +2584,31 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           );
         }
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final isMobile = constraints.maxWidth < 600;
-            if (isMobile) {
-              return Column(
-                children: vehicles.map((v) => _buildMobileVehicleCard(v)).toList(),
-              );
-            }
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 900),
-                child: Table(
-                  columnWidths: const {
-                    0: FlexColumnWidth(2),
-                    1: FlexColumnWidth(1.5),
-                    2: FlexColumnWidth(1),
-                    3: FlexColumnWidth(1.5),
-                    4: FlexColumnWidth(1.2),
-                    5: FlexColumnWidth(1.2),
-                    6: FlexColumnWidth(1),
-                  },
-                  children: [
-                    TableRow(
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-                      ),
-                      children: const [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Vehicle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('License Plate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Type', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Driver', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Alertness', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
-                        ),
-                      ],
-                    ),
-                    ...vehicles.map((v) {
-                      final make = v['make'] as String? ?? '';
-                      final model = v['model'] as String? ?? '';
-                      final plate = v['licensePlate'] as String? ?? '';
-                      final type = v['type'] as String? ?? 'Car';
-                      final driverName = v['driverName'] as String?;
-                      final status = v['status'] as String? ?? 'Offline';
-                      final alertness = v['alertness'] as int? ?? 0;
-                      final assignedDriverId = v['assignedDriverId'] as String?;
-                      final hasDriver = assignedDriverId != null && assignedDriverId.isNotEmpty;
-
-                      return TableRow(
-                        decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
-                        ),
-                        children: [
-                          _buildTableCell('$make $model'.trim()),
-                          _buildTableCell(plate),
-                          _buildVehicleTypeBadge(type),
-                          _buildTableCell(hasDriver ? (driverName ?? 'Assigned') : 'Unassigned'),
-                          _buildVehicleStatusBadge(status, hasDriver),
-                          _buildAlertnessBadge(alertness),
-                          _buildVehicleActionsCell(v),
-                        ],
-                      );
-                    }),
-                  ],
-                ),
+        return Column(
+          children: vehicles.map((v) {
+            final make = v['make'] as String? ?? '';
+            final model = v['model'] as String? ?? '';
+            final type = v['type'] as String? ?? 'Car';
+            final icon = type == 'Bus'
+                ? Icons.directions_bus
+                : type == 'Truck'
+                    ? Icons.local_shipping
+                    : type == 'Van'
+                        ? Icons.airport_shuttle
+                        : type == 'Rickshaw'
+                            ? Icons.electric_rickshaw
+                            : Icons.directions_car;
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                child: Icon(icon, color: AppColors.primary),
               ),
+              title: Text((v['licensePlate'] as String? ?? '').isNotEmpty ? (v['licensePlate'] as String) : 'Unknown Plate'),
+              subtitle: Text('$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'Unknown Vehicle'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showVehicleQuickDetails(v),
             );
-          },
+          }).toList(),
         );
       },
     );
@@ -2745,7 +2643,10 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       statusColor = Colors.grey;
     }
 
-    return Container(
+    return InkWell(
+      onTap: () => _showVehicleQuickDetails(vehicle),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2835,54 +2736,14 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               ],
             ),
           ],
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              InkWell(
-                onTap: () => _showEditVehicleDialog(vehicle),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2196F3).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_outlined, size: 15, color: Color(0xFF2196F3)),
-                      SizedBox(width: 4),
-                      Text('Edit', style: TextStyle(fontSize: 12, color: Color(0xFF2196F3), fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => _confirmDeleteVehicle(vehicle),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.delete_outline, size: 15, color: Colors.red),
-                      SizedBox(width: 4),
-                      Text('Delete', style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            'Tap for details',
+            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildVehicleTypeBadge(String type) {
@@ -2998,6 +2859,81 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             onPressed: () => _confirmDeleteVehicle(vehicle),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showVehicleQuickDetails(Map<String, dynamic> vehicle) async {
+    final title = '${vehicle['make'] ?? ''} ${vehicle['model'] ?? ''}'.trim();
+    final plate = vehicle['licensePlate'] as String? ?? 'N/A';
+    final ownerEmail = vehicle['ownerEmail'] as String? ?? 'N/A';
+    final ownerId = vehicle['ownerId'] as String?;
+    final driverEmail = vehicle['assignedDriverEmail'] as String? ?? 'N/A';
+    final driverId = vehicle['assignedDriverId'] as String?;
+    String ownerName = 'N/A';
+    String driverName = vehicle['driverName'] as String? ?? 'Unassigned';
+    try {
+      if (ownerId != null && ownerId.isNotEmpty) {
+        final ownerDoc = await _firestore.collection('users').doc(ownerId).get();
+        if (ownerDoc.exists) {
+          final d = ownerDoc.data() as Map<String, dynamic>;
+          ownerName = '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim();
+        }
+      }
+      if (driverId != null && driverId.isNotEmpty) {
+        final driverDoc = await _firestore.collection('users').doc(driverId).get();
+        if (driverDoc.exists) {
+          final d = driverDoc.data() as Map<String, dynamic>;
+          final full = '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim();
+          if (full.isNotEmpty) driverName = full;
+        }
+      }
+    } catch (_) {}
+    final status = vehicle['status'] as String? ?? 'Offline';
+    final alertness = vehicle['alertness']?.toString() ?? '0';
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title.isNotEmpty ? title : 'Vehicle Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Plate: $plate'),
+            const SizedBox(height: 6),
+            Text('Owner Name: ${ownerName.isEmpty ? "N/A" : ownerName}'),
+            const SizedBox(height: 6),
+            Text('Owner Mail: $ownerEmail'),
+            const SizedBox(height: 6),
+            Text('Driver Name: $driverName'),
+            const SizedBox(height: 6),
+            Text('Driver Mail: $driverEmail'),
+            const SizedBox(height: 6),
+            Text('Status: $status'),
+            const SizedBox(height: 6),
+            Text('Alertness: $alertness%'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmDeleteVehicle(vehicle);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEditVehicleDialog(vehicle);
+            },
+            child: const Text('Edit'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
           ),
         ],
       ),

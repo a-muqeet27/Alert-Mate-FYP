@@ -295,7 +295,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
     final endTime = session['endTime'] as int?;
     final duration = session['duration_minutes'] as int?;
     final avgAlertness = (session['average_alertness'] as num?)?.toDouble() ?? 0.0;
-    final drowsinessEvents = session['drowsiness_events'] as int? ?? 0;
+    final alertHappened = session['drowsiness_events'] as int? ?? 0;
     final status = session['status'] as String?;
 
     return Container(
@@ -400,18 +400,9 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                     Expanded(
                       child: _buildStatItem(
                         Icons.warning_amber_rounded,
-                        'Drowsiness Events',
-                        '$drowsinessEvents',
-                        drowsinessEvents > 0 ? Colors.red : Colors.green,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildStatItem(
-                        Icons.assessment_outlined,
-                        'Data Points',
-                        '${session['data_points'] ?? 0}',
-                        Colors.grey[700]!,
+                        'Alert Happened',
+                        '$alertHappened',
+                        alertHappened > 0 ? Colors.red : Colors.green,
                       ),
                     ),
                   ],
@@ -477,7 +468,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
         .map((s) => (s['average_alertness'] as num?)?.toDouble() ?? 0.0)
         .toList();
     
-    final totalDrowsinessEvents = completedSessions
+    final totalAlertHappened = completedSessions
         .fold<int>(0, (sum, s) => sum + ((s['drowsiness_events'] as int?) ?? 0));
     
     final avgAlertness = avgAlertnessValues.isEmpty
@@ -529,9 +520,9 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                 isMobile,
               ),
               _buildMetricCard(
-                'Total Events',
-                '$totalDrowsinessEvents',
-                totalDrowsinessEvents > 0 ? Colors.orange : Colors.green,
+                'Alert Happened',
+                '$totalAlertHappened',
+                totalAlertHappened > 0 ? Colors.orange : Colors.green,
                 Icons.warning,
                 isMobile,
               ),
@@ -654,8 +645,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   _buildTableHeader('Duration'),
                   _buildTableHeader('Status'),
                   _buildTableHeader('Avg Alertness'),
-                  _buildTableHeader('Drowsiness Events'),
-                  _buildTableHeader('Data Points'),
+                  _buildTableHeader('Alert Happened'),
                 ],
               ),
               ..._sessions.map((session) => _buildTableRow(session)),
@@ -685,9 +675,8 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
     final endTime = session['endTime'] as int?;
     final duration = session['duration_minutes'] as int?;
     final avgAlertness = (session['average_alertness'] as num?)?.toDouble() ?? 0.0;
-    final drowsinessEvents = session['drowsiness_events'] as int? ?? 0;
+    final alertHappened = session['drowsiness_events'] as int? ?? 0;
     final status = session['status'] as String?;
-    final dataPoints = session['data_points'] as int? ?? 0;
 
     return TableRow(
       decoration: BoxDecoration(
@@ -701,8 +690,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
         _buildTableCell(_formatDuration(duration)),
         _buildStatusCell(status),
         _buildAlertnessCell(avgAlertness),
-        _buildTableCell('$drowsinessEvents'),
-        _buildTableCell('$dataPoints'),
+        _buildTableCell('$alertHappened'),
       ],
     );
   }

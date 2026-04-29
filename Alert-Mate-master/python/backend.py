@@ -13,6 +13,7 @@ import base64
 from pathlib import Path
 import os
 import zipfile
+import urllib.request
 from PIL import Image
 import Testing as custom_testing
 
@@ -222,12 +223,169 @@ class CustomDetectorAdapter:
 
 DROWSINESS_MODE = os.getenv("DROWSINESS_MODE", "custom").strip().lower()
 CUSTOM_MODEL_PATH = os.getenv("CUSTOM_MODEL_PATH", str(Path(__file__).resolve().parent / "drowsiness_model.pth.zip"))
+MEDIAPIPE_MODEL_PATH = os.getenv("MEDIAPIPE_MODEL_PATH", str(Path(__file__).resolve().parent / "face_landmarker.task"))
 custom_detector = None
+mediapipe_detector = None
 landmark_model = None
+
+LEFT_EYE_MP = [362, 385, 387, 263, 373, 380]
+RIGHT_EYE_MP = [33, 160, 158, 133, 153, 144]
+MOUTH_TOP = 13
+MOUTH_BOTTOM = 14
+MOUTH_LEFT = 78
+MOUTH_RIGHT = 308
+MOUTH_TOP2 = 312
+MOUTH_BOT2 = 317
+
+MP_EAR_THRESHOLD = 0.21
+MP_MAR_THRESHOLD = 0.50
+MP_EYE_CLOSED_SECONDS = 0.1
+MP_YAWN_FRAME_LIMIT = 10
+
+
+def _euclidean(p1, p2):
+    return np.linalg.norm(np.array(p1) - np.array(p2))
+
+
+def _eye_aspect_ratio_mp(landmarks, indices, w, h):
+    pts = [(landmarks[i].x * w, landmarks[i].y * h) for i in indices]
+    a = _euclidean(pts[1], pts[5])
+    b = _euclidean(pts[2], pts[4])
+    c = _euclidean(pts[0], pts[3])
+    return (a + b) / (2.0 * c) if c > 0 else 0.0
+
+
+def _mouth_aspect_ratio_mp(landmarks, w, h):
+    def pt(i):
+        return (landmarks[i].x * w, landmarks[i].y * h)
+    vert = (_euclidean(pt(MOUTH_TOP), pt(MOUTH_BOTTOM)) + _euclidean(pt(MOUTH_TOP2), pt(MOUTH_BOT2))) / 2.0
+    horiz = _euclidean(pt(MOUTH_LEFT), pt(MOUTH_RIGHT))
+    return vert / horiz if horiz > 0 else 0.0
+
+
+def _ensure_mediapipe_model(path="face_landmarker.task"):
+    model_path = Path(path)
+    if model_path.exists():
+        return str(model_path)
+    url = (
+        "https://storage.googleapis.com/mediapipe-models/"
+        "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+    )
+    print(f"[mediapipe] Downloading face landmarker model to {model_path} ...")
+    urllib.request.urlretrieve(url, str(model_path))
+    print("[mediapipe] Model download complete.")
+    return str(model_path)
+
+
+class MediaPipeDetectorAdapter:
+    def __init__(self, model_path: str):
+        from mediapipe.tasks import python as mp_python
+        from mediapipe.tasks.python import vision
+
+        resolved_path = _ensure_mediapipe_model(model_path)
+        base_opts = mp_python.BaseOptions(model_asset_path=resolved_path)
+        opts = vision.FaceLandmarkerOptions(
+            base_options=base_opts,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+            num_faces=1,
+            min_face_detection_confidence=0.5,
+            min_face_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+        self.detector = vision.FaceLandmarker.create_from_options(opts)
+        self.mp_image_cls = __import__("mediapipe").Image
+        self.mp_image_format = __import__("mediapipe").ImageFormat
+
+        self.eye_closed_start = None
+        self.yawn_frames = 0
+        self.drowsy_event_count = 0
+        self.prev_drowsy = False
+
+    def process_frame(self, frame: np.ndarray, current_time: float) -> dict:
+        h, w = frame.shape[:2]
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = self.mp_image_cls(image_format=self.mp_image_format.SRGB, data=rgb)
+        result = self.detector.detect(mp_image)
+
+        ear = 0.0
+        mar = 0.0
+        reason = "no_face"
+        is_drowsy = False
+        eye_closure = 0.0
+
+        if result.face_landmarks:
+            lm = result.face_landmarks[0]
+            ear = (_eye_aspect_ratio_mp(lm, LEFT_EYE_MP, w, h) + _eye_aspect_ratio_mp(lm, RIGHT_EYE_MP, w, h)) / 2.0
+            mar = _mouth_aspect_ratio_mp(lm, w, h)
+
+            drowsy_eye = False
+            drowsy_yawn = False
+
+            if ear < MP_EAR_THRESHOLD:
+                if self.eye_closed_start is None:
+                    self.eye_closed_start = current_time
+                if (current_time - self.eye_closed_start) >= MP_EYE_CLOSED_SECONDS:
+                    drowsy_eye = True
+                    reason = "eyes_closed"
+            else:
+                self.eye_closed_start = None
+
+            if mar >= MP_MAR_THRESHOLD:
+                self.yawn_frames += 1
+                if self.yawn_frames >= MP_YAWN_FRAME_LIMIT:
+                    drowsy_yawn = True
+                    reason = "yawning"
+            else:
+                self.yawn_frames = 0
+
+            is_drowsy = drowsy_eye or drowsy_yawn
+            if not is_drowsy:
+                reason = "alert"
+
+            if is_drowsy and not self.prev_drowsy:
+                self.drowsy_event_count += 1
+            self.prev_drowsy = is_drowsy
+
+            eye_closure = max(0.0, min(100.0, (1.0 - (ear / max(MP_EAR_THRESHOLD, 1e-6))) * 100.0))
+            alertness = 0.0 if is_drowsy else 98.0
+        else:
+            self.eye_closed_start = None
+            self.yawn_frames = 0
+            self.prev_drowsy = False
+            alertness = 100.0
+
+        return {
+            "alertness": float(round(alertness, 2)),
+            "ear": float(round(ear, 3)),
+            "mar": float(round(mar, 3)),
+            "eyeClosure": float(round(eye_closure, 2)),
+            "isDrowsy": bool(is_drowsy),
+            "reason": reason,
+            "drowsyCounter": int(self.drowsy_event_count),
+            "frame": frame,
+        }
+
+    def close(self):
+        try:
+            self.detector.close()
+        except Exception:
+            pass
+
+
 if DROWSINESS_MODE == "custom":
     resolved_model = _resolve_model_path(CUSTOM_MODEL_PATH)
     custom_detector = CustomDetectorAdapter(resolved_model)
     print(f"Custom model loaded from: {resolved_model}")
+elif DROWSINESS_MODE == "mediapipe":
+    try:
+        mediapipe_detector = MediaPipeDetectorAdapter(MEDIAPIPE_MODEL_PATH)
+        print(f"MediaPipe detector loaded from: {MEDIAPIPE_MODEL_PATH}")
+    except Exception as e:
+        raise RuntimeError(
+            "Failed to initialize MediaPipe mode. Install dependencies with: "
+            "pip install mediapipe opencv-python numpy"
+        ) from e
 else:
     print("Loading pretrained models...")
     landmark_model = LandmarkNet().to(DEVICE)
@@ -277,6 +435,28 @@ async def websocket_endpoint(websocket: WebSocket):
                     if custom_detector is None:
                         raise RuntimeError("Custom mode enabled but model not initialized.")
                     result = custom_detector.process_frame(frame)
+                    is_drowsy = bool(result["isDrowsy"])
+                    if (current_time - last_output_time >= 1.0) or is_drowsy:
+                        last_output_time = current_time
+                        _, buffer = cv2.imencode(".jpg", result["frame"])
+                        payload = {
+                            "alertness": result["alertness"],
+                            "ear": result["ear"],
+                            "mar": result["mar"],
+                            "eyeClosure": result["eyeClosure"],
+                            "isDrowsy": is_drowsy,
+                            "reason": result["reason"],
+                            "drowsyCounter": int(result["drowsyCounter"]),
+                            "frame": base64.b64encode(buffer).decode("utf-8"),
+                        }
+                        await websocket.send_json(payload)
+                    await asyncio.sleep(0.01)
+                    continue
+
+                if DROWSINESS_MODE == "mediapipe":
+                    if mediapipe_detector is None:
+                        raise RuntimeError("MediaPipe mode enabled but detector not initialized.")
+                    result = mediapipe_detector.process_frame(frame, current_time)
                     is_drowsy = bool(result["isDrowsy"])
                     if (current_time - last_output_time >= 1.0) or is_drowsy:
                         last_output_time = current_time

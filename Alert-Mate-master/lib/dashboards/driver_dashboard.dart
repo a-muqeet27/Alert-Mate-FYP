@@ -22,6 +22,7 @@ import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
 import '../services/driver_location_update_service.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth_screen.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../constants/app_colors.dart';
@@ -1196,6 +1197,44 @@ class _DriverDashboardState extends State<DriverDashboard>
                               ),
                               SizedBox(height: isMobile ? 8 : 12),
                               _buildVehicleInfoChip(Icons.confirmation_number, assignedVehicle.licensePlate, isMobile),
+                              if ((assignedVehicle.ownerEmail ?? '').isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _buildVehicleInfoChip(Icons.person_outline, 'Owner: ${assignedVehicle.ownerEmail}', isMobile),
+                              ],
+                              FutureBuilder<DocumentSnapshot>(
+                                future: FirebaseFirestore.instance.collection('users').doc(assignedVehicle.ownerId).get(),
+                                builder: (context, ownerSnap) {
+                                  if (!ownerSnap.hasData || !ownerSnap.data!.exists) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final owner = ownerSnap.data!.data() as Map<String, dynamic>;
+                                  final ownerName = '${owner['firstName'] ?? ''} ${owner['lastName'] ?? ''}'.trim();
+                                  final ownerPhone = (owner['phone'] as String?) ?? '';
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (ownerName.isNotEmpty)
+                                          _buildVehicleInfoChip(Icons.badge_outlined, 'Owner Name: $ownerName', isMobile),
+                                        if (ownerPhone.isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          OutlinedButton.icon(
+                                            onPressed: () async {
+                                              final uri = Uri.parse('tel:$ownerPhone');
+                                              if (await canLaunchUrl(uri)) {
+                                                await launchUrl(uri);
+                                              }
+                                            },
+                                            icon: const Icon(Icons.call_outlined),
+                                            label: const Text('Call Owner'),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                           ),
                           ),
@@ -1634,6 +1673,15 @@ class _DriverDashboardState extends State<DriverDashboard>
               activeColor: AppColors.primary,
             ),
           ),
+          const Divider(height: 32),
+          _buildSettingRowWithButton(
+            'Change Alert Sound',
+            'Open mobile sound settings',
+            'Change Audio',
+                () {
+              _openSoundSettings();
+            },
+          ),
           const Divider(height: 48),
           _buildSettingRow(
             'Emergency Contacts',
@@ -1745,6 +1793,31 @@ class _DriverDashboardState extends State<DriverDashboard>
         ),
       ],
     );
+  }
+
+  Future<void> _openSoundSettings() async {
+    final candidates = <Uri>[
+      Uri.parse('intent:#Intent;action=android.settings.SOUND_SETTINGS;end'),
+      Uri.parse('app-settings:'),
+      Uri.parse('settings:'),
+      Uri.parse('android.settings.SOUND_SETTINGS'),
+    ];
+    for (final uri in candidates) {
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+    if (await openAppSettings()) {
+      return;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open sound settings automatically.')),
+      );
+    }
   }
 
   void _showSensitivityDialog() {
@@ -3143,6 +3216,18 @@ class _DriverDashboardState extends State<DriverDashboard>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+            icon: Icon(Icons.call_outlined, size: isMobile ? 18 : 20, color: Colors.green[700]),
+            onPressed: () async {
+              final uri = Uri.parse('tel:${contact.phone}');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              }
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          SizedBox(width: isMobile ? 4 : 8),
           IconButton(
             icon: Icon(Icons.edit_outlined, size: isMobile ? 18 : 20),
             onPressed: () {
