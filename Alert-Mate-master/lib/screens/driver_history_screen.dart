@@ -548,15 +548,40 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: isMobile ? 200 : 250,
-            child: CustomPaint(
-              painter: _AlertnessChartPainter(
-                dataPoints: avgAlertnessValues.reversed.toList(),
-                color: AppColors.driverPrimary,
+          Row(
+            children: [
+              // Y-axis labels container
+              SizedBox(
+                width: 45,
+                height: isMobile ? 200 : 250,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('100%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                    Text('80%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                    Text('60%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                    Text('40%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                    Text('20%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                    Text('0%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                  ],
+                ),
               ),
-              child: Container(),
-            ),
+              const SizedBox(width: 8),
+              // Graph area
+              Expanded(
+                child: SizedBox(
+                  height: isMobile ? 200 : 250,
+                  child: CustomPaint(
+                    painter: _AlertnessChartPainter(
+                      dataPoints: avgAlertnessValues.reversed.toList(),
+                      color: AppColors.driverPrimary,
+                    ),
+                    child: Container(),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -842,25 +867,6 @@ class _AlertnessChartPainter extends CustomPainter {
     // Draw points
     for (var point in points) {
       canvas.drawCircle(point, 4, pointPaint);
-    }
-
-    // Draw Y-axis labels
-    final textStyle = TextStyle(
-      color: Colors.grey[600],
-      fontSize: 10,
-    );
-    for (int i = 0; i <= gridLines; i++) {
-      final value = maxValue - (i * range / gridLines);
-      final y = size.height * (i / gridLines);
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: '${value.toInt()}%',
-          style: textStyle,
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(0, y - textPainter.height / 2));
     }
   }
 
