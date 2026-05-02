@@ -367,6 +367,11 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         actions: [
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 45),
+            ),
             onPressed: () {
               Navigator.pop(context);
               setState(() {
@@ -377,11 +382,6 @@ class _AuthScreenState extends State<AuthScreen>
                 _passwordController.clear();
               });
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade600,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 45),
-            ),
             child: const Text('Continue to Sign In'),
           ),
         ],
@@ -402,6 +402,9 @@ class _AuthScreenState extends State<AuthScreen>
                 'Please verify your email before signing in. Check your inbox for the verification link.'),
             const SizedBox(height: 16),
             TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+              ),
               onPressed: () async {
                 Navigator.pop(context);
                 setState(() {
@@ -430,6 +433,9 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+            ),
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
           ),
@@ -453,6 +459,7 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(height: 16),
             TextField(
               controller: emailController,
+              cursorColor: AppColors.primary,
               decoration: const InputDecoration(
                 labelText: 'Email',
                 border: OutlineInputBorder(),
@@ -467,6 +474,10 @@ class _AuthScreenState extends State<AuthScreen>
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               final email = emailController.text.trim();
               if (email.isEmpty) {
@@ -503,6 +514,9 @@ class _AuthScreenState extends State<AuthScreen>
         content: Text(message),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+            ),
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
           ),
@@ -519,6 +533,9 @@ class _AuthScreenState extends State<AuthScreen>
         content: Text(message),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+            ),
             onPressed: () {
               Navigator.pop(context);
               setState(() {
@@ -557,6 +574,9 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+            ),
             onPressed: () {
               Navigator.pop(context);
               setState(() {
@@ -771,7 +791,8 @@ class _AuthScreenState extends State<AuthScreen>
                                                     'Sign-Up', false, () {
                                                   ScaffoldMessenger.of(context)
                                                       .showSnackBar(
-                                                    const SnackBar(
+                                                    SnackBar(
+                                                      backgroundColor: AppColors.primary,
                                                       content: Text(
                                                         'Admin sign-up is not available. Use credentials from your organization.',
                                                       ),
@@ -1046,6 +1067,7 @@ class _AuthScreenState extends State<AuthScreen>
         TextFormField(
           controller: controller,
           validator: validator,
+          cursorColor: AppColors.primary,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFFBDC3C7)),
@@ -1136,6 +1158,7 @@ class _AuthScreenState extends State<AuthScreen>
             Expanded(
               child: TextFormField(
                 controller: _phoneController,
+                cursorColor: AppColors.primary,
                 validator: (value) {
                   if (!isSignIn && (value == null || value.isEmpty)) {
                     return 'Phone Number is Required';
@@ -1198,6 +1221,7 @@ class _AuthScreenState extends State<AuthScreen>
         TextFormField(
           controller: _passwordController,
           obscureText: _obscurePassword,
+          cursorColor: AppColors.primary,
           onChanged: (value) {
             if (!isSignIn) {
               setState(() {}); // Trigger rebuild to update strength indicator

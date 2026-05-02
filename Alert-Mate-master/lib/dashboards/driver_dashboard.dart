@@ -288,17 +288,29 @@ class _DriverDashboardState extends State<DriverDashboard>
     _cameraFrameNotifier.value = frameBytes;
   }
 
-  void _playBuzzerIfAllowed({bool force = false}) {
+  Future<void> _playBuzzerIfAllowed({bool force = false}) async {
     if (!_audioAlertsEnabled) return;
     final now = DateTime.now();
     if (!force && now.difference(_lastBuzzerAt) < _buzzerCooldown) return;
     _lastBuzzerAt = now;
+    
     try {
-      FlutterRingtonePlayer().playAlarm(
-        looping: false,
-        volume: 1.0,
-        asAlarm: true,
-      );
+      // Request storage permission for ringtone access on Android
+      if (Platform.isAndroid) {
+        final status = await Permission.storage.status;
+        if (!status.isGranted) {
+          final result = await Permission.storage.request();
+          if (!result.isGranted) {
+            // Fallback to system sound if permission denied
+            SystemSound.play(SystemSoundType.alert);
+            HapticFeedback.heavyImpact();
+            return;
+          }
+        }
+      }
+      
+      // Play device's default ringtone
+      FlutterRingtonePlayer().playRingtone();
     } catch (_) {
       SystemSound.play(SystemSoundType.alert);
     }
@@ -357,6 +369,19 @@ class _DriverDashboardState extends State<DriverDashboard>
     }
 
     print('🚀 Starting monitoring for driver: $driverId');
+
+    // Request storage permission for ringtone access on Android
+    if (!kIsWeb && Platform.isAndroid) {
+      final status = await Permission.storage.status;
+      if (!status.isGranted) {
+        final result = await Permission.storage.request();
+        if (!result.isGranted) {
+          print('⚠️ Storage permission denied - will use system alert sound');
+        } else {
+          print('✅ Storage permission granted for ringtone access');
+        }
+      }
+    }
 
     try {
     // Start Firebase session
@@ -1226,6 +1251,10 @@ class _DriverDashboardState extends State<DriverDashboard>
                                                 await launchUrl(uri);
                                               }
                                             },
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: AppColors.primary,
+                                              side: const BorderSide(color: AppColors.primary),
+                                            ),
                                             icon: const Icon(Icons.call_outlined),
                                             label: const Text('Call Owner'),
                                           ),
@@ -1815,7 +1844,10 @@ class _DriverDashboardState extends State<DriverDashboard>
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open sound settings automatically.')),
+        const SnackBar(
+          content: Text('Unable to open sound settings automatically.'),
+          backgroundColor: AppColors.primary,
+        ),
       );
     }
   }
@@ -1833,6 +1865,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                   title: const Text('Low'),
                   value: 'Low',
                   groupValue: _sensitivityLevel,
+                  activeColor: AppColors.primary,
                   onChanged: (value) {
                     setState(() => _sensitivityLevel = value.toString());
                     Navigator.pop(context);
@@ -1842,6 +1875,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                   title: const Text('Medium'),
                   value: 'Medium',
                   groupValue: _sensitivityLevel,
+                  activeColor: AppColors.primary,
                   onChanged: (value) {
                     setState(() => _sensitivityLevel = value.toString());
                     Navigator.pop(context);
@@ -1851,6 +1885,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                   title: const Text('High'),
                   value: 'High',
                   groupValue: _sensitivityLevel,
+                  activeColor: AppColors.primary,
                   onChanged: (value) {
                     setState(() => _sensitivityLevel = value.toString());
                     Navigator.pop(context);
@@ -2369,7 +2404,10 @@ class _DriverDashboardState extends State<DriverDashboard>
                 } else {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not launch dialer')),
+                      const SnackBar(
+                        content: Text('Could not launch dialer'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                   }
                 }
@@ -2504,6 +2542,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 CheckboxListTile(
                   title: const Text('Phone Call'),
                   value: methods.contains('call'),
+                  activeColor: AppColors.primary,
                   onChanged: (value) {
                     setDialogState(() {
                       if (value == true) {
@@ -2515,21 +2554,9 @@ class _DriverDashboardState extends State<DriverDashboard>
                   },
                 ),
                 CheckboxListTile(
-                  title: const Text('SMS'),
-                  value: methods.contains('sms'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('sms');
-                      } else {
-                        methods.remove('sms');
-                      }
-                    });
-                  },
-                ),
-                CheckboxListTile(
                   title: const Text('Email'),
                   value: methods.contains('email'),
+                  activeColor: AppColors.primary,
                   onChanged: (value) {
                     setDialogState(() {
                       if (value == true) {
@@ -2558,10 +2585,17 @@ class _DriverDashboardState extends State<DriverDashboard>
               child: const Text('Cancel'),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () async {
                 if (methods.isEmpty) {
                   ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                    const SnackBar(content: Text('Please select at least one contact method')),
+                    const SnackBar(
+                      content: Text('Please select at least one contact method'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                   return;
                 }
@@ -2585,23 +2619,25 @@ class _DriverDashboardState extends State<DriverDashboard>
                   if (mounted) {
                     Navigator.pop(dialogContext);
                     ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('${nameController.text} added to emergency contacts')),
+                      SnackBar(
+                        content: Text('${nameController.text} added to emergency contacts'),
+                        backgroundColor: AppColors.primary,
+                      ),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     Navigator.pop(dialogContext);
                     ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('Error adding contact: $e')),
+                      SnackBar(
+                        content: Text('Error adding contact: $e'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     }
                   }
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Add Contact'),
             ),
           ],
@@ -2722,6 +2758,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 CheckboxListTile(
                   title: const Text('Phone Call'),
                   value: methods.contains('call'),
+                  activeColor: AppColors.primary,
                   onChanged: (value) {
                     setDialogState(() {
                       if (value == true) {
@@ -2733,21 +2770,9 @@ class _DriverDashboardState extends State<DriverDashboard>
                   },
                 ),
                 CheckboxListTile(
-                  title: const Text('SMS'),
-                  value: methods.contains('sms'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('sms');
-                      } else {
-                        methods.remove('sms');
-                      }
-                    });
-                  },
-                ),
-                CheckboxListTile(
                   title: const Text('Email'),
                   value: methods.contains('email'),
+                  activeColor: AppColors.primary,
                   onChanged: (value) {
                     setDialogState(() {
                       if (value == true) {
@@ -2776,10 +2801,17 @@ class _DriverDashboardState extends State<DriverDashboard>
               child: const Text('Cancel'),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () async {
                 if (methods.isEmpty) {
                   ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                    const SnackBar(content: Text('Please select at least one contact method')),
+                    const SnackBar(
+                      content: Text('Please select at least one contact method'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                   return;
                 }
@@ -2802,23 +2834,25 @@ class _DriverDashboardState extends State<DriverDashboard>
                   if (mounted) {
                     Navigator.pop(dialogContext);
                     ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('${nameController.text} updated successfully')),
+                      SnackBar(
+                        content: Text('${nameController.text} updated successfully'),
+                        backgroundColor: AppColors.primary,
+                      ),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     Navigator.pop(dialogContext);
                     ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(content: Text('Error updating contact: $e')),
+                      SnackBar(
+                        content: Text('Error updating contact: $e'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     }
                   }
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Save Changes'),
             ),
           ],
@@ -3173,13 +3207,10 @@ class _DriverDashboardState extends State<DriverDashboard>
         mainAxisSize: MainAxisSize.min,
         children: [
           if (methods.contains('call'))
-            Icon(Icons.phone, size: isMobile ? 16 : 18, color: Colors.green[600]),
+            Icon(Icons.phone, size: isMobile ? 16 : 18, color: AppColors.primary),
           if (methods.contains('call')) SizedBox(width: isMobile ? 4 : 6),
-          if (methods.contains('sms'))
-            Icon(Icons.message, size: isMobile ? 16 : 18, color: Colors.blue[600]),
-          if (methods.contains('sms')) SizedBox(width: isMobile ? 4 : 6),
           if (methods.contains('email'))
-            Icon(Icons.email, size: isMobile ? 16 : 18, color: Colors.grey[600]),
+            Icon(Icons.email, size: isMobile ? 16 : 18, color: AppColors.primary),
         ],
       ),
     );
@@ -3198,7 +3229,10 @@ class _DriverDashboardState extends State<DriverDashboard>
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error updating contact: $e')),
+                SnackBar(
+                  content: Text('Error updating contact: $e'),
+                  backgroundColor: Colors.red,
+                ),
               );
             }
           }
@@ -3263,7 +3297,10 @@ class _DriverDashboardState extends State<DriverDashboard>
                   await _emergencyContactService.deleteEmergencyContact(contact.id);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${contact.name} removed')),
+                      SnackBar(
+                        content: Text('${contact.name} removed'),
+                        backgroundColor: AppColors.primary,
+                      ),
                     );
                   }
                 } catch (e) {

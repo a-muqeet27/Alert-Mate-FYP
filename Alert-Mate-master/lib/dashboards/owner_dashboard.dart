@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
 import '../models/emergency_contact.dart';
@@ -31,6 +33,7 @@ class OwnerDashboard extends StatefulWidget {
 
 class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStateMixin {
   final VehicleService _vehicleService = VehicleService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final OwnerVehicleSubmissionService _ownerVehicleSubmissionService = OwnerVehicleSubmissionService();
   final MonitoringService _monitoringService = MonitoringService();
   late EmergencyContactService _emergencyContactService;
@@ -2708,8 +2711,38 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               ),
               const SizedBox(width: 8),
               TextButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Calling driver...')));
+                onPressed: () async {
+                  // Get driver's phone number from Firestore
+                  if (vehicle.assignedDriverId != null && vehicle.assignedDriverId!.isNotEmpty) {
+                    try {
+                      final driverDoc = await _firestore.collection('users').doc(vehicle.assignedDriverId).get();
+                      if (driverDoc.exists) {
+                        final driverPhone = driverDoc.data()?['phone'] as String?;
+                        if (driverPhone != null && driverPhone.isNotEmpty) {
+                          final uri = Uri.parse('tel:$driverPhone');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Cannot make phone call'))
+                            );
+                          }
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Driver phone number not available'))
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e'))
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No driver assigned to this vehicle'))
+                    );
+                  }
                 },
                 icon: const Icon(Icons.phone_outlined),
                 label: const Text('Call'),
@@ -3038,10 +3071,38 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           SizedBox(width: isMobile ? 4 : 8),
           IconButton(
             icon: Icon(Icons.phone_outlined, size: isMobile ? 18 : 20),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Calling driver...'))
-              );
+            onPressed: () async {
+              // Get driver's phone number from Firestore
+              if (vehicle.assignedDriverId != null && vehicle.assignedDriverId!.isNotEmpty) {
+                try {
+                  final driverDoc = await _firestore.collection('users').doc(vehicle.assignedDriverId).get();
+                  if (driverDoc.exists) {
+                    final driverPhone = driverDoc.data()?['phone'] as String?;
+                    if (driverPhone != null && driverPhone.isNotEmpty) {
+                      final uri = Uri.parse('tel:$driverPhone');
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Cannot make phone call'))
+                        );
+                      }
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Driver phone number not available'))
+                      );
+                    }
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'))
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No driver assigned to this vehicle'))
+                );
+              }
             },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

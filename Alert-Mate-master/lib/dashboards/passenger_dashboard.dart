@@ -27,7 +27,6 @@ class PassengerDashboard extends StatefulWidget {
 class _PassengerDashboardState extends State<PassengerDashboard>
     with TickerProviderStateMixin {
   int _selectedIndex = 0;
-  int _selectedTab = 0;
   final Random _random = Random();
   late EmergencyContactService _emergencyContactService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -56,11 +55,18 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   double _driverAlertness = 82.9;
 
   Timer? _updateTimer;
+  
+  // Emergency contacts stream - initialized once in initState
+  Stream<List<EmergencyContact>>? _emergencyContactsStream;
 
   @override
   void initState() {
     super.initState();
     _emergencyContactService = EmergencyContactService();
+    
+    // Initialize emergency contacts stream ONCE here
+    _emergencyContactsStream = _emergencyContactService.getEmergencyContactsStream(widget.user.id);
+    
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -357,32 +363,19 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                   2,
                 ),
                 const SizedBox(height: 24),
-                // Tab bar (Location only)
-                const SizedBox(height: 8),
-                _buildStaggeredItem(_buildTabBar(), 4),
-                const SizedBox(height: 32),
+                // Trip Information and Live Location Tracking
                 _buildStaggeredItem(
-                  isMobile
-                      ? Column(
-                          children: [
-                            if (_selectedTab == 0) ...[
-                              _buildTripInformation(),
-                              const SizedBox(height: 16),
-                              _buildLocationTab(),
-                            ],
-                          ],
-                        )
-                      : Builder(
-                          builder: (context) {
-                            return Column(
-                              children: [
-                                _buildTripInformation(),
-                                const SizedBox(height: 16),
-                                _buildLocationTab(),
-                              ],
-                            );
-                          },
-                        ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildTripInformation(),
+                        const SizedBox(height: 16),
+                        _buildLocationTab(),
+                      ],
+                    ),
+                  ),
                   5,
                 ),
               ],
@@ -505,16 +498,17 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Find Driver by License Plate',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -524,10 +518,15 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 child: TextField(
                   controller: _plateController,
                   textCapitalization: TextCapitalization.characters,
+                  cursorColor: AppColors.primary,
                   decoration: InputDecoration(
                     hintText: 'Enter license plate (e.g., ABC-123)',
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                 ),
@@ -943,44 +942,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTabBar() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _buildTab('Location', 0),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String text, int index) {
-    final isActive = _selectedTab == index;
-    return InkWell(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: isActive
-              ? const Border(
-            bottom: BorderSide(color: AppColors.primary, width: 3),
-          )
-              : null,
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            color: isActive ? AppColors.primary : Colors.black54,
-          ),
-        ),
       ),
     );
   }
@@ -1476,7 +1437,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
 
   Widget _buildEmergencyContactsTable([bool isMobile = false]) {
     return StreamBuilder<List<EmergencyContact>>(
-      stream: _emergencyContactService.getEmergencyContactsStream(widget.user.id),
+      stream: _emergencyContactsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Container(
@@ -1962,7 +1923,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     );
   }
 
-  void _showBuzzerDialog() {
+  void _showBuzzerDialog() async {
     final vehicleToAlert = _lookupVehicle ?? _selectedVehicle;
     if (vehicleToAlert == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1970,12 +1931,35 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       );
       return;
     }
+    
+    // Get driver's emergency contacts
+    final driverId = vehicleToAlert.assignedDriverId;
+    List<EmergencyContact> emergencyContacts = [];
+    if (driverId != null && driverId.isNotEmpty) {
+      try {
+        final contactsSnapshot = await _firestore
+            .collection('emergencyContacts')
+            .where('userId', isEqualTo: driverId)
+            .where('enabled', isEqualTo: true)
+            .orderBy('priority', descending: true)
+            .get();
+        
+        emergencyContacts = contactsSnapshot.docs
+            .map((doc) => EmergencyContact.fromMap({'id': doc.id, ...doc.data()}))
+            .toList();
+      } catch (e) {
+        print('Error fetching emergency contacts: $e');
+      }
+    }
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Send emergency alert?'),
-        content: const Text(
-          'This will notify the assigned driver, vehicle owner and admins immediately.',
+        content: Text(
+          emergencyContacts.isNotEmpty
+              ? 'This will notify the assigned driver, vehicle owner, admins, and ${emergencyContacts.length} emergency contact(s) immediately.'
+              : 'This will notify the assigned driver, vehicle owner and admins immediately.',
         ),
         actions: [
           TextButton(
@@ -1987,6 +1971,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               Navigator.pop(context);
               final vehicle = vehicleToAlert;
               if (vehicle == null) return;
+              
+              // Send alert to Firestore
               await _firestore.collection('passenger_alerts').add({
                 'passengerId': widget.user.id,
                 'passengerName': widget.user.fullName,
@@ -1998,9 +1984,29 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 'createdAt': FieldValue.serverTimestamp(),
                 'status': 'new',
               });
+              
+              // Call primary emergency contact if available
+              if (emergencyContacts.isNotEmpty) {
+                final primaryContact = emergencyContacts.first;
+                if (primaryContact.methods.contains('call') && primaryContact.phone.isNotEmpty) {
+                  try {
+                    final uri = Uri.parse('tel:${primaryContact.phone}');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  } catch (e) {
+                    print('Error launching phone call: $e');
+                  }
+                }
+              }
+              
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: const Text('Emergency alert sent to driver, owner and admin'),
+                  content: Text(
+                    emergencyContacts.isNotEmpty
+                        ? 'Emergency alert sent and calling ${emergencyContacts.first.name}'
+                        : 'Emergency alert sent to driver, owner and admin'
+                  ),
                   backgroundColor: AppColors.primaryDark,
                 ),
               );
