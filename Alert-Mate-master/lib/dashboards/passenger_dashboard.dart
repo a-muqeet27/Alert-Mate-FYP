@@ -1412,7 +1412,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 } else {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not launch dialer')),
+                      const SnackBar(
+                        content: Text('Could not launch dialer'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                   }
                 }
@@ -1471,7 +1474,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 ),
               ],
             ),
-            child: const Center(child: CircularProgressIndicator()),
+            child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
           );
         }
 
@@ -1903,7 +1906,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                   await _emergencyContactService.deleteEmergencyContact(contact.id);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${contact.name} removed')),
+                      SnackBar(
+                        content: Text('${contact.name} removed'),
+                        backgroundColor: AppColors.primary,
+                      ),
                     );
                   }
                 } catch (e) {
@@ -1927,7 +1933,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     final vehicleToAlert = _lookupVehicle ?? _selectedVehicle;
     if (vehicleToAlert == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please find driver by license plate first.')),
+        const SnackBar(
+          content: Text('Please find driver by license plate first.'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -2149,7 +2158,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                   if (formKey.currentState?.validate() != true) return;
                   if (methods.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Select at least one method')),
+                      const SnackBar(
+                        content: Text('Select at least one method'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     return;
                   }
@@ -2173,7 +2185,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                       );
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Contact added')),
+                          const SnackBar(
+                            content: Text('Contact added'),
+                            backgroundColor: AppColors.primary,
+                          ),
                         );
                       }
                     } else {
@@ -2191,7 +2206,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                       );
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Contact updated')),
+                          const SnackBar(
+                            content: Text('Contact updated'),
+                            backgroundColor: AppColors.primary,
+                          ),
                         );
                       }
                     }

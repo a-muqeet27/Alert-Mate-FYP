@@ -127,7 +127,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _error.isNotEmpty
               ? Center(
                   child: Column(

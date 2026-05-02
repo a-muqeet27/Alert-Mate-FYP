@@ -43,6 +43,11 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
         scaffoldBackgroundColor: AppColors.background,
+        textSelectionTheme: TextSelectionThemeData(
+          cursorColor: AppColors.primary,
+          selectionColor: AppColors.primary.withOpacity(0.3),
+          selectionHandleColor: AppColors.primary,
+        ),
       ),
       home: const SplashScreen(),
     );

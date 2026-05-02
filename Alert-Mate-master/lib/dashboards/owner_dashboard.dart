@@ -1326,7 +1326,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 ),
               ],
             ),
-            child: const Center(child: CircularProgressIndicator()),
+            child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
           );
         }
 
@@ -1350,7 +1350,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     ),
                   ],
                 ),
-                child: const Center(child: CircularProgressIndicator()),
+                child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
               );
             }
 
@@ -2203,7 +2203,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     if (mounted) {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('${nameController.text} added to emergency contacts')),
+                        SnackBar(
+                          content: Text('${nameController.text} added to emergency contacts'),
+                          backgroundColor: AppColors.primary,
+                        ),
                       );
                     }
                   } catch (e) {
@@ -2417,7 +2420,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     if (mounted) {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('${nameController.text} updated successfully')),
+                        SnackBar(
+                          content: Text('${nameController.text} updated successfully'),
+                          backgroundColor: AppColors.primary,
+                        ),
                       );
                     }
                   } catch (e) {
@@ -2671,7 +2677,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   await _emergencyContactService.deleteEmergencyContact(contact.id);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${contact.name} removed')),
+                      SnackBar(
+                        content: Text('${contact.name} removed'),
+                        backgroundColor: AppColors.primary,
+                      ),
                     );
                   }
                 } catch (e) {

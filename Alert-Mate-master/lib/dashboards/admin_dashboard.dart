@@ -461,7 +461,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 ),
               ],
             ),
-            child: const Center(child: CircularProgressIndicator()),
+            child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
           );
         }
 
@@ -2227,7 +2227,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   ),
                   const SizedBox(height: 24),
                   if (!usersSnapshot.hasData && !vehiclesSnapshot.hasData)
-                    const Center(child: CircularProgressIndicator())
+                    const Center(child: CircularProgressIndicator(color: AppColors.primary))
                   else if (recentActivities.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(20),
@@ -3391,7 +3391,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                         if (progress == null) return child;
                         return const Padding(
                           padding: EdgeInsets.all(48),
-                          child: Center(child: CircularProgressIndicator()),
+                          child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
                         );
                       },
                       errorBuilder: (_, __, ___) => const Padding(

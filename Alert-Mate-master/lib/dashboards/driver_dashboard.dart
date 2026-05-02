@@ -1174,7 +1174,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                       return Text('Error loading vehicle: ${vehicleSnap.error}');
                     }
                     if (vehicleSnap.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
                     }
 
                     final assignedVehicle = vehicleSnap.data;
@@ -1298,7 +1298,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                             if (waiting) {
                               return const Padding(
                                 padding: EdgeInsets.all(24),
-                                child: Center(child: CircularProgressIndicator()),
+                                child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
                               );
                             }
 
@@ -1364,7 +1364,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                                 if (subSnap.connectionState == ConnectionState.waiting) {
                                   return const Padding(
                                     padding: EdgeInsets.all(24),
-                                    child: Center(child: CircularProgressIndicator()),
+                                    child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
                                   );
                                 }
 
@@ -2883,7 +2883,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(child: CircularProgressIndicator()),
+            child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
           );
         }
 
