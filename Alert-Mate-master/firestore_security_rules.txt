@@ -1,0 +1,48 @@
+// Firebase Firestore Security Rules for Alert-Mate
+// Copy and paste this into Firebase Console → Firestore Database → Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Drivers collection
+    match /drivers/{driverId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == driverId;
+    }
+    
+    // Vehicles collection
+    match /vehicles/{vehicleId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Emergency contacts collection
+    match /emergency_contacts/{contactId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Monitoring sessions collection
+    match /monitoring_sessions/{sessionId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Tracking tokens - PUBLIC READ for live tracking
+    match /tracking_tokens/{tokenId} {
+      // Anyone can read tracking tokens (for public tracking links)
+      allow read: if true;
+      
+      // Only authenticated users can create tokens
+      allow create: if request.auth != null;
+      
+      // Only the driver who owns the token can update/delete
+      allow update, delete: if request.auth != null 
+                            && request.auth.uid == resource.data.driverId;
+    }
+  }
+}

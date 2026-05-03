@@ -8,6 +8,7 @@ import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
 import '../constants/app_colors.dart';
 import '../services/emergency_contact_service.dart';
+import '../services/tracking_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/vehicle.dart';
 import '../services/vehicle_service.dart';
@@ -1205,21 +1206,107 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
             OutlinedButton.icon(
               onPressed: () async {
-                final locationText = _lookupVehicle?.location ?? 'Current location unavailable';
                 final plate = _lookupVehicle?.licensePlate ?? '';
-                final message = Uri.encodeComponent('Live location for vehicle $plate: $locationText');
-                final whatsApp = Uri.parse('https://wa.me/?text=$message');
-                if (await canLaunchUrl(whatsApp)) {
-                  await launchUrl(whatsApp, mode: LaunchMode.externalApplication);
-                } else {
-                  final sms = Uri.parse('sms:?body=$message');
-                  if (await canLaunchUrl(sms)) {
-                    await launchUrl(sms);
+                final make = _lookupVehicle?.make ?? '';
+                final model = _lookupVehicle?.model ?? '';
+                final driverId = _lookupDriverId;
+                
+                if (driverId == null || driverId.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No driver assigned to this vehicle'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+                
+                try {
+                  // Show loading indicator
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(
+                      child: CircularProgressIndicator(color: AppColors.primary),
+                    ),
+                  );
+                  
+                  // Create tracking token (6 hours expiry)
+                  final trackingService = TrackingService();
+                  final tokenId = await trackingService.createTrackingToken(
+                    driverId: driverId,
+                    vehiclePlate: plate,
+                    vehicleMake: make,
+                    vehicleModel: model,
+                    duration: const Duration(hours: 6),
+                  );
+                  
+                  // Close loading dialog
+                  if (context.mounted) Navigator.pop(context);
+                  
+                  // Create tracking URL
+                  // TODO: Replace with your actual domain when deployed
+                  final trackingUrl = 'https://yourapp.com/track/$tokenId';
+                  
+                  // For local testing, you can use:
+                  // final trackingUrl = 'http://localhost:8080/track/$tokenId';
+                  
+                  final message = '🚗 Track vehicle $plate LIVE:\n\n'
+                                '$trackingUrl\n\n'
+                                '📍 Real-time location updates\n'
+                                '⏱️ Valid for 6 hours\n'
+                                '🔄 Updates every 10 seconds\n\n'
+                                'Tap the link to view live location on map';
+                  
+                  // Try WhatsApp first
+                  final whatsApp = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(message)}');
+                  if (await canLaunchUrl(whatsApp)) {
+                    await launchUrl(whatsApp, mode: LaunchMode.externalApplication);
+                  } else {
+                    // Fallback to SMS
+                    final sms = Uri.parse('sms:?body=${Uri.encodeComponent(message)}');
+                    if (await canLaunchUrl(sms)) {
+                      await launchUrl(sms);
+                    } else {
+                      // Show error if neither works
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Unable to share location. Please install WhatsApp or enable SMS.'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    }
+                  }
+                  
+                  // Show success message
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Live tracking link created! Share it via WhatsApp or SMS.'),
+                        backgroundColor: AppColors.primary,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  // Close loading dialog if still open
+                  if (context.mounted && Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                  
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error creating tracking link: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
                   }
                 }
               },
               icon: const Icon(Icons.share_outlined),
-              label: const Text('Share Location'),
+              label: const Text('Share Live Location'),
             ),
           ],
         ),

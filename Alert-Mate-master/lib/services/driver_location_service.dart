@@ -16,12 +16,13 @@ class DriverLocationService {
     return DateTime.now().difference(d.updatedAt!) > _staleThreshold;
   }
 
-  /// Stream all non-offline drivers with valid, fresh GPS coordinates.
+  /// Stream all drivers who are actively on trip (monitoring started).
   /// Used by Admin Dashboard to show all drivers on the map.
+  /// Only shows drivers with status 'on_trip' (monitoring active).
   Stream<List<DriverLocation>> getAllDriversStream() {
     return _firestore
         .collection('drivers')
-        .where('status', isNotEqualTo: 'offline')
+        .where('status', isEqualTo: 'on_trip')
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => DriverLocation.fromMap(doc.data(), doc.id))
@@ -29,11 +30,12 @@ class DriverLocationService {
             .toList());
   }
 
-  /// Stream all drivers (including offline) — used when we filter client-side.
-  /// Returns only drivers with valid, fresh GPS coordinates.
+  /// Stream all drivers who are actively on trip (monitoring started).
+  /// Returns only drivers with status 'on_trip' and valid, fresh GPS coordinates.
   Stream<List<DriverLocation>> getDriversStream() {
     return _firestore
         .collection('drivers')
+        .where('status', isEqualTo: 'on_trip')
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => DriverLocation.fromMap(doc.data(), doc.id))
@@ -41,14 +43,14 @@ class DriverLocationService {
             .toList());
   }
 
-  /// Stream drivers filtered to specific IDs.
+  /// Stream drivers filtered to specific IDs who are actively on trip.
   /// Used by Owner Dashboard to show only their assigned drivers.
-  /// Filters are applied client-side to avoid Firestore compound query limitations.
+  /// Only shows drivers with status 'on_trip' (monitoring active).
   Stream<List<DriverLocation>> getDriversByIdsStream(List<String> driverIds) {
     if (driverIds.isEmpty) return Stream.value([]);
 
     return getDriversStream().map((drivers) => drivers
-        .where((d) => driverIds.contains(d.id) && d.isOnline)
+        .where((d) => driverIds.contains(d.id))
         .toList());
   }
 }

@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ── Helper functions ───────────────────────────────────────────────────────
+    // True if the request comes from a signed-in user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // True if the signed-in user's UID matches the document ID
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+    
+    // True if signed-in user has admin role in their user profile.
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeRole == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         ('admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles));
+    }
+    
+    // ── users collection ──────────────────────────────────────────────────────
+    // Each user can read and update their own profile; authenticated users can
+    // read other profiles (needed for admin / owner lookups).
+    match /users/{userId} {
+      allow read:   if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+    
+    // ── vehicles collection ───────────────────────────────────────────────────
+    // All authenticated users can read vehicles (passenger plate lookup,
+    // owner fleet view, admin management).
+    match /vehicles/{vehicleId} {
+      allow read:   if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ── vehicleAssignments collection ─────────────────────────────────────────
+    match /vehicleAssignments/{assignmentId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+    
+    // ── drivers collection ────────────────────────────────────────────────────
+    match /drivers/{driverId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated() && isOwner(driverId);
+    }
+    
+    // ── driver_document_submissions collection ───────────────────────────────
+    match /driver_document_submissions/{docId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+    
+    // ── driver_vehicle_submissions collection ────────────────────────────────
+    match /driver_vehicle_submissions/{docId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+    
+    // ── owner_vehicle_submissions collection ─────────────────────────────────
+    match /owner_vehicle_submissions/{docId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+    
+    // ── emergencyContacts collection ─────────────────────────────────────────
+    match /emergencyContacts/{contactId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isAuthenticated();
+    }
+    
+    // ── tracking_tokens collection ────────────────────────────────────────────
+    // PUBLIC READ for live location tracking (no auth required for recipients)
+    // Only authenticated users can create tokens
+    // Only the driver who owns the token can update/delete it
+    match /tracking_tokens/{tokenId} {
+      // Anyone can read tracking tokens (for public tracking links)
+      allow read: if true;
+      
+      // Only authenticated users can create tokens
+      allow create: if isAuthenticated();
+      
+      // Only the driver who owns the token can update/delete
+      allow update, delete: if isAuthenticated() 
+                            && request.auth.uid == resource.data.driverId;
+    }
+  }
+}

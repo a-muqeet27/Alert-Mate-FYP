@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'screens/public_live_tracking_screen.dart';
 import 'constants/app_colors.dart';
 
 void main() async {
@@ -50,6 +51,21 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const SplashScreen(),
+      // Route handling for tracking links
+      onGenerateRoute: (settings) {
+        // Handle /track/:tokenId route
+        if (settings.name != null && settings.name!.startsWith('/track/')) {
+          final tokenId = settings.name!.substring(7); // Remove '/track/' prefix
+          return MaterialPageRoute(
+            builder: (context) => PublicLiveTrackingScreen(tokenId: tokenId),
+          );
+        }
+        
+        // Default route
+        return MaterialPageRoute(
+          builder: (context) => const SplashScreen(),
+        );
+      },
     );
   }
 }
