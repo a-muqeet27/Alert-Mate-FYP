@@ -132,11 +132,22 @@ class _DriverDashboardState extends State<DriverDashboard>
     _slideController.forward();
     _scaleController.forward();
     
-    // Initialize camera early to avoid delay when starting monitoring
-    _initializeCamera();
+    // Request required runtime permissions on startup.
+    _requestStartupPermissions();
 
     // Mark driver as online (idle) in Firestore so the map shows them
     _locationUpdateService.goOnline(widget.user.id, widget.user.fullName);
+  }
+
+  Future<void> _requestStartupPermissions() async {
+    try {
+      await [
+        Permission.camera,
+        Permission.microphone,
+        Permission.locationWhenInUse,
+      ].request();
+    } catch (_) {}
+    await _initializeCamera();
   }
 
   @override
@@ -175,8 +186,7 @@ class _DriverDashboardState extends State<DriverDashboard>
   
   Future<void> _initializeCamera() async {
     try {
-      // Request camera permission
-      final status = await Permission.camera.request();
+      final status = await Permission.camera.status;
       if (!status.isGranted) {
         print('❌ Camera permission denied');
         return;
@@ -2073,65 +2083,30 @@ class _DriverDashboardState extends State<DriverDashboard>
             ),
           ),
           SizedBox(height: isMobile ? 16 : 24),
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: ValueListenableBuilder<Uint8List?>(
-                    valueListenable: _cameraFrameNotifier,
-                    builder: (context, frameBytes, _) {
-                      if (frameBytes != null && _isMonitoring) {
-                        return Image.memory(
-                          frameBytes,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                          filterQuality: FilterQuality.low,
-                          width: double.infinity,
-                          height: double.infinity,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Error loading camera feed',
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      }
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isMonitoring ? Icons.videocam : Icons.videocam_off,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _isMonitoring
-                                  ? 'Waiting for camera feed...'
-                                  : 'Camera feed will appear here',
-                              style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-              ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _isMonitoring ? Icons.memory : Icons.pause_circle_outline,
+                  color: _isMonitoring ? AppColors.success : Colors.grey[600],
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _isMonitoring
+                        ? 'Monitoring runs in background. Live camera preview is hidden to prevent flicker.'
+                        : 'Monitoring is currently stopped.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

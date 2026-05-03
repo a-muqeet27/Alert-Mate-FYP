@@ -23,7 +23,7 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStateMixin {
-  int _selectedIndex = 0; // 0: Dashboard, 1: Emergency
+  int _selectedIndex = 0;
   String _selectedRoleFilter = 'All Roles';
   String _userTypeFilter = 'All Users';
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -141,12 +141,12 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       body: EmailVerifiedGuard(
         enforceVerification: false,
         child: isMobile
-            ? _selectedIndex == 0 ? _buildMainContent() : _buildEmergency()
+            ? _buildMainContent()
             : Row(
                 children: [
                   _buildSidebar(),
                   Expanded(
-                    child: _selectedIndex == 0 ? _buildMainContent() : _buildEmergency(),
+                    child: _buildMainContent(),
                   ),
                 ],
               ),
@@ -169,7 +169,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           },
           menuItems: const [
             MenuItem(icon: Icons.dashboard_outlined, title: 'Dashboard'),
-            MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
           ],
           accentColor: AppColors.primary,
           accentLightColor: AppColors.primaryLight,
@@ -186,7 +185,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       onMenuItemTap: (index) => setState(() => _selectedIndex = index),
       menuItems: const [
         MenuItem(icon: Icons.dashboard_outlined, title: 'Dashboard'),
-        MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
       ],
       accentColor: AppColors.primary,
       accentLightColor: AppColors.primaryLight,
@@ -1761,16 +1759,17 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(name.isNotEmpty ? name : 'User Details'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Email: $email'),
-            const SizedBox(height: 6),
-            Text('Phone: $phone'),
-            const SizedBox(height: 6),
-            Text('Role: $roleLabel'),
+            _buildQuickDetailCardRow(Icons.mail_outline, 'Email', email),
+            const SizedBox(height: 10),
+            _buildQuickDetailCardRow(Icons.phone_outlined, 'Phone', phone),
+            const SizedBox(height: 10),
+            _buildQuickDetailCardRow(Icons.person_outline, 'Role', roleLabel),
           ],
         ),
         actions: [
@@ -2896,25 +2895,29 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(title.isNotEmpty ? title : 'Vehicle Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Plate: $plate'),
-            const SizedBox(height: 6),
-            Text('Owner Name: ${ownerName.isEmpty ? "N/A" : ownerName}'),
-            const SizedBox(height: 6),
-            Text('Owner Mail: $ownerEmail'),
-            const SizedBox(height: 6),
-            Text('Driver Name: $driverName'),
-            const SizedBox(height: 6),
-            Text('Driver Mail: $driverEmail'),
-            const SizedBox(height: 6),
-            Text('Status: $status'),
-            const SizedBox(height: 6),
-            Text('Alertness: $alertness%'),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildQuickDetailCardRow(Icons.confirmation_number_outlined, 'Plate', plate),
+              const SizedBox(height: 10),
+              _buildQuickDetailCardRow(Icons.badge_outlined, 'Owner Name', ownerName.isEmpty ? 'N/A' : ownerName),
+              const SizedBox(height: 10),
+              _buildQuickDetailCardRow(Icons.mail_outline, 'Owner Email', ownerEmail),
+              const SizedBox(height: 10),
+              _buildQuickDetailCardRow(Icons.person_outline, 'Driver Name', driverName),
+              const SizedBox(height: 10),
+              _buildQuickDetailCardRow(Icons.alternate_email, 'Driver Email', driverEmail),
+              const SizedBox(height: 10),
+              _buildQuickDetailCardRow(Icons.info_outline, 'Status', status),
+              const SizedBox(height: 10),
+              _buildQuickDetailCardRow(Icons.speed, 'Alertness', '$alertness%'),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -2934,6 +2937,34 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickDetailCardRow(IconData icon, String label, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ],
       ),

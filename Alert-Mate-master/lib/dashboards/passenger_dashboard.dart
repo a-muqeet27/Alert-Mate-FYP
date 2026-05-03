@@ -1051,6 +1051,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
 
   Widget _buildTripInformation() {
     final driverId = _lookupDriverId;
+    final vehicleId = _lookupVehicle?.id;
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
@@ -1084,22 +1085,36 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             StreamBuilder<Map<String, dynamic>>(
               stream: _monitoringService.getCurrentStats(driverId),
               builder: (context, statsSnap) {
-                final stats = statsSnap.data ?? {};
-                final currentAlerts = (stats['drowsinessDetected'] == true) ? 1 : 0;
-                final avgAlertness = (stats['alertness'] as num?)?.toDouble() ?? 0.0;
-                final started = _lookupStartedAt;
-                final drivingMinutes = started == null ? 0 : DateTime.now().difference(started).inMinutes;
-                return Column(
-                  children: [
-                    _buildTripInfoRow('Current Alerts', '$currentAlerts'),
-                    const SizedBox(height: 14),
-                    _buildTripInfoRow('Driving Minutes', '$drivingMinutes'),
-                    const SizedBox(height: 14),
-                    _buildTripInfoRow('Avg Alertness', '${avgAlertness.toStringAsFixed(1)}%'),
-                    const SizedBox(height: 14),
-                    if (_selectedVehicle?.location != null && _selectedVehicle!.location!.isNotEmpty)
-                      _buildTripInfoRow('Current Location', _selectedVehicle!.location!),
-                  ],
+                return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: vehicleId == null
+                      ? null
+                      : _firestore.collection('vehicles').doc(vehicleId).snapshots(),
+                  builder: (context, vehicleSnap) {
+                    final stats = statsSnap.data ?? {};
+                    final vehicleData = vehicleSnap.data?.data() ?? {};
+                    final currentAlerts = (stats['drowsinessDetected'] == true) ? 1 : 0;
+                    final avgAlertness = (stats['alertness'] as num?)?.toDouble() ?? 0.0;
+                    final started = _lookupStartedAt;
+                    final drivingMinutes = started == null ? 0 : DateTime.now().difference(started).inMinutes;
+                    final location = vehicleData['location'] as String? ?? '';
+                    final liveMake = vehicleData['make'] as String? ?? _lookupVehicle?.make ?? '';
+                    final liveModel = vehicleData['model'] as String? ?? _lookupVehicle?.model ?? '';
+                    return Column(
+                      children: [
+                        _buildTripInfoRow('Vehicle', '$liveMake $liveModel'.trim().isEmpty ? 'N/A' : '$liveMake $liveModel'),
+                        const SizedBox(height: 14),
+                        _buildTripInfoRow('Current Alerts', '$currentAlerts'),
+                        const SizedBox(height: 14),
+                        _buildTripInfoRow('Driving Minutes', '$drivingMinutes'),
+                        const SizedBox(height: 14),
+                        _buildTripInfoRow('Avg Alertness', '${avgAlertness.toStringAsFixed(1)}%'),
+                        if (location.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          _buildTripInfoRow('Current Location', location),
+                        ],
+                      ],
+                    );
+                  },
                 );
               },
             ),
@@ -1176,26 +1191,37 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              final locationText = _selectedVehicle?.location ?? 'Current location unavailable';
-              final plate = _selectedVehicle?.licensePlate ?? '';
-              final message = Uri.encodeComponent('Live location for vehicle $plate: $locationText');
-              final whatsApp = Uri.parse('https://wa.me/?text=$message');
-              if (await canLaunchUrl(whatsApp)) {
-                await launchUrl(whatsApp, mode: LaunchMode.externalApplication);
-              } else {
-                final sms = Uri.parse('sms:?body=$message');
-                if (await canLaunchUrl(sms)) {
-                  await launchUrl(sms);
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Live Driver Tracking',
+                style: TextStyle(
+                  fontSize: isMobile ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final locationText = _lookupVehicle?.location ?? 'Current location unavailable';
+                final plate = _lookupVehicle?.licensePlate ?? '';
+                final message = Uri.encodeComponent('Live location for vehicle $plate: $locationText');
+                final whatsApp = Uri.parse('https://wa.me/?text=$message');
+                if (await canLaunchUrl(whatsApp)) {
+                  await launchUrl(whatsApp, mode: LaunchMode.externalApplication);
+                } else {
+                  final sms = Uri.parse('sms:?body=$message');
+                  if (await canLaunchUrl(sms)) {
+                    await launchUrl(sms);
+                  }
                 }
-              }
-            },
-            icon: const Icon(Icons.share_outlined),
-            label: const Text('Share Location'),
-          ),
+              },
+              icon: const Icon(Icons.share_outlined),
+              label: const Text('Share Location'),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         LiveMap(
@@ -1930,11 +1956,21 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   void _showBuzzerDialog() async {
-    final vehicleToAlert = _lookupVehicle ?? _selectedVehicle;
+    if (_plateController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a license plate first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final vehicleToAlert = _lookupVehicle;
     if (vehicleToAlert == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please find driver by license plate first.'),
+          content: Text('No matching vehicle found for this plate.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1944,7 +1980,28 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     // Get driver's emergency contacts
     final driverId = vehicleToAlert.assignedDriverId;
     List<EmergencyContact> emergencyContacts = [];
-    if (driverId != null && driverId.isNotEmpty) {
+    if (driverId == null || driverId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active driver found for this vehicle.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final hasActiveSession = await _monitoringService.hasActiveSession(driverId);
+    if (!hasActiveSession) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Alert not sent because monitoring session is not active.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (driverId.isNotEmpty) {
       try {
         final contactsSnapshot = await _firestore
             .collection('emergencyContacts')

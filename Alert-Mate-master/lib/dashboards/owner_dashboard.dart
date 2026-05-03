@@ -42,6 +42,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   bool _isLoading = false;
   String _statusFilter = 'All Status';
   String _typeFilter = 'All Types';
+  String _activeDriversCacheKey = '';
+  Future<int>? _activeDriversFuture;
+  String _activeSessionMapCacheKey = '';
+  Future<Map<String, bool>>? _activeSessionMapFuture;
 
 
   // Animation controllers
@@ -160,6 +164,33 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       }
     }
     return activeCount;
+  }
+
+  String _driverIdsKey(Iterable<String> ids) {
+    final sorted = ids.toSet().toList()..sort();
+    return sorted.join('|');
+  }
+
+  Future<int> _getActiveDriversFuture(List<String> driverIds) {
+    final key = _driverIdsKey(driverIds);
+    if (_activeDriversFuture == null || key != _activeDriversCacheKey) {
+      _activeDriversCacheKey = key;
+      _activeDriversFuture = _countActiveDrivers(driverIds);
+    }
+    return _activeDriversFuture!;
+  }
+
+  Future<Map<String, bool>> _getActiveSessionMapFuture(List<Vehicle> vehicles) {
+    final key = _driverIdsKey(
+      vehicles
+          .where((v) => v.assignedDriverId != null && v.assignedDriverId!.isNotEmpty)
+          .map((v) => v.assignedDriverId!),
+    );
+    if (_activeSessionMapFuture == null || key != _activeSessionMapCacheKey) {
+      _activeSessionMapCacheKey = key;
+      _activeSessionMapFuture = _buildActiveSessionMap(vehicles);
+    }
+    return _activeSessionMapFuture!;
   }
 
   Future<void> _showAddVehicleDialog() async {
@@ -744,45 +775,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           ),
                         ],
                       ),
-                      if (!isMobile)
-                        Row(
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Export report'))
-                                );
-                              },
-                              icon: Icon(Icons.download, size: isTablet ? 16 : 18),
-                              label: Text('Export Report', style: TextStyle(fontSize: isTablet ? 13 : 14)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black87,
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: isTablet ? 16 : 20,
-                                    vertical: isTablet ? 12 : 16),
-                                elevation: 0,
-                                side: BorderSide(color: Colors.grey[300]!),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: isTablet ? 8 : 12),
-                            IconButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Open settings'))
-                                );
-                              },
-                              icon: Icon(Icons.settings, size: isTablet ? 20 : 24),
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                side: BorderSide(color: Colors.grey[300]!),
-                              ),
-                            ),
-                          ],
-                        ),
+                      const SizedBox.shrink(),
                     ],
                   ),
                   0,
@@ -840,7 +833,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
                     // Check which drivers have had sessions in the last 3 days
                     return FutureBuilder<int>(
-                      future: _countActiveDrivers(driverIds),
+                      future: _getActiveDriversFuture(driverIds),
                       builder: (context, activeCountSnapshot) {
                         final activeDriverCount = activeCountSnapshot.data ?? 0;
 
@@ -860,17 +853,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                   isMobile,
                                   () => _showOwnerStatDetails(
                                     'All Vehicles',
-                                    vehicles.map((v) => ListTile(
-                                      dense: true,
-                                      title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
-                                      subtitle: Text('Status: ${v.status}'),
-                                      trailing: IconButton(
-                                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                        onPressed: () {
-                                          _showDeleteVehicleDialog(v);
-                                        },
-                                      ),
-                                    )).toList(),
+                                    vehicles.map(_buildOwnerVehicleSummaryTile).toList(),
                                   ),
                                 ),
                               ),
@@ -960,17 +943,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                 isMobile,
                                 () => _showOwnerStatDetails(
                                   'All Vehicles',
-                                  vehicles.map((v) => ListTile(
-                                    dense: true,
-                                    title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
-                                    subtitle: Text('Status: ${v.status}'),
-                                    trailing: IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                      onPressed: () {
-                                        _showDeleteVehicleDialog(v);
-                                      },
-                                    ),
-                                  )).toList(),
+                                  vehicles.map(_buildOwnerVehicleSummaryTile).toList(),
                                 ),
                               )),
                               const SizedBox(width: 16),
@@ -1052,17 +1025,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                 isMobile,
                                 () => _showOwnerStatDetails(
                                   'All Vehicles',
-                                  vehicles.map((v) => ListTile(
-                                    dense: true,
-                                    title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
-                                    subtitle: Text('Status: ${v.status}'),
-                                    trailing: IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                      onPressed: () {
-                                        _showDeleteVehicleDialog(v);
-                                      },
-                                    ),
-                                  )).toList(),
+                                  vehicles.map(_buildOwnerVehicleSummaryTile).toList(),
                                 ),
                               )),
                               const SizedBox(width: 20),
@@ -1259,48 +1222,102 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   }
 
   Future<void> _showOwnerStatDetails(String title, List<Widget> children) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(
-            title: Text(title),
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black87,
-            elevation: 0,
-          ),
-          backgroundColor: AppColors.background,
-          body: ListView(
-            padding: const EdgeInsets.all(16),
+    final maxDialogHeight = MediaQuery.of(context).size.height * 0.78;
+    await showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 820, maxHeight: maxDialogHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
                 ),
-                child: Text(
-                  title,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
                 ),
               ),
-              ...children.map((child) => Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: child,
-                  )),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(16),
+                  children: children
+                      .map((child) => Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: child,
+                          ))
+                      .toList(),
+                ),
+              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOwnerVehicleSummaryTile(Vehicle vehicle) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    return ListTile(
+      dense: true,
+      title: Text(
+        '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('Status: ${vehicle.status}'),
+            IconButton(
+              icon: Icon(Icons.edit_outlined, color: AppColors.primary, size: isMobile ? 18 : 20),
+              tooltip: 'Edit',
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              padding: EdgeInsets.zero,
+              onPressed: () => _showEditVehicleDialog(vehicle),
+            ),
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: Colors.red, size: isMobile ? 18 : 20),
+              tooltip: 'Delete',
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              padding: EdgeInsets.zero,
+              onPressed: () => _showDeleteVehicleDialog(vehicle),
+            ),
+          ],
         ),
       ),
     );
@@ -1334,7 +1351,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
         // Build map of driverId -> hasActiveSession for filtering
         return FutureBuilder<Map<String, bool>>(
-          future: _buildActiveSessionMap(vehicles),
+          future: _getActiveSessionMapFuture(vehicles),
           builder: (context, sessionSnapshot) {
             if (sessionSnapshot.connectionState == ConnectionState.waiting) {
               return Container(
@@ -2714,6 +2731,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           subtitle: Row(
             children: [
               TextButton.icon(
+                onPressed: () => _showEditVehicleDialog(vehicle),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit'),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
                 onPressed: () => _showDeleteVehicleDialog(vehicle),
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                 label: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -3069,6 +3092,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
+            icon: Icon(Icons.edit_outlined, size: isMobile ? 18 : 20, color: AppColors.primary),
+            onPressed: () {
+              _showEditVehicleDialog(vehicle);
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Edit vehicle',
+          ),
+          SizedBox(width: isMobile ? 4 : 8),
+          IconButton(
             icon: Icon(Icons.delete_outline, size: isMobile ? 18 : 20, color: Colors.red[700]),
             onPressed: () {
               _showDeleteVehicleDialog(vehicle);
@@ -3117,6 +3150,94 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             constraints: const BoxConstraints(),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showEditVehicleDialog(Vehicle vehicle) async {
+    final formKey = GlobalKey<FormState>();
+    final makeCtrl = TextEditingController(text: vehicle.make);
+    final modelCtrl = TextEditingController(text: vehicle.model);
+    final yearCtrl = TextEditingController(text: vehicle.year);
+    final plateCtrl = TextEditingController(text: vehicle.licensePlate);
+    String selectedType = vehicle.type;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text('Edit Vehicle'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: makeCtrl,
+                    decoration: const InputDecoration(labelText: 'Make', border: OutlineInputBorder()),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: modelCtrl,
+                    decoration: const InputDecoration(labelText: 'Model', border: OutlineInputBorder()),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: yearCtrl,
+                    decoration: const InputDecoration(labelText: 'Year', border: OutlineInputBorder()),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: plateCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [_LicensePlateFormatter()],
+                    decoration: const InputDecoration(labelText: 'License Plate', border: OutlineInputBorder()),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedType,
+                    decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
+                    items: const ['Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) setDialogState(() => selectedType = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState?.validate() != true) return;
+                await _firestore.collection('vehicles').doc(vehicle.id).update({
+                  'make': makeCtrl.text.trim(),
+                  'model': modelCtrl.text.trim(),
+                  'year': yearCtrl.text.trim(),
+                  'licensePlate': plateCtrl.text.trim().toUpperCase(),
+                  'type': selectedType,
+                });
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Vehicle updated successfully')),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+              child: const Text('Save Changes'),
+            ),
+          ],
+        ),
       ),
     );
   }

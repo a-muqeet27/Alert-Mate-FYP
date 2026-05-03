@@ -280,6 +280,10 @@ class AppSidebar extends StatelessWidget {
                           ),
                           ElevatedButton(
                             onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                            ),
                             child: const Text('Sign Out'),
                           ),
                         ],
@@ -296,11 +300,11 @@ class AppSidebar extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Row(
                       children: [
-                        Icon(Icons.exit_to_app, size: 18, color: Colors.grey[700]),
+                        const Icon(Icons.exit_to_app, size: 18, color: AppColors.primary),
                         const SizedBox(width: 10),
                         const Text(
                           'Sign Out',
-                          style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                          style: TextStyle(fontSize: 14, color: AppColors.primary),
                         ),
                       ],
                     ),
