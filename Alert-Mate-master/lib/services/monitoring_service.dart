@@ -276,4 +276,18 @@ class MonitoringService {
       return false;
     }
   }
+
+  // Clear current stats when monitoring stops
+  Future<void> clearCurrentStats(String driverId) async {
+    try {
+      await _database
+          .child('drivers')
+          .child(driverId)
+          .child('current_stats')
+          .remove();
+      print('✅ MonitoringService: Cleared current_stats for driver $driverId');
+    } catch (e) {
+      print('❌ MonitoringService.clearCurrentStats error: $e');
+    }
+  }
 }

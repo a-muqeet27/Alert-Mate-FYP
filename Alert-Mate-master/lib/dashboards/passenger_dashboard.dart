@@ -9,6 +9,7 @@ import '../widgets/shared/live_map.dart';
 import '../constants/app_colors.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/tracking_service.dart';
+import '../services/emergency_alert_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/vehicle.dart';
 import '../services/vehicle_service.dart';
@@ -30,6 +31,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   int _selectedIndex = 0;
   final Random _random = Random();
   late EmergencyContactService _emergencyContactService;
+  final EmergencyAlertService _emergencyAlertService = EmergencyAlertService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final VehicleService _vehicleService = VehicleService();
   final MonitoringService _monitoringService = MonitoringService();
@@ -622,44 +624,93 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   // Two-card row: Driver Alertness + Safety Status based on live RTDB stats
   Widget _buildLiveStatusCards(String driverId) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    final cards = StreamBuilder<Map<String, dynamic>>(
-      stream: _monitoringService.getCurrentStats(driverId),
-      builder: (context, snapshot) {
-        final hasLive = snapshot.hasData && (snapshot.data?.isNotEmpty == true);
-        if (!hasLive) {
+    
+    // Check if driver is actively monitoring (status = 'on_trip')
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _firestore.collection('drivers').doc(driverId).snapshots(),
+      builder: (context, driverSnapshot) {
+        final driverData = driverSnapshot.data?.data() as Map<String, dynamic>?;
+        final driverStatus = driverData?['status'] as String?;
+        final isMonitoring = driverStatus == 'on_trip';
+        
+        if (!isMonitoring) {
+          // Driver is not monitoring - show placeholder
           return Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey[200]!),
             ),
-            child: const Text('Driver is not active', style: TextStyle(fontSize: 13, color: Colors.black54)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.grey[400], size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Monitoring Not Started',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Driver has not started monitoring session yet. Live status will appear when driver clicks "START MONITORING".',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+              ],
+            ),
           );
         }
-        final data = snapshot.data!;
-        final drowsy = data['drowsinessDetected'] == true;
-        final safe = !drowsy;
-        final statusColor = safe ? const Color(0xFF4CAF50) : Colors.red;
-        return isMobile
-            ? Column(
-                children: [
-                  _buildDriverStateBadgeCard(drowsy),
-                  const SizedBox(height: 16),
-                  _buildSafetyStatusCardUI(safe, drowsy, statusColor),
-                ],
-              )
-            : Row(
-                children: [
-                  Expanded(child: _buildDriverStateBadgeCard(drowsy)),
-                  const SizedBox(width: 20),
-                  Expanded(child: _buildSafetyStatusCardUI(safe, drowsy, statusColor)),
-                ],
+        
+        // Driver is monitoring - show live stats
+        final cards = StreamBuilder<Map<String, dynamic>>(
+          stream: _monitoringService.getCurrentStats(driverId),
+          builder: (context, snapshot) {
+            final hasLive = snapshot.hasData && (snapshot.data?.isNotEmpty == true);
+            if (!hasLive) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: const Text('Loading live data...', style: TextStyle(fontSize: 13, color: Colors.black54)),
               );
+            }
+            final data = snapshot.data!;
+            final drowsy = data['drowsinessDetected'] == true;
+            final safe = !drowsy;
+            final statusColor = safe ? const Color(0xFF4CAF50) : Colors.red;
+            return isMobile
+                ? Column(
+                    children: [
+                      _buildDriverStateBadgeCard(drowsy),
+                      const SizedBox(height: 16),
+                      _buildSafetyStatusCardUI(safe, drowsy, statusColor),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: _buildDriverStateBadgeCard(drowsy)),
+                      const SizedBox(width: 20),
+                      Expanded(child: _buildSafetyStatusCardUI(safe, drowsy, statusColor)),
+                    ],
+                  );
+          },
+        );
+        return cards;
       },
     );
-    return cards;
   }
 
   Widget _buildDriverStateBadgeCard(bool drowsy) {
@@ -772,10 +823,24 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 2),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.5), width: 2),
       ),
       child: Column(
         children: [
+          // Warning Icon
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.red,
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             'Emergency Alert',
             style: TextStyle(
@@ -792,12 +857,38 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               color: Colors.grey[600],
             ),
           ),
+          const SizedBox(height: 16),
+          // Warning Message
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '⚠️ Use only in case of absolute emergency',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange[900],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             height: 60,
             child: ElevatedButton.icon(
-              onPressed: _showBuzzerDialog,
+              onPressed: _showEmergencyAlertDialog,
               icon: const Icon(Icons.notifications_active, size: 24),
               label: const Text(
                 'SEND EMERGENCY ALERT',
@@ -808,7 +899,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1083,37 +1174,112 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             Text('Search by license plate to view live trip information',
                 style: TextStyle(fontSize: 13, color: Colors.grey[600]))
           else
-            StreamBuilder<Map<String, dynamic>>(
-              stream: _monitoringService.getCurrentStats(driverId),
-              builder: (context, statsSnap) {
-                return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                  stream: vehicleId == null
-                      ? null
-                      : _firestore.collection('vehicles').doc(vehicleId).snapshots(),
-                  builder: (context, vehicleSnap) {
-                    final stats = statsSnap.data ?? {};
-                    final vehicleData = vehicleSnap.data?.data() ?? {};
-                    final currentAlerts = (stats['drowsinessDetected'] == true) ? 1 : 0;
-                    final avgAlertness = (stats['alertness'] as num?)?.toDouble() ?? 0.0;
-                    final started = _lookupStartedAt;
-                    final drivingMinutes = started == null ? 0 : DateTime.now().difference(started).inMinutes;
-                    final location = vehicleData['location'] as String? ?? '';
-                    final liveMake = vehicleData['make'] as String? ?? _lookupVehicle?.make ?? '';
-                    final liveModel = vehicleData['model'] as String? ?? _lookupVehicle?.model ?? '';
-                    return Column(
-                      children: [
-                        _buildTripInfoRow('Vehicle', '$liveMake $liveModel'.trim().isEmpty ? 'N/A' : '$liveMake $liveModel'),
-                        const SizedBox(height: 14),
-                        _buildTripInfoRow('Current Alerts', '$currentAlerts'),
-                        const SizedBox(height: 14),
-                        _buildTripInfoRow('Driving Minutes', '$drivingMinutes'),
-                        const SizedBox(height: 14),
-                        _buildTripInfoRow('Avg Alertness', '${avgAlertness.toStringAsFixed(1)}%'),
-                        if (location.isNotEmpty) ...[
-                          const SizedBox(height: 14),
-                          _buildTripInfoRow('Current Location', location),
-                        ],
-                      ],
+            StreamBuilder<DocumentSnapshot>(
+              stream: _firestore.collection('drivers').doc(driverId).snapshots(),
+              builder: (context, driverSnapshot) {
+                final driverData = driverSnapshot.data?.data() as Map<String, dynamic>?;
+                final driverStatus = driverData?['status'] as String?;
+                final isMonitoring = driverStatus == 'on_trip';
+                
+                if (!isMonitoring) {
+                  // Driver is not monitoring - show placeholder
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'No active monitoring session. Trip information will appear when driver starts monitoring.',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
+                  );
+                }
+                
+                // Driver is monitoring - show trip info
+                return StreamBuilder<Map<String, dynamic>>(
+                  stream: _monitoringService.getCurrentStats(driverId),
+                  builder: (context, statsSnap) {
+                    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                      stream: vehicleId == null
+                          ? null
+                          : _firestore.collection('vehicles').doc(vehicleId).snapshots(),
+                      builder: (context, vehicleSnap) {
+                        final stats = statsSnap.data ?? {};
+                        final vehicleData = vehicleSnap.data?.data() ?? {};
+                        final currentAlerts = (stats['drowsinessDetected'] == true) ? 1 : 0;
+                        final avgAlertness = (stats['alertness'] as num?)?.toDouble() ?? 0.0;
+                        final started = _lookupStartedAt;
+                        final drivingMinutes = started == null ? 0 : DateTime.now().difference(started).inMinutes;
+                        final location = vehicleData['location'] as String? ?? '';
+                        final liveMake = vehicleData['make'] as String? ?? _lookupVehicle?.make ?? '';
+                        final liveModel = vehicleData['model'] as String? ?? _lookupVehicle?.model ?? '';
+                        return Column(
+                          children: [
+                            _buildTripInfoRow('Vehicle', '$liveMake $liveModel'.trim().isEmpty ? 'N/A' : '$liveMake $liveModel'),
+                            const SizedBox(height: 14),
+                            _buildTripInfoRow('Current Alerts', '$currentAlerts'),
+                            const SizedBox(height: 14),
+                            _buildTripInfoRow('Driving Minutes', '$drivingMinutes'),
+                            const SizedBox(height: 14),
+                            _buildTripInfoRow('Avg Alertness', '${avgAlertness.toStringAsFixed(1)}%'),
+                            if (location.isNotEmpty) ...[
+                              const SizedBox(height: 14),
+                              _buildTripInfoRow('Current Location', location),
+                            ],
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  // Show confirmation dialog
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('End Ride'),
+                                      content: const Text('Are you sure you want to end this ride? This will clear all trip information.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            // Clear the lookup data
+                                            setState(() {
+                                              _lookupVehicle = null;
+                                              _lookupDriverId = null;
+                                              _lookupStartedAt = null;
+                                              _plateController.clear();
+                                            });
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Ride ended successfully'),
+                                                backgroundColor: AppColors.primary,
+                                              ),
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          child: const Text('End Ride'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.stop_circle_outlined),
+                                label: const Text('End Ride'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                  side: const BorderSide(color: Colors.red),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                 );
@@ -2169,6 +2335,237 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
         ],
       ),
+    );
+  }
+
+  // New emergency alert dialog with confirmation
+  void _showEmergencyAlertDialog() async {
+    final vehicle = _lookupVehicle;
+    final driverId = _lookupDriverId;
+    
+    if (vehicle == null || driverId == null || driverId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please search for a vehicle first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Get vehicle owner info
+    String? ownerId;
+    String? ownerName;
+    if (vehicle.ownerId != null && vehicle.ownerId!.isNotEmpty) {
+      try {
+        final ownerDoc = await _firestore.collection('users').doc(vehicle.ownerId).get();
+        if (ownerDoc.exists) {
+          final ownerData = ownerDoc.data();
+          ownerId = vehicle.ownerId;
+          ownerName = '${ownerData?['firstName'] ?? ''} ${ownerData?['lastName'] ?? ''}'.trim();
+        }
+      } catch (e) {
+        print('Error fetching owner info: $e');
+      }
+    }
+
+    // Get driver name
+    String driverName = vehicle.driverName ?? 'Unknown Driver';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Emergency Alert',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This is for ABSOLUTE EMERGENCIES ONLY',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'This alert will immediately notify:',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildAlertRecipient(Icons.person, 'Driver', driverName),
+            if (ownerName != null && ownerName.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _buildAlertRecipient(Icons.business, 'Vehicle Owner', ownerName),
+            ],
+            const SizedBox(height: 8),
+            _buildAlertRecipient(Icons.admin_panel_settings, 'System Admin', 'All administrators'),
+            const SizedBox(height: 16),
+            Text(
+              'Vehicle: ${vehicle.make} ${vehicle.model} (${vehicle.licensePlate})',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              // Show sending indicator
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: Colors.red),
+                          SizedBox(height: 16),
+                          Text('Sending emergency alert...'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+
+              try {
+                // Send emergency alert
+                await _emergencyAlertService.sendEmergencyAlert(
+                  passengerId: widget.user.id,
+                  passengerName: widget.user.fullName,
+                  driverId: driverId,
+                  driverName: driverName,
+                  vehiclePlate: vehicle.licensePlate,
+                  vehicleMake: vehicle.make,
+                  vehicleModel: vehicle.model,
+                  ownerId: ownerId,
+                  ownerName: ownerName,
+                );
+
+                // Close loading dialog
+                if (mounted) Navigator.pop(context);
+
+                // Show success message
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.white),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text('Emergency alert sent successfully!'),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
+                }
+              } catch (e) {
+                // Close loading dialog
+                if (mounted) Navigator.pop(context);
+
+                // Show error message
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to send alert: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('SEND EMERGENCY ALERT'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlertRecipient(IconData icon, String role, String name) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Text(
+          '$role: ',
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey[600],
+          ),
+        ),
+        Expanded(
+          child: Text(
+            name,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 

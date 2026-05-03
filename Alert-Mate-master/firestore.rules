@@ -88,5 +88,29 @@ service cloud.firestore {
       allow write:  if isAuthenticated();
     }
 
+    // ── tracking_tokens collection ────────────────────────────────────────────
+    // PUBLIC READ for live location tracking (no auth required for recipients)
+    // Only authenticated users can create tokens
+    // Only the driver who owns the token can update/delete it
+    match /tracking_tokens/{tokenId} {
+      // Anyone can read tracking tokens (for public tracking links)
+      allow read: if true;
+      // Only authenticated users can create tokens
+      allow create: if isAuthenticated();
+      // Only the driver who owns the token can update/delete
+      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.driverId;
+    }
+
+    // ── emergency_alerts collection ───────────────────────────────────────────
+    // Emergency alerts sent by passengers to notify driver/owner/admin
+    // Any authenticated user can read alerts (for dashboard notifications)
+    // Any authenticated user can create alerts (passengers send alerts)
+    // Any authenticated user can update alerts (to acknowledge/resolve)
+    match /emergency_alerts/{alertId} {
+      allow read:   if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+
   }
 }

@@ -18,6 +18,7 @@ import '../services/firebase_auth_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
+import '../widgets/emergency_alert_banner.dart';
 import '../screens/driver_documents_gate_screen.dart';
 import '../widgets/email_verified_guard.dart';
 import '../constants/vehicle_catalog.dart';
@@ -745,38 +746,45 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         final isMobile = MediaQuery.of(context).size.width < 768;
         final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
         return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 16.0 : isTablet ? 24.0 : 40.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!isMobile) _buildStaggeredItem(
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            children: [
+              // Emergency Alert Banner
+              EmergencyAlertBanner(
+                userId: widget.user.id,
+                userRole: 'owner',
+              ),
+              Padding(
+                padding: EdgeInsets.all(isMobile ? 16.0 : isTablet ? 24.0 : 40.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!isMobile) _buildStaggeredItem(
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Vehicle Owner Dashboard',
-                            style: TextStyle(
-                              fontSize: isMobile ? 24 : isTablet ? 28 : 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Vehicle Owner Dashboard',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 24 : isTablet ? 28 : 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              SizedBox(height: isMobile ? 6 : 8),
+                              Text(
+                                'Monitor and manage your vehicle fleet',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 13 : isTablet ? 14 : 16,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: isMobile ? 6 : 8),
-                          Text(
-                            'Monitor and manage your vehicle fleet',
-                            style: TextStyle(
-                              fontSize: isMobile ? 13 : isTablet ? 14 : 16,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox.shrink(),
-                    ],
+                          const SizedBox.shrink(),
+                        ),
                   ),
                   0,
                 ),

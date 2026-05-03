@@ -5,6 +5,7 @@ import '../models/emergency_contact.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
+import '../widgets/emergency_alert_banner.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/driver_document_submission_service.dart';
 import '../models/driver_document_submission.dart';
@@ -197,36 +198,43 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 768;
         return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 16.0 : 40.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!isMobile) ...[
-                  _buildStaggeredItem(
-                    Text(
-                      'Admin Dashboard',
-                      style: TextStyle(
-                        fontSize: isMobile ? 24 : 36,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+          child: Column(
+            children: [
+              // Emergency Alert Banner
+              EmergencyAlertBanner(
+                userId: widget.user.id,
+                userRole: 'admin',
+              ),
+              Padding(
+                padding: EdgeInsets.all(isMobile ? 16.0 : 40.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!isMobile) ...[
+                      _buildStaggeredItem(
+                        Text(
+                          'Admin Dashboard',
+                          style: TextStyle(
+                            fontSize: isMobile ? 24 : 36,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        0,
                       ),
-                    ),
-                    0,
-                  ),
-                  SizedBox(height: isMobile ? 6 : 8),
-                  _buildStaggeredItem(
-                    Text(
-                      'System overview and user management',
-                      style: TextStyle(
-                        fontSize: isMobile ? 13 : 16,
-                        color: Colors.black54,
+                      SizedBox(height: isMobile ? 6 : 8),
+                      _buildStaggeredItem(
+                        Text(
+                          'System overview and user management',
+                          style: TextStyle(
+                            fontSize: isMobile ? 13 : 16,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        1,
                       ),
-                    ),
-                    1,
-                  ),
-                ],
-                const SizedBox(height: 32),
+                    ],
+                    const SizedBox(height: 32),
                 _buildStaggeredItem(
                   _buildDynamicStats(isMobile),
                   2,
@@ -246,6 +254,8 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 _buildStaggeredItem(_buildDocumentApproval(), 7),
               ],
             ),
+          ),
+            ],
           ),
         );
       },

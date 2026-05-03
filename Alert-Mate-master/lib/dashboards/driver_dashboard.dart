@@ -21,6 +21,7 @@ import '../widgets/driver_cnic_license_upload_panel.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
 import '../services/driver_location_update_service.dart';
+import '../widgets/emergency_alert_banner.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth_screen.dart';
@@ -775,6 +776,16 @@ class _DriverDashboardState extends State<DriverDashboard>
       }
     }
 
+    // Clear current stats from Realtime Database
+    if (driverId != null) {
+      try {
+        await _monitoringService.clearCurrentStats(driverId);
+        print('✅ Current stats cleared from Realtime Database');
+      } catch (e) {
+        print('⚠️ Error clearing current stats: $e');
+      }
+    }
+
     // Revert driver to idle in Firestore and stop GPS updates
     _lastDrowsyState = false;
     await _locationUpdateService.goIdle(driverId);
@@ -1089,35 +1100,42 @@ class _DriverDashboardState extends State<DriverDashboard>
         final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
 
         return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 16.0 : isTablet ? 24.0 : 40.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
+          child: Column(
+            children: [
+              // Emergency Alert Banner
+              EmergencyAlertBanner(
+                userId: widget.user.id,
+                userRole: 'driver',
+              ),
+              Padding(
+                padding: EdgeInsets.all(isMobile ? 16.0 : isTablet ? 24.0 : 40.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 16,
                       children: [
-                        if (!isMobile) ...[
-                          Text(
-                            'Driver Dashboard',
-                            style: TextStyle(
-                              fontSize: isMobile ? 24 : isTablet ? 28 : 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Real-time drowsiness monitoring',
-                            style: TextStyle(
-                              fontSize: isMobile ? 13 : isTablet ? 14 : 16,
-                              color: Colors.black54,
-                            ),
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (!isMobile) ...[
+                              Text(
+                                'Driver Dashboard',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 24 : isTablet ? 28 : 36,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Real-time drowsiness monitoring',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 13 : isTablet ? 14 : 16,
+                                  color: Colors.black54,
+                                ),
+                              ),
                         ],
                   ],
                 ),
@@ -2171,6 +2189,13 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
         ],
       ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
