@@ -1,0 +1,405 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import '../constants/app_colors.dart';
+import '../models/user.dart';
+import '../models/user_notification_inbox_item.dart';
+import '../services/emergency_alert_service.dart';
+
+/// Full-area inbox opened from the sidebar "Notifications" item.
+class NotificationsInboxScreen extends StatefulWidget {
+  final User user;
+
+  const NotificationsInboxScreen({Key? key, required this.user}) : super(key: key);
+
+  @override
+  State<NotificationsInboxScreen> createState() => _NotificationsInboxScreenState();
+}
+
+class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final EmergencyAlertService _emergencyAlertService = EmergencyAlertService();
+
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _notifSub;
+  StreamSubscription<firebase_auth.User?>? _authSub;
+
+  String? _streamUid;
+  int _bindGeneration = 0;
+  List<UserNotificationInboxItem> _entries = [];
+  final Set<String> _busyIds = {};
+
+  String _actorUid() =>
+      firebase_auth.FirebaseAuth.instance.currentUser?.uid ?? widget.user.id;
+
+  void _scheduleBindStream(String uid) {
+    final gen = ++_bindGeneration;
+    unawaited(_bindStreamAsync(uid, gen));
+  }
+
+  Future<void> _bindStreamAsync(String uid, int gen) async {
+    await _notifSub?.cancel();
+    _notifSub = null;
+    if (!mounted || gen != _bindGeneration) return;
+
+    _streamUid = uid;
+
+    if (uid.isEmpty) {
+      setState(() => _entries = []);
+      return;
+    }
+
+    if (!mounted || gen != _bindGeneration) return;
+
+    _notifSub = _firestore
+        .collection('user_notifications')
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .listen(
+      (snap) {
+        final list = snap.docs.map(UserNotificationInboxItem.fromDoc).toList()
+          ..sort((a, b) {
+            if (a.unread != b.unread) return a.unread ? -1 : 1;
+            return b.createdAt.compareTo(a.createdAt);
+          });
+        if (list.length > 80) {
+          list.removeRange(80, list.length);
+        }
+        if (mounted) setState(() => _entries = list);
+      },
+      onError: (e, _) {
+        if (kDebugMode) {
+          debugPrint('NotificationsInboxScreen stream error: $e');
+        }
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleBindStream(_actorUid());
+    _authSub = firebase_auth.FirebaseAuth.instance.authStateChanges().listen((_) {
+      final next = _actorUid();
+      if (!mounted || next == _streamUid) return;
+      _scheduleBindStream(next);
+    });
+  }
+
+  @override
+  void dispose() {
+    _bindGeneration++;
+    _authSub?.cancel();
+    unawaited(_notifSub?.cancel());
+    _notifSub = null;
+    super.dispose();
+  }
+
+  Future<void> _applyRead(
+    String docId, {
+    required String handledAction,
+  }) async {
+    try {
+      await _firestore.collection('user_notifications').doc(docId).update({
+        'read': true,
+        'handledAction': handledAction,
+        'handledAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _onAcknowledge(UserNotificationInboxItem e) async {
+    setState(() => _busyIds.add(e.docId));
+    try {
+      if (e.emergencyAlertId != null && e.emergencyAlertId!.isNotEmpty) {
+        await _emergencyAlertService.acknowledgeAlert(e.emergencyAlertId!, _actorUid());
+      }
+      await _applyRead(e.docId, handledAction: 'acknowledged');
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('Acknowledge failed: $err'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busyIds.remove(e.docId));
+    }
+  }
+
+  Future<void> _onResolved(UserNotificationInboxItem e) async {
+    setState(() => _busyIds.add(e.docId));
+    try {
+      if (e.emergencyAlertId != null && e.emergencyAlertId!.isNotEmpty) {
+        await _emergencyAlertService.resolveAlert(e.emergencyAlertId!);
+      }
+      await _applyRead(e.docId, handledAction: 'resolved');
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('Resolve failed: $err'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busyIds.remove(e.docId));
+    }
+  }
+
+  Future<void> _onDismiss(UserNotificationInboxItem e) async {
+    setState(() => _busyIds.add(e.docId));
+    try {
+      await _applyRead(e.docId, handledAction: 'read');
+    } finally {
+      if (mounted) setState(() => _busyIds.remove(e.docId));
+    }
+  }
+
+  IconData _iconForType(String type) {
+    switch (type) {
+      case 'emergency_alert':
+        return Icons.warning_amber_rounded;
+      case 'driver_docs_approved':
+      case 'driver_docs_rejected':
+        return Icons.badge_outlined;
+      case 'owner_vehicle_approved':
+      case 'owner_vehicle_rejected':
+        return Icons.directions_car_outlined;
+      default:
+        return Icons.notifications_active_outlined;
+    }
+  }
+
+  Color _accentForType(String type) {
+    switch (type) {
+      case 'emergency_alert':
+        return Colors.red.shade700;
+      case 'driver_docs_rejected':
+      case 'owner_vehicle_rejected':
+        return Colors.deepOrange;
+      case 'driver_docs_approved':
+      case 'owner_vehicle_approved':
+        return const Color(0xFF2E7D32);
+      default:
+        return AppColors.primaryDark;
+    }
+  }
+
+  String _handledRemark(UserNotificationInboxItem e) {
+    switch (e.handledAction) {
+      case 'acknowledged':
+        return 'You acknowledged this alert.';
+      case 'resolved':
+        return 'You marked this as resolved.';
+      case 'read':
+        return 'Marked as read.';
+      default:
+        return '';
+    }
+  }
+
+  String _formatTime(DateTime t) {
+    if (t.millisecondsSinceEpoch <= 0) return '';
+    final now = DateTime.now();
+    final diff = now.difference(t);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${t.day}/${t.month}/${t.year}';
+  }
+
+  Widget _buildTile(UserNotificationInboxItem e) {
+    final accent = _accentForType(e.type);
+    final busy = _busyIds.contains(e.docId);
+    final isEmergency = e.type == 'emergency_alert';
+    final hasLinked = e.emergencyAlertId != null && e.emergencyAlertId!.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: e.unread ? accent.withOpacity(0.06) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: e.unread ? accent.withOpacity(0.35) : Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: accent.withOpacity(0.15),
+                  child: Icon(_iconForType(e.type), color: accent, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.title,
+                        style: TextStyle(
+                          fontWeight: e.unread ? FontWeight.w700 : FontWeight.w600,
+                          fontSize: 15,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      if (e.body.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          e.body,
+                          style: const TextStyle(fontSize: 13, height: 1.35, color: Colors.black87),
+                        ),
+                      ],
+                      if (_formatTime(e.createdAt).isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          _formatTime(e.createdAt),
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        ),
+                      ],
+                      if (!e.unread && _handledRemark(e).isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _handledRemark(e),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (e.unread)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'New',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent),
+                    ),
+                  ),
+              ],
+            ),
+            if (e.unread) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: [
+                  if (isEmergency && hasLinked) ...[
+                    OutlinedButton(
+                      onPressed: busy ? null : () => _onAcknowledge(e),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: accent,
+                        side: BorderSide(color: accent.withOpacity(0.7)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      child: busy
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+                            )
+                          : const Text('Acknowledge'),
+                    ),
+                    FilledButton(
+                      onPressed: busy ? null : () => _onResolved(e),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      child: const Text('Resolved'),
+                    ),
+                  ],
+                  TextButton(
+                    onPressed: busy ? null : () => _onDismiss(e),
+                    child: Text(isEmergency && !hasLinked ? 'Dismiss' : 'Mark read'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final unread = _entries.where((e) => e.unread).length;
+
+    return Container(
+      color: AppColors.background,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(isMobile ? 16 : 40, isMobile ? 16 : 24, isMobile ? 16 : 40, 8),
+            child: Row(
+              children: [
+                Icon(Icons.notifications_active, color: AppColors.primaryDark, size: 26),
+                const SizedBox(width: 12),
+                Text(
+                  'Notifications',
+                  style: TextStyle(
+                    fontSize: isMobile ? 22 : 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const Spacer(),
+                if (unread > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red.shade100),
+                    ),
+                    child: Text(
+                      '$unread unread',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red.shade800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _entries.isEmpty
+                ? Center(
+                    child: Text(
+                      'No notifications yet.',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                  )
+                : Scrollbar(
+                    thumbVisibility: _entries.length > 8,
+                    child: ListView.builder(
+                      padding: EdgeInsets.fromLTRB(isMobile ? 16 : 40, 8, isMobile ? 16 : 40, 24),
+                      itemCount: _entries.length,
+                      itemBuilder: (context, i) => _buildTile(_entries[i]),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}

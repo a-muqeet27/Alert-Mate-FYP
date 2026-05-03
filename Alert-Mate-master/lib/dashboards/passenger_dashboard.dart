@@ -8,13 +8,15 @@ import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
 import '../constants/app_colors.dart';
 import '../services/emergency_contact_service.dart';
-import '../services/tracking_service.dart';
 import '../services/emergency_alert_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/vehicle.dart';
 import '../services/vehicle_service.dart';
 import '../services/monitoring_service.dart';
 import '../widgets/email_verified_guard.dart';
+import '../screens/notifications_inbox_screen.dart';
+import '../services/user_notifications_service.dart';
+import '../widgets/mobile_drawer_menu_button.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PassengerDashboard extends StatefulWidget {
@@ -30,6 +32,27 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     with TickerProviderStateMixin {
   int _selectedIndex = 0;
   final Random _random = Random();
+
+  List<MenuItem> get _sidebarMenuItems => [
+        const MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+        const MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+        MenuItem(
+          icon: Icons.notifications_outlined,
+          title: 'Notifications',
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+        ),
+      ];
+
+  Widget _sidebarMainBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboard();
+      case 1:
+        return _buildEmergency();
+      default:
+        return NotificationsInboxScreen(user: widget.user);
+    }
+  }
   late EmergencyContactService _emergencyContactService;
   final EmergencyAlertService _emergencyAlertService = EmergencyAlertService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -214,9 +237,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+          builder: (context) => MobileDrawerMenuButton(
+            unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
           ),
         ),
         title: Text(
@@ -247,7 +269,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       ) : null,
       body: EmailVerifiedGuard(
         child: isMobile
-            ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
+            ? _sidebarMainBody()
             : Row(
                 children: [
                   AppSidebar(
@@ -255,16 +277,11 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                     user: widget.user,
                     selectedIndex: _selectedIndex,
                     onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                    menuItems: const [
-                      MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-                      MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-                    ],
+                    menuItems: _sidebarMenuItems,
                     accentColor: AppColors.primary,
                     accentLightColor: AppColors.primaryLight,
                   ),
-                  Expanded(
-                    child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-                  ),
+                  Expanded(child: _sidebarMainBody()),
                 ],
               ),
       ),
@@ -284,10 +301,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             setState(() => _selectedIndex = index);
             Navigator.pop(context);
           },
-          menuItems: const [
-            MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-            MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-          ],
+          menuItems: _sidebarMenuItems,
           accentColor: AppColors.primary,
           accentLightColor: AppColors.primaryLight,
         ),
@@ -326,60 +340,68 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         final isMobile = constraints.maxWidth < 768;
         return SingleChildScrollView(
           child: Padding(
-            padding: EdgeInsets.all(isMobile ? 16.0 : 40.0),
+            padding: EdgeInsets.fromLTRB(
+              isMobile ? 0 : 40,
+              isMobile ? 8 : 40,
+              isMobile ? 0 : 40,
+              isMobile ? 16 : 40,
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!isMobile) ...[
-                  _buildStaggeredItem(
-                    Text(
-                      'Passenger Safety Monitor',
-                      style: TextStyle(
-                        fontSize: isMobile ? 24 : 36,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    0,
-                  ),
-                  SizedBox(height: isMobile ? 6 : 8),
-                  _buildStaggeredItem(
-                    Text(
-                      'Real-time monitoring of driver status and trip safety',
-                      style: TextStyle(
-                        fontSize: isMobile ? 13 : 16,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    1,
-                  ),
-                ],
-                const SizedBox(height: 32),
-                _buildStaggeredItem(
-                  _buildEmergencyControlsCard(),
-                  2,
-                ),
-                const SizedBox(height: 24),
-                // License plate lookup section (Passenger enters plate to view live status/history)
-                _buildStaggeredItem(
-                  _buildPlateLookupSection(),
-                  2,
-                ),
-                const SizedBox(height: 24),
-                // Trip Information and Live Location Tracking
-                _buildStaggeredItem(
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildTripInformation(),
-                        const SizedBox(height: 16),
-                        _buildLocationTab(),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!isMobile) ...[
+                        _buildStaggeredItem(
+                          Text(
+                            'Passenger Safety Monitor',
+                            style: TextStyle(
+                              fontSize: isMobile ? 24 : 36,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          0,
+                        ),
+                        SizedBox(height: isMobile ? 6 : 8),
+                        _buildStaggeredItem(
+                          Text(
+                            'Real-time monitoring of driver status and trip safety',
+                            style: TextStyle(
+                              fontSize: isMobile ? 13 : 16,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          1,
+                        ),
                       ],
-                    ),
+                      const SizedBox(height: 32),
+                      _buildStaggeredItem(
+                        _buildEmergencyControlsCard(),
+                        2,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildStaggeredItem(
+                        _buildPlateLookupSection(),
+                        2,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildStaggeredItem(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildTripInformation(),
+                            const SizedBox(height: 16),
+                            _buildLocationTab(),
+                          ],
+                        ),
+                        5,
+                      ),
+                    ],
                   ),
-                  5,
                 ),
               ],
             ),
@@ -1144,11 +1166,14 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   Widget _buildTripInformation() {
     final driverId = _lookupDriverId;
     final vehicleId = _lookupVehicle?.id;
+    final isMobile = MediaQuery.of(context).size.width < 768;
     return Container(
-      padding: const EdgeInsets.all(28),
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1317,13 +1342,14 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     final driverId = _lookupDriverId;
     final isMobile = MediaQuery.of(context).size.width < 768;
 
-    // No plate searched yet — show prompt
     if (driverId == null || driverId.isEmpty) {
       return Container(
-        padding: EdgeInsets.all(isMobile ? 24 : 40),
+        width: double.infinity,
+        padding: EdgeInsets.all(isMobile ? 20 : 40),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1.5),
         ),
         child: Center(
           child: Column(
@@ -1354,134 +1380,34 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       );
     }
 
-    // Driver found via plate lookup — show their live location on the map
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Live Driver Tracking',
-                style: TextStyle(
-                  fontSize: isMobile ? 16 : 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(isMobile ? 16 : 20, isMobile ? 16 : 20, isMobile ? 16 : 20, 8),
+            child: Text(
+              'Live Driver Tracking',
+              style: TextStyle(
+                fontSize: isMobile ? 16 : 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
             ),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final plate = _lookupVehicle?.licensePlate ?? '';
-                final make = _lookupVehicle?.make ?? '';
-                final model = _lookupVehicle?.model ?? '';
-                final driverId = _lookupDriverId;
-                
-                if (driverId == null || driverId.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No driver assigned to this vehicle'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                  return;
-                }
-                
-                try {
-                  // Show loading indicator
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    ),
-                  );
-                  
-                  // Create tracking token (6 hours expiry)
-                  final trackingService = TrackingService();
-                  final tokenId = await trackingService.createTrackingToken(
-                    driverId: driverId,
-                    vehiclePlate: plate,
-                    vehicleMake: make,
-                    vehicleModel: model,
-                    duration: const Duration(hours: 6),
-                  );
-                  
-                  // Close loading dialog
-                  if (context.mounted) Navigator.pop(context);
-                  
-                  // Create tracking URL
-                  // TODO: Replace with your actual domain when deployed
-                  final trackingUrl = 'https://yourapp.com/track/$tokenId';
-                  
-                  // For local testing, you can use:
-                  // final trackingUrl = 'http://localhost:8080/track/$tokenId';
-                  
-                  final message = '🚗 Track vehicle $plate LIVE:\n\n'
-                                '$trackingUrl\n\n'
-                                '📍 Real-time location updates\n'
-                                '⏱️ Valid for 6 hours\n'
-                                '🔄 Updates every 10 seconds\n\n'
-                                'Tap the link to view live location on map';
-                  
-                  // Try WhatsApp first
-                  final whatsApp = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(message)}');
-                  if (await canLaunchUrl(whatsApp)) {
-                    await launchUrl(whatsApp, mode: LaunchMode.externalApplication);
-                  } else {
-                    // Fallback to SMS
-                    final sms = Uri.parse('sms:?body=${Uri.encodeComponent(message)}');
-                    if (await canLaunchUrl(sms)) {
-                      await launchUrl(sms);
-                    } else {
-                      // Show error if neither works
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Unable to share location. Please install WhatsApp or enable SMS.'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      }
-                    }
-                  }
-                  
-                  // Show success message
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Live tracking link created! Share it via WhatsApp or SMS.'),
-                        backgroundColor: AppColors.primary,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  // Close loading dialog if still open
-                  if (context.mounted && Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
-                  
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error creating tracking link: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              icon: const Icon(Icons.share_outlined),
-              label: const Text('Share Live Location'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        LiveMap(
-          filterDriverIds: [driverId],
-          height: isMobile ? 350 : 450,
-        ),
-      ],
+          ),
+          LiveMap(
+            filterDriverIds: [driverId],
+            height: isMobile ? 350 : 450,
+          ),
+        ],
+      ),
     );
   }
 
@@ -2372,10 +2298,12 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     // Get driver name
     String driverName = vehicle.driverName ?? 'Unknown Driver';
 
-    showDialog(
-      context: context,
+    final scaffoldContext = context;
+
+    await showDialog<void>(
+      context: scaffoldContext,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
             Container(
@@ -2454,83 +2382,103 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              
-              // Show sending indicator
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => const Center(
-                  child: Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: Colors.red),
-                          SizedBox(height: 16),
-                          Text('Sending emergency alert...'),
-                        ],
+            onPressed: () {
+              Navigator.pop(dialogContext);
+
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                if (!scaffoldContext.mounted) return;
+
+                showDialog<void>(
+                  context: scaffoldContext,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(color: Colors.red),
+                            SizedBox(height: 16),
+                            Text('Sending emergency alert...'),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-
-              try {
-                // Send emergency alert
-                await _emergencyAlertService.sendEmergencyAlert(
-                  passengerId: widget.user.id,
-                  passengerName: widget.user.fullName,
-                  driverId: driverId,
-                  driverName: driverName,
-                  vehiclePlate: vehicle.licensePlate,
-                  vehicleMake: vehicle.make,
-                  vehicleModel: vehicle.model,
-                  ownerId: ownerId,
-                  ownerName: ownerName,
                 );
 
-                // Close loading dialog
-                if (mounted) Navigator.pop(context);
+                try {
+                  await _emergencyAlertService.sendEmergencyAlert(
+                    passengerId: widget.user.id,
+                    passengerName: widget.user.fullName.trim().isEmpty
+                        ? widget.user.email
+                        : widget.user.fullName.trim(),
+                    driverId: driverId,
+                    driverName: driverName,
+                    vehiclePlate: vehicle.licensePlate,
+                    vehicleMake: vehicle.make,
+                    vehicleModel: vehicle.model,
+                    ownerId: ownerId,
+                    ownerName: ownerName,
+                  ).timeout(const Duration(seconds: 40));
 
-                // Show success message
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.white),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text('Emergency alert sent successfully!'),
-                          ),
-                        ],
+                  if (scaffoldContext.mounted) {
+                    Navigator.of(scaffoldContext).pop();
+                  }
+                  if (scaffoldContext.mounted) {
+                    final plate = vehicle.licensePlate;
+                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.white),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Emergency alert sent for vehicle plate $plate. Driver, owner, and admins were notified.',
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 5),
                       ),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 4),
-                    ),
-                  );
+                    );
+                  }
+                } on TimeoutException catch (_) {
+                  if (scaffoldContext.mounted) {
+                    Navigator.of(scaffoldContext).pop();
+                  }
+                  if (scaffoldContext.mounted) {
+                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Sending the alert timed out. Check internet, Firebase Console rules for emergency_alerts, and redeploy updated rules.',
+                        ),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 6),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (scaffoldContext.mounted) {
+                    Navigator.of(scaffoldContext).pop();
+                  }
+                  if (scaffoldContext.mounted) {
+                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to send alert: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
-              } catch (e) {
-                // Close loading dialog
-                if (mounted) Navigator.pop(context);
-
-                // Show error message
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to send alert: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
+              });
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

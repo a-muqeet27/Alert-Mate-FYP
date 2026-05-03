@@ -145,14 +145,14 @@ class EmergencyAlertBanner extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
+                    const Icon(Icons.info_outline, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'A passenger has sent an emergency alert. Please respond immediately.',
-                        style: TextStyle(
+                        'Passenger $passengerName pressed the emergency alert for plate $vehiclePlate. Please respond immediately.',
+                        style: const TextStyle(
                           fontSize: 13,
                           color: Colors.white,
                         ),

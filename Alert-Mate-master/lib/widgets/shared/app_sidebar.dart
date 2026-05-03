@@ -47,8 +47,7 @@ class AppSidebar extends StatelessWidget {
               const SizedBox(height: 16),
               ...menuItems.asMap().entries.map((entry) {
                 return _buildMenuItem(
-                  entry.value.icon,
-                  entry.value.title,
+                  entry.value,
                   entry.key,
                   shouldCollapse,
                 );
@@ -162,8 +161,93 @@ class AppSidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title, int index, bool collapsed) {
+  String _badgeText(int count) {
+    if (count <= 0) return '';
+    if (count > 99) return '99+';
+    return '$count';
+  }
+
+  Widget _buildMenuItem(MenuItem item, int index, bool collapsed) {
     final bool isSelected = selectedIndex == index;
+    final stream = item.unreadBadgeStream;
+
+    Widget rowContent(int badgeCount) {
+      final label = _badgeText(badgeCount);
+      return Row(
+        mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
+        children: [
+          AnimatedRotation(
+            turns: isSelected ? 0.1 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  item.icon,
+                  color: isSelected ? accentColor : Colors.grey[700],
+                  size: 20,
+                ),
+                if (collapsed && label.isNotEmpty)
+                  Positioned(
+                    right: -10,
+                    top: -8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade600,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      alignment: Alignment.center,
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (!collapsed) ...[
+            const SizedBox(width: 12),
+            Expanded(
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  color: isSelected ? accentColor : AppColors.textPrimary,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 15,
+                ),
+                child: Text(item.title),
+              ),
+            ),
+            if (label.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade600,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
+        ],
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: collapsed ? 12 : 18, vertical: 2),
       child: AnimatedScale(
@@ -180,34 +264,16 @@ class AppSidebar extends StatelessWidget {
               color: isSelected ? accentLightColor : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(
-              mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
-              children: [
-                AnimatedRotation(
-                  turns: isSelected ? 0.1 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    icon,
-                    color: isSelected ? accentColor : Colors.grey[700],
-                    size: 20,
+            child: stream == null
+                ? rowContent(0)
+                : StreamBuilder<int>(
+                    stream: stream,
+                    initialData: 0,
+                    builder: (context, snapshot) {
+                      final c = snapshot.data ?? 0;
+                      return rowContent(c);
+                    },
                   ),
-                ),
-                if (!collapsed) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 200),
-                      style: TextStyle(
-                        color: isSelected ? accentColor : AppColors.textPrimary,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        fontSize: 15,
-                      ),
-                      child: Text(title),
-                    ),
-                  ),
-                ],
-              ],
-            ),
           ),
         ),
       ),
@@ -323,9 +389,11 @@ class AppSidebar extends StatelessWidget {
 class MenuItem {
   final IconData icon;
   final String title;
+  final Stream<int>? unreadBadgeStream;
 
   const MenuItem({
     required this.icon,
     required this.title,
+    this.unreadBadgeStream,
   });
 }

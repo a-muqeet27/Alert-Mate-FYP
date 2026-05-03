@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/driver_document_submission.dart';
 import 'cloudinary_service.dart';
+import 'in_app_notification_service.dart';
 import 'vehicle_service.dart';
 
 class DriverDocumentSubmissionService {
@@ -119,6 +120,7 @@ class DriverDocumentSubmissionService {
 
     final driverId = data['driverId'] as String;
     final email = (data['driverEmail'] as String?) ?? '';
+    final driverName = (data['driverName'] as String?) ?? '';
 
     await ref.update({
       'status': 'approved',
@@ -136,14 +138,34 @@ class DriverDocumentSubmissionService {
     if (ownerAssigned.isEmpty) {
       await _vehicleService.assignGeneralPendingVehiclesToNewDriver(driverId, email);
     }
+
+    try {
+      await InAppNotificationService.instance.notifyDriverDocumentsApproved(driverId: driverId, driverName: driverName);
+    } catch (_) {}
   }
 
   Future<void> rejectSubmission(String submissionId, {String? reason}) async {
-    await _firestore.collection(_collection).doc(submissionId).update({
+    final ref = _firestore.collection(_collection).doc(submissionId);
+    final prior = await ref.get();
+    final data = prior.data();
+    final driverId = data?['driverId'] as String? ?? '';
+    final driverName = (data?['driverName'] as String?) ?? '';
+
+    await ref.update({
       'status': 'rejected',
       'rejectedReason': reason,
       'reviewedAt': FieldValue.serverTimestamp(),
     });
+
+    if (driverId.isNotEmpty) {
+      try {
+        await InAppNotificationService.instance.notifyDriverDocumentsRejected(
+          driverId: driverId,
+          driverName: driverName,
+          reason: reason,
+        );
+      } catch (_) {}
+    }
   }
 }
 

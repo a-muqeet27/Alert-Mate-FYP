@@ -101,6 +101,16 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.driverId;
     }
 
+    // ── passenger_alerts collection ───────────────────────────────────────────
+    // Passenger-created alert rows (plate flow). Only the passenger may create
+    // their own alert; reads for dashboards / follow-up.
+    match /passenger_alerts/{docId} {
+      allow read:   if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.passengerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && isAdmin();
+    }
+
     // ── emergency_alerts collection ───────────────────────────────────────────
     // Emergency alerts sent by passengers to notify driver/owner/admin
     // Any authenticated user can read alerts (for dashboard notifications)
@@ -110,6 +120,26 @@ service cloud.firestore {
       allow read:   if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
+    }
+
+    // ── user_notifications collection ─────────────────────────────────────────
+    // In-app inbox: recipient is userId. Clients fan out from passenger/admin
+    // sessions (userId != request.auth.uid), so create is authenticated with
+    // required fields; read/update/delete only for the recipient.
+    match /user_notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['userId', 'title', 'body', 'type', 'read'])
+        && request.resource.data.userId is string
+        && request.resource.data.title is string
+        && request.resource.data.body is string
+        && request.resource.data.type is string
+        && request.resource.data.read == false;
+
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
   }

@@ -21,7 +21,8 @@ import '../widgets/driver_cnic_license_upload_panel.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
 import '../services/driver_location_update_service.dart';
-import '../widgets/emergency_alert_banner.dart';
+import '../screens/notifications_inbox_screen.dart';
+import '../services/user_notifications_service.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth_screen.dart';
@@ -30,6 +31,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_config.dart';
 import '../screens/driver_history_screen.dart';
 import '../widgets/email_verified_guard.dart';
+import '../widgets/mobile_drawer_menu_button.dart';
 
 class DriverDashboard extends StatefulWidget {
   final User user;
@@ -44,6 +46,27 @@ class _DriverDashboardState extends State<DriverDashboard>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedIndex = 0;
   int _selectedTab = 0;
+
+  List<MenuItem> get _sidebarMenuItems => [
+        const MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+        const MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+        MenuItem(
+          icon: Icons.notifications_outlined,
+          title: 'Notifications',
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+        ),
+      ];
+
+  Widget _sidebarMainBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboard();
+      case 1:
+        return _buildEmergency();
+      default:
+        return NotificationsInboxScreen(user: widget.user);
+    }
+  }
   bool _isMonitoring = false;
   bool _isCameraTesting = false; // kept only to satisfy legacy Camera Test widget, not used in main UI
   Process? _monitorProcess;
@@ -96,8 +119,85 @@ class _DriverDashboardState extends State<DriverDashboard>
   DateTime _lastMetricsUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _buzzerCooldown = Duration(milliseconds: 1200);
   static const Duration _metricsUiThrottle = Duration(milliseconds: 300);
-  static const double _drowsyAlertnessValue = 0.0;
-  static const double _alertAlertnessValue = 98.0;
+  /// EMA smoothing for alertness bar (0–1, higher = react faster to EAR/MAR).
+  static const double _alertnessEmaAlpha = 0.32;
+
+  int _decodedFrameDiagCount = 0;
+  DateTime? _lastSkippedJpegLogAt;
+
+  /// Last drowsy flag from ML / WebSocket (used with smoothed bar for Firebase).
+  bool _serverSaysDrowsy = false;
+
+  /// WebSocket echoes are often truncated; decoding them triggers
+  /// `Invalid SOS parameters for sequential JPEG` in Chromium/SKIA.
+  static bool _jpegLooksCompleteEnoughToDecode(Uint8List b) {
+    final n = b.length;
+    if (n < 500) return false;
+    if (b[0] != 0xFF || b[1] != 0xD8) return false;
+
+    var hasSos = false;
+    for (var i = 2; i < n - 1; i++) {
+      if (b[i] == 0xFF && b[i + 1] == 0xDA) {
+        hasSos = true;
+        break;
+      }
+    }
+    if (!hasSos) return false;
+
+    const tailScan = 16384;
+    final start = n > tailScan ? n - tailScan : 0;
+    for (var i = start; i < n - 1; i++) {
+      if (b[i] == 0xFF && b[i + 1] == 0xD9) return true;
+    }
+    return false;
+  }
+
+  /// Maps EAR/MAR/eye closure into 0–100; blended with server [alertness] when present.
+  double _instantAlertnessFromMetrics({
+    required double ear,
+    required double mar,
+    required double eyeClosurePct,
+    required double serverAlertness,
+    required bool serverProvidedAlertness,
+    required bool isDrowsy,
+  }) {
+    final e = ear > 1e-6 ? ear : 0.26;
+    final m = mar > 1e-6 ? mar : 0.28;
+
+    // EAR: eyes open → higher ratio (typical open ~0.22–0.38 depending on model scale).
+    const earOpen = 0.36;
+    const earClosed = 0.14;
+    final earSpan = earOpen - earClosed;
+    final fromEar =
+        earSpan <= 1e-6 ? 70.0 : (((e - earClosed) / earSpan) * 100.0).clamp(0.0, 100.0);
+
+    // MAR: mouth open / yawning → lower alertness.
+    const marRest = 0.26;
+    const marHigh = 0.58;
+    final marSpan = marHigh - marRest;
+    final marStress = marSpan <= 1e-6 ? 0.0 : (((m - marRest) / marSpan).clamp(0.0, 1.0));
+    final fromMar = (100.0 * (1.0 - marStress)).clamp(0.0, 100.0);
+
+    final fromEyelids = (100.0 - eyeClosurePct.clamp(0.0, 100.0));
+
+    double blended = fromEar * 0.50 + fromMar * 0.32 + fromEyelids * 0.18;
+
+    if (serverProvidedAlertness) {
+      final s = serverAlertness.clamp(0.0, 100.0);
+      blended = blended * 0.55 + s * 0.45;
+    }
+
+    if (isDrowsy) {
+      blended = (blended * 0.58).clamp(0.0, 48.0);
+    }
+
+    return blended.clamp(0.0, 100.0);
+  }
+
+  double _smoothAlertness(double targetInstant) {
+    const a = _alertnessEmaAlpha;
+    return (_alertness * (1.0 - a) + targetInstant * a).clamp(0.0, 100.0);
+  }
 
   @override
   void initState() {
@@ -301,29 +401,30 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   Future<void> _playBuzzerIfAllowed({bool force = false}) async {
     if (!_audioAlertsEnabled) return;
+    if (kIsWeb) {
+      HapticFeedback.heavyImpact();
+      return;
+    }
     final now = DateTime.now();
     if (!force && now.difference(_lastBuzzerAt) < _buzzerCooldown) return;
     _lastBuzzerAt = now;
-    
+
     try {
-      // Request storage permission for ringtone access on Android
-      if (Platform.isAndroid) {
-        final status = await Permission.storage.status;
-        if (!status.isGranted) {
-          final result = await Permission.storage.request();
-          if (!result.isGranted) {
-            // Fallback to system sound if permission denied
-            SystemSound.play(SystemSoundType.alert);
-            HapticFeedback.heavyImpact();
-            return;
-          }
-        }
+      if (Platform.isAndroid || Platform.isIOS) {
+        await FlutterRingtonePlayer().play(
+          android: AndroidSounds.alarm,
+          ios: IosSounds.alarm,
+          volume: 1.0,
+          looping: false,
+          asAlarm: true,
+        );
+      } else {
+        await FlutterRingtonePlayer().playNotification(volume: 1.0, asAlarm: false);
       }
-      
-      // Play device's default ringtone
-      FlutterRingtonePlayer().playRingtone();
     } catch (_) {
-      SystemSound.play(SystemSoundType.alert);
+      try {
+        SystemSound.play(SystemSoundType.alert);
+      } catch (_) {}
     }
     HapticFeedback.heavyImpact();
   }
@@ -380,19 +481,6 @@ class _DriverDashboardState extends State<DriverDashboard>
     }
 
     print('🚀 Starting monitoring for driver: $driverId');
-
-    // Request storage permission for ringtone access on Android
-    if (!kIsWeb && Platform.isAndroid) {
-      final status = await Permission.storage.status;
-      if (!status.isGranted) {
-        final result = await Permission.storage.request();
-        if (!result.isGranted) {
-          print('⚠️ Storage permission denied - will use system alert sound');
-        } else {
-          print('✅ Storage permission granted for ringtone access');
-        }
-      }
-    }
 
     try {
     // Start Firebase session
@@ -549,10 +637,21 @@ class _DriverDashboardState extends State<DriverDashboard>
                 _buzzerPlayed = false;
               }
 
-              _alertness = isDrowsy ? _drowsyAlertnessValue : _alertAlertnessValue;
+              _serverSaysDrowsy = isDrowsy;
               _ear = nextEar;
               _mar = nextMar;
               _eyeClosurePercentage = nextEyeClosure;
+              final serverHasAlertness =
+                  data.containsKey('alertness') && data['alertness'] != null;
+              final instantA = _instantAlertnessFromMetrics(
+                ear: nextEar,
+                mar: nextMar,
+                eyeClosurePct: nextEyeClosure,
+                serverAlertness: nextAlertness,
+                serverProvidedAlertness: serverHasAlertness,
+                isDrowsy: isDrowsy,
+              );
+              _alertness = _smoothAlertness(instantA);
 
               final now = DateTime.now();
               if (now.difference(_lastMetricsUiUpdate) >= _metricsUiThrottle) {
@@ -569,9 +668,22 @@ class _DriverDashboardState extends State<DriverDashboard>
                 try {
                   final frameBase64 = data['frame'] as String;
                   final decodedFrame = base64Decode(frameBase64);
-                  _updateCameraFrame(decodedFrame);
-                  if (decodedFrame.isNotEmpty) {
-                    print('📸 Camera frame received (${decodedFrame.length} bytes)');
+                  if (!_jpegLooksCompleteEnoughToDecode(decodedFrame)) {
+                    final now = DateTime.now();
+                    if (_lastSkippedJpegLogAt == null ||
+                        now.difference(_lastSkippedJpegLogAt!) > const Duration(seconds: 20)) {
+                      _lastSkippedJpegLogAt = now;
+                      print(
+                        '⚠️ Skipping incomplete/bad JPEG (${decodedFrame.length} B). '
+                        'Often caused by WebSocket echo truncation or overlapping sessions.',
+                      );
+                    }
+                  } else {
+                    _updateCameraFrame(decodedFrame);
+                    _decodedFrameDiagCount++;
+                    if (_decodedFrameDiagCount <= 3 || _decodedFrameDiagCount % 25 == 0) {
+                      print('📸 Camera frame (${decodedFrame.length} bytes)');
+                    }
                   }
                 } catch (e) {
                   print('❌ Error decoding frame: $e');
@@ -700,7 +812,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         return;
       }
 
-      final isDrowsy = _alertness < 80;
+      final isDrowsy = _serverSaysDrowsy || _alertness < 76;
 
       _monitoringService.updateRealtimeStats(
         driverId: driverId,
@@ -734,6 +846,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       _isMonitoring = false;
       _yawningFrameCount = 0;
       _buzzerPlayed = false;
+      _serverSaysDrowsy = false;
     });
     _setDrowsyAlarmActive(false);
 
@@ -897,10 +1010,21 @@ class _DriverDashboardState extends State<DriverDashboard>
               _buzzerPlayed = false;
             }
             
-          _alertness = isDrowsy ? _drowsyAlertnessValue : _alertAlertnessValue;
+          _serverSaysDrowsy = isDrowsy;
           _ear = nextEar;
           _mar = nextMar;
           _eyeClosurePercentage = nextEyeClosure;
+          final pyServerHasAlertness =
+              data.containsKey('alertness') && data['alertness'] != null;
+          final instantPy = _instantAlertnessFromMetrics(
+            ear: nextEar,
+            mar: nextMar,
+            eyeClosurePct: nextEyeClosure,
+            serverAlertness: nextAlertness,
+            serverProvidedAlertness: pyServerHasAlertness,
+            isDrowsy: isDrowsy,
+          );
+          _alertness = _smoothAlertness(instantPy);
           final now = DateTime.now();
           if (now.difference(_lastMetricsUiUpdate) >= _metricsUiThrottle) {
             _lastMetricsUiUpdate = now;
@@ -960,10 +1084,18 @@ class _DriverDashboardState extends State<DriverDashboard>
     // Fallback to mock data if launching fails
     _updateTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       setState(() {
-        _alertness = 70 + _random.nextDouble() * 25;
-        _ear = _random.nextDouble() * 0.3;
-        _mar = _random.nextDouble() * 0.3;
-        _eyeClosurePercentage = _random.nextDouble() * 30;
+        _ear = 0.12 + _random.nextDouble() * 0.28;
+        _mar = 0.20 + _random.nextDouble() * 0.45;
+        _eyeClosurePercentage = _random.nextDouble() * 42;
+        final inst = _instantAlertnessFromMetrics(
+          ear: _ear,
+          mar: _mar,
+          eyeClosurePct: _eyeClosurePercentage,
+          serverAlertness: _alertness,
+          serverProvidedAlertness: false,
+          isDrowsy: false,
+        );
+        _alertness = _smoothAlertness(inst);
       });
     });
   }
@@ -987,9 +1119,8 @@ class _DriverDashboardState extends State<DriverDashboard>
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+          builder: (context) => MobileDrawerMenuButton(
+            unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
           ),
         ),
         title: Text(
@@ -1020,7 +1151,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       ) : null,
       body: EmailVerifiedGuard(
         child: isMobile
-            ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
+            ? _sidebarMainBody()
             : Row(
                 children: [
                   AppSidebar(
@@ -1028,16 +1159,11 @@ class _DriverDashboardState extends State<DriverDashboard>
                     user: widget.user,
                     selectedIndex: _selectedIndex,
                     onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                    menuItems: const [
-                      MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-                      MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-                    ],
+                    menuItems: _sidebarMenuItems,
                     accentColor: AppColors.primary,
                     accentLightColor: AppColors.driverLight,
                   ),
-                  Expanded(
-                    child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-                  ),
+                  Expanded(child: _sidebarMainBody()),
                 ],
               ),
       ),
@@ -1057,10 +1183,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             setState(() => _selectedIndex = index);
             Navigator.pop(context);
           },
-          menuItems: const [
-            MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-            MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-          ],
+          menuItems: _sidebarMenuItems,
           accentColor: AppColors.primary,
           accentLightColor: AppColors.driverLight,
         ),
@@ -1102,11 +1225,6 @@ class _DriverDashboardState extends State<DriverDashboard>
         return SingleChildScrollView(
           child: Column(
             children: [
-              // Emergency Alert Banner
-              EmergencyAlertBanner(
-                userId: widget.user.id,
-                userRole: 'driver',
-              ),
               Padding(
                 padding: EdgeInsets.all(isMobile ? 16.0 : isTablet ? 24.0 : 40.0),
                 child: Column(
@@ -1478,7 +1596,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
           SizedBox(height: isMobile ? 16 : 24),
           Text(
-            '${_alertness.toInt()}%',
+            '${_alertness.clamp(0, 100).toStringAsFixed(1)}%',
             style: TextStyle(
               fontSize: isMobile ? 42 : 56,
               fontWeight: FontWeight.bold,
@@ -1488,26 +1606,33 @@ class _DriverDashboardState extends State<DriverDashboard>
           const SizedBox(height: 16),
           _buildAlertnessStatusBadge(),
           const SizedBox(height: 20),
-          Stack(
-            children: [
-              Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0E0E0),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: _alertness / 100,
-                child: Container(
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _getAlertnessColor(),
-                    borderRadius: BorderRadius.circular(4),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final targetWidth =
+                  (constraints.maxWidth * (_alertness.clamp(0, 100) / 100.0)).clamp(0.0, constraints.maxWidth);
+              return Stack(
+                children: [
+                  Container(
+                    height: 10,
+                    width: constraints.maxWidth,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0E0E0),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    width: targetWidth,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: _getAlertnessColor(),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

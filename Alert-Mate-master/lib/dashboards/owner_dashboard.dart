@@ -18,9 +18,11 @@ import '../services/firebase_auth_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
-import '../widgets/emergency_alert_banner.dart';
+import '../screens/notifications_inbox_screen.dart';
+import '../services/user_notifications_service.dart';
 import '../screens/driver_documents_gate_screen.dart';
 import '../widgets/email_verified_guard.dart';
+import '../widgets/mobile_drawer_menu_button.dart';
 import '../constants/vehicle_catalog.dart';
 
 class OwnerDashboard extends StatefulWidget {
@@ -41,6 +43,27 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   int _selectedIndex = 0;
   bool _isLoading = false;
+
+  List<MenuItem> get _sidebarMenuItems => [
+        const MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
+        const MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+        MenuItem(
+          icon: Icons.notifications_outlined,
+          title: 'Notifications',
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+        ),
+      ];
+
+  Widget _sidebarMainBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboard();
+      case 1:
+        return _buildEmergency();
+      default:
+        return NotificationsInboxScreen(user: widget.user);
+    }
+  }
   String _statusFilter = 'All Status';
   String _typeFilter = 'All Types';
   String _activeDriversCacheKey = '';
@@ -659,9 +682,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+          builder: (context) => MobileDrawerMenuButton(
+            unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
           ),
         ),
         title: Text(
@@ -692,7 +714,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       ) : null,
       body: EmailVerifiedGuard(
         child: isMobile
-            ? _selectedIndex == 0 ? _buildDashboard() : _buildEmergency()
+            ? _sidebarMainBody()
             : Row(
                 children: [
                   AppSidebar(
@@ -700,16 +722,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     user: widget.user is User ? widget.user : null,
                     selectedIndex: _selectedIndex,
                     onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                    menuItems: const [
-                      MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-                      MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-                    ],
+                    menuItems: _sidebarMenuItems,
                     accentColor: AppColors.primary,
                     accentLightColor: AppColors.primaryLight,
                   ),
-                  Expanded(
-                    child: _selectedIndex == 0 ? _buildDashboard() : _buildEmergency(),
-                  ),
+                  Expanded(child: _sidebarMainBody()),
                 ],
               ),
       ),
@@ -729,10 +746,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             setState(() => _selectedIndex = index);
             Navigator.pop(context);
           },
-          menuItems: const [
-            MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-            MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
-          ],
+          menuItems: _sidebarMenuItems,
           accentColor: AppColors.primary,
           accentLightColor: AppColors.primaryLight,
         ),
@@ -748,11 +762,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         return SingleChildScrollView(
           child: Column(
             children: [
-              // Emergency Alert Banner
-              EmergencyAlertBanner(
-                userId: widget.user.id,
-                userRole: 'owner',
-              ),
               Padding(
                 padding: EdgeInsets.all(isMobile ? 16.0 : isTablet ? 24.0 : 40.0),
                 child: Column(

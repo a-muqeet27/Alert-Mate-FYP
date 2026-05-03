@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/owner_vehicle_submission.dart';
 import 'cloudinary_service.dart';
+import 'in_app_notification_service.dart';
 import 'vehicle_service.dart';
 
 class OwnerVehicleSubmissionService {
@@ -116,6 +117,7 @@ class OwnerVehicleSubmissionService {
 
     final ownerId = data['ownerId'] as String;
     final ownerEmail = (data['ownerEmail'] as String?) ?? '';
+    final ownerName = (data['ownerName'] as String?) ?? '';
     final make = (data['make'] as String?) ?? '';
     final model = (data['model'] as String?) ?? '';
     final year = (data['year'] as String?) ?? '';
@@ -151,6 +153,18 @@ class OwnerVehicleSubmissionService {
       'approvedVehicleId': vehicleRef.id,
     });
 
+    Future<void> notifyOwner() async {
+      try {
+        await InAppNotificationService.instance.notifyOwnerVehicleApproved(
+          ownerId: ownerId,
+          ownerName: ownerName,
+          licensePlate: licensePlate,
+          make: make,
+          model: model,
+        );
+      } catch (_) {}
+    }
+
     // If owner will drive AND docs are already approved -> assign immediately.
     if (willOwnerDrive) {
       final ownerDoc = await _firestore.collection('users').doc(ownerId).get();
@@ -165,6 +179,7 @@ class OwnerVehicleSubmissionService {
           );
         } catch (_) {}
       }
+      await notifyOwner();
       return;
     }
 
@@ -191,14 +206,34 @@ class OwnerVehicleSubmissionService {
         // Driver already has vehicle; try next candidate.
       }
     }
+
+    await notifyOwner();
   }
 
   Future<void> rejectSubmission(String submissionId, {String? reason}) async {
-    await _firestore.collection(_collection).doc(submissionId).update({
+    final ref = _firestore.collection(_collection).doc(submissionId);
+    final prior = await ref.get();
+    final data = prior.data();
+    final ownerId = data?['ownerId'] as String? ?? '';
+    final ownerName = (data?['ownerName'] as String?) ?? '';
+    final licensePlate = (data?['licensePlate'] as String?) ?? '';
+
+    await ref.update({
       'status': 'rejected',
       'rejectedReason': reason,
       'reviewedAt': FieldValue.serverTimestamp(),
     });
+
+    if (ownerId.isNotEmpty) {
+      try {
+        await InAppNotificationService.instance.notifyOwnerVehicleRejected(
+          ownerId: ownerId,
+          ownerName: ownerName,
+          licensePlate: licensePlate,
+          reason: reason,
+        );
+      } catch (_) {}
+    }
   }
 }
 

@@ -5,13 +5,15 @@ import '../models/emergency_contact.dart';
 import '../constants/app_colors.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
-import '../widgets/emergency_alert_banner.dart';
+import '../screens/notifications_inbox_screen.dart';
+import '../services/user_notifications_service.dart';
 import '../services/emergency_contact_service.dart';
 import '../services/driver_document_submission_service.dart';
 import '../models/driver_document_submission.dart';
 import '../services/owner_vehicle_submission_service.dart';
 import '../models/owner_vehicle_submission.dart';
 import '../widgets/email_verified_guard.dart';
+import '../widgets/mobile_drawer_menu_button.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -25,6 +27,19 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStateMixin {
   int _selectedIndex = 0;
+
+  List<MenuItem> get _sidebarMenuItems => [
+        const MenuItem(icon: Icons.dashboard_outlined, title: 'Dashboard'),
+        MenuItem(
+          icon: Icons.notifications_outlined,
+          title: 'Notifications',
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+        ),
+      ];
+
+  Widget _sidebarMainBody() {
+    return _selectedIndex == 0 ? _buildMainContent() : NotificationsInboxScreen(user: widget.user);
+  }
   String _selectedRoleFilter = 'All Roles';
   String _userTypeFilter = 'All Users';
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -108,9 +123,8 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+          builder: (context) => MobileDrawerMenuButton(
+            unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
           ),
         ),
         title: Text(
@@ -142,13 +156,11 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       body: EmailVerifiedGuard(
         enforceVerification: false,
         child: isMobile
-            ? _buildMainContent()
+            ? _sidebarMainBody()
             : Row(
                 children: [
                   _buildSidebar(),
-                  Expanded(
-                    child: _buildMainContent(),
-                  ),
+                  Expanded(child: _sidebarMainBody()),
                 ],
               ),
       ),
@@ -168,9 +180,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             setState(() => _selectedIndex = index);
             Navigator.pop(context);
           },
-          menuItems: const [
-            MenuItem(icon: Icons.dashboard_outlined, title: 'Dashboard'),
-          ],
+          menuItems: _sidebarMenuItems,
           accentColor: AppColors.primary,
           accentLightColor: AppColors.primaryLight,
         ),
@@ -184,9 +194,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       user: widget.user,
       selectedIndex: _selectedIndex,
       onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-      menuItems: const [
-        MenuItem(icon: Icons.dashboard_outlined, title: 'Dashboard'),
-      ],
+      menuItems: _sidebarMenuItems,
       accentColor: AppColors.primary,
       accentLightColor: AppColors.primaryLight,
     );
@@ -200,11 +208,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         return SingleChildScrollView(
           child: Column(
             children: [
-              // Emergency Alert Banner
-              EmergencyAlertBanner(
-                userId: widget.user.id,
-                userRole: 'admin',
-              ),
               Padding(
                 padding: EdgeInsets.all(isMobile ? 16.0 : 40.0),
                 child: Column(

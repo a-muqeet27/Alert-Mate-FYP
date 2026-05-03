@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'in_app_notification_service.dart';
 
 /// Service for managing emergency alerts from passengers
 class EmergencyAlertService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const Duration _firestoreTimeout = Duration(seconds: 25);
 
   /// Send an emergency alert
   /// Creates an alert document that all dashboards can listen to
@@ -37,7 +42,21 @@ class EmergencyAlertService {
         'acknowledgedAt': null,
         'acknowledgedBy': null,
         'resolvedAt': null,
-      });
+      }).timeout(_firestoreTimeout);
+
+      try {
+        await InAppNotificationService.instance.notifyEmergencyAlertRecipients(
+          emergencyAlertId: alertId,
+          driverId: driverId,
+          ownerId: ownerId,
+          passengerName: passengerName,
+          licensePlate: vehiclePlate,
+          vehicleMake: vehicleMake,
+          vehicleModel: vehicleModel,
+        );
+      } catch (e) {
+        print('⚠️ EmergencyAlertService: in-app notification fan-out failed: $e');
+      }
 
       print('✅ EmergencyAlertService: Alert created - $alertId');
       return alertId;
