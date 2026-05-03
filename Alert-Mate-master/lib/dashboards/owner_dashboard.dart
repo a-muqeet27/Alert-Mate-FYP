@@ -784,11 +784,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             ],
                           ),
                           const SizedBox.shrink(),
-                        ),
-                  ),
-                  0,
-                ),
-                if (isMobile) ...[
+                        ],
+                      ),
+                      0,
+                    ),
+                    if (isMobile) ...[
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -1122,10 +1122,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               ],
             ),
           ),
-        );
-      },
-    );
-  }
+          ],
+        ),
+      );
+    },
+  );
+}
 
   /// Builds the LiveMap section filtered to only show drivers assigned
   /// to this owner's vehicles.
