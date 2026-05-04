@@ -389,6 +389,42 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
+  // Google Sign-In Handler
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final selectedRole = _getSelectedRole();
+      
+      // Call Google Sign-In with the selected role
+      final user = await _authService.signInWithGoogle(roles: [selectedRole]);
+      
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (user != null) {
+        final hasAccess = await _validateAndPrepareRoleAccess(user);
+        if (!hasAccess) {
+          _showErrorDialog(
+            'This account is not registered for ${_getSelectedRoleLabel()}. Please sign in with your registered role.',
+          );
+          return;
+        }
+        await _navigateToDashboard(user);
+      } else {
+        _showErrorDialog('Google Sign-In was cancelled');
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      _showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   // ... all your existing helper methods stay the same ...
   void _showVerificationDialog() {
     showDialog(
@@ -919,6 +955,56 @@ class _AuthScreenState extends State<AuthScreen>
                                       ),
                                     ),
                                   ),
+                                  if (isSignIn) ...[
+                                    const SizedBox(height: 20),
+                                    Row(
+                                      children: [
+                                        Expanded(child: Divider(color: Colors.grey[300])),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          child: Text(
+                                            'OR',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(child: Divider(color: Colors.grey[300])),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 50,
+                                      child: OutlinedButton.icon(
+                                        onPressed: _isLoading ? null : _handleGoogleSignIn,
+                                        style: OutlinedButton.styleFrom(
+                                          side: BorderSide(color: Colors.grey[300]!),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                        icon: Image.asset(
+                                          'assets/images/google_logo.png',
+                                          height: 24,
+                                          width: 24,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return const Icon(Icons.g_mobiledata, size: 24);
+                                          },
+                                        ),
+                                        label: Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                   if (isSignIn && !_isAdminRole) ...[
                                     const SizedBox(height: 16),
                                     _buildSignUpLink(),

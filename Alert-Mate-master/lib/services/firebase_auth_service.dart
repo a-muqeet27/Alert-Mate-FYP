@@ -1,11 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../firebase_options.dart';
 import '../models/user.dart' as app_models;
 
 class FirebaseAuthService {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
 
   /// Continue URL for verification links (must match Firebase Auth authorized domains).
   String get _emailActionContinueUrl {
@@ -568,8 +572,136 @@ class FirebaseAuthService {
     }
   }
 
+  // Google Sign-In
+  Future<app_models.User?> signInWithGoogle({required List<String> roles}) async {
+    try {
+      print('🔐 Starting Google Sign-In...');
+      
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        print('❌ Google Sign-In cancelled by user');
+        return null;
+      }
+
+      print('✅ Google user selected: ${googleUser.email}');
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Create a new credential
+      final credential = firebase_auth.GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      firebase_auth.UserCredential userCredential = 
+          await _auth.signInWithCredential(credential);
+
+      print('✅ Firebase sign-in successful!');
+
+      String uid = userCredential.user!.uid;
+      String email = userCredential.user!.email!;
+      
+      // Check if user exists in Firestore
+      DocumentSnapshot doc = await _firestore.collection('users').doc(uid).get();
+
+      if (!doc.exists) {
+        // New user - create profile
+        print('📝 Creating new user profile...');
+        
+        // Split display name into first and last name
+        String displayName = userCredential.user!.displayName ?? email.split('@')[0];
+        List<String> nameParts = displayName.split(' ');
+        String firstName = nameParts.isNotEmpty ? nameParts[0] : displayName;
+        String lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+        String activeRole = roles.isNotEmpty ? roles.first : 'passenger';
+
+        await _firestore.collection('users').doc(uid).set({
+          'uid': uid,
+          'firstName': firstName,
+          'lastName': lastName,
+          'name': displayName,
+          'email': email,
+          'phone': userCredential.user!.phoneNumber ?? '',
+          'roles': roles,
+          'activeRole': activeRole,
+          'emailVerified': true, // Google accounts are pre-verified
+          'isActive': true,
+          'authProvider': 'google',
+          'photoURL': userCredential.user!.photoURL,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        print('✅ New user profile created with roles: $roles');
+
+        return app_models.User(
+          id: uid,
+          firstName: firstName,
+          lastName: lastName,
+          email: email,
+          phone: userCredential.user!.phoneNumber ?? '',
+          role: activeRole,
+          roles: roles,
+        );
+      } else {
+        // Existing user - check if we need to add roles
+        print('👤 Existing user found');
+        
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        List<String> existingRoles = List<String>.from(data['roles'] ?? []);
+        String activeRole = data['activeRole'] ?? existingRoles.first;
+
+        // Add new roles if they don't exist
+        bool rolesUpdated = false;
+        for (final role in roles) {
+          if (!existingRoles.contains(role)) {
+            existingRoles.add(role);
+            rolesUpdated = true;
+            print('➕ Adding new role: $role');
+          }
+        }
+
+        if (rolesUpdated) {
+          await _firestore.collection('users').doc(uid).update({
+            'roles': existingRoles,
+            'activeRole': roles.first, // Set to the newly requested role
+            'lastLogin': FieldValue.serverTimestamp(),
+          });
+          print('✅ Roles updated: $existingRoles');
+          activeRole = roles.first;
+        } else {
+          // Just update last login
+          await _firestore.collection('users').doc(uid).update({
+            'lastLogin': FieldValue.serverTimestamp(),
+          });
+        }
+
+        return app_models.User(
+          id: uid,
+          firstName: data['firstName'],
+          lastName: data['lastName'],
+          email: data['email'],
+          phone: data['phone'] ?? '',
+          role: activeRole,
+          roles: existingRoles,
+        );
+      }
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      print('❌ Firebase Auth Error: ${e.code} - ${e.message}');
+      throw Exception(_getAuthErrorMessage(e.code));
+    } catch (e) {
+      print('❌ Google Sign-In error: $e');
+      throw Exception('Google Sign-In failed: $e');
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
+    await _googleSignIn.signOut();
     await _auth.signOut();
     print('👋 User signed out');
   }

@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "751235115727",
+    "firebase_url": "https://alertmate-26d10-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "alertmate-26d10",
     "storage_bucket": "alertmate-26d10.firebasestorage.app"
   },
@@ -12,7 +13,12 @@
           "package_name": "com.example.alert_mate"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "751235115727-ogn3ll764ih3tt4ivn1a699orlh5rnh9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCZPuvo9VqO3588h-8NLEEV1w4CoOyYDhE"
@@ -20,7 +26,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "751235115727-ogn3ll764ih3tt4ivn1a699orlh5rnh9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "751235115727-klr5gmc43vhi56u8brtt6l7v7eulqeft.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.alertMate"
+              }
+            }
+          ]
         }
       }
     }
