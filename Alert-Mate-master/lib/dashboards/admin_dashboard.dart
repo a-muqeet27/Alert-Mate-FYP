@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
@@ -17,6 +19,16 @@ import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
 import '../widgets/dashboard_detail_dialog_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/monitoring_service.dart';
+
+/// Same thresholds as driver / owner live monitoring (RTDB `current_stats`).
+bool adminLiveMetricsCritical(Map<String, dynamic> stats) {
+  final alertness = stats['alertness'];
+  final drowsinessDetected = stats['drowsinessDetected'] == true;
+  if (alertness == null) return false;
+  final alertnessValue = (alertness as num).toDouble();
+  return drowsinessDetected || alertnessValue < 76;
+}
 
 class AdminDashboard extends StatefulWidget {
   final User user;
@@ -29,6 +41,7 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStateMixin {
   int _selectedIndex = 0;
+  final MonitoringService _monitoringService = MonitoringService();
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(icon: Icons.dashboard_outlined, title: 'Dashboard'),
@@ -1163,20 +1176,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               }
             }
 
-            // Calculate vehicle stats
-            int activeVehicles = 0;
-            int alertsCount = 0;
-
-            if (vehiclesSnapshot.hasData) {
-              for (var doc in vehiclesSnapshot.data!.docs) {
-                final data = doc.data() as Map<String, dynamic>;
-                final status = (data['status'] as String? ?? '').toLowerCase();
-                final alertness = data['alertness'] as int? ?? 0;
-                final assignedDriverId = data['assignedDriverId'] as String?;
-                if (assignedDriverId != null && assignedDriverId.isNotEmpty) activeVehicles++;
-                if (status == 'critical' || (alertness < 50 && alertness > 0)) alertsCount++;
-              }
-            }
+            final vehicleDocs = vehiclesSnapshot.hasData ? vehiclesSnapshot.data!.docs : <QueryDocumentSnapshot>[];
 
             // Determine display value based on dropdown
             String usersValue;
@@ -1202,9 +1202,13 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 children: [
                   _buildTotalUsersCard(isLoading ? '...' : usersValue, usersSubtitle, isMobile),
                   const SizedBox(height: 12),
-                  _buildStatCard('Active Vehicles', isLoading ? '...' : activeVehicles.toString(), 'Vehicles with drivers', Icons.directions_car, Colors.black87, AppColors.success, isMobile),
-                  const SizedBox(height: 12),
-                  _buildStatCard('Alerts', isLoading ? '...' : alertsCount.toString(), 'Require attention', Icons.warning_amber, Colors.black87, AppColors.warning, isMobile),
+                  _AdminLiveVehicleFleetMetrics(
+                    vehicleDocs: vehicleDocs,
+                    isLoading: isLoading,
+                    isMobile: isMobile,
+                    monitoringService: _monitoringService,
+                    statCardBuilder: _buildStatCard,
+                  ),
                 ],
               );
             } else {
@@ -1212,9 +1216,16 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 children: [
                   Expanded(child: _buildTotalUsersCard(isLoading ? '...' : usersValue, usersSubtitle, isMobile)),
                   const SizedBox(width: 20),
-                  Expanded(child: _buildStatCard('Active Vehicles', isLoading ? '...' : activeVehicles.toString(), 'Vehicles with drivers', Icons.directions_car, Colors.black87, AppColors.success, isMobile)),
-                  const SizedBox(width: 20),
-                  Expanded(child: _buildStatCard('Alerts', isLoading ? '...' : alertsCount.toString(), 'Require attention', Icons.warning_amber, Colors.black87, AppColors.warning, isMobile)),
+                  Expanded(
+                    flex: 2,
+                    child: _AdminLiveVehicleFleetMetrics(
+                      vehicleDocs: vehicleDocs,
+                      isLoading: isLoading,
+                      isMobile: isMobile,
+                      monitoringService: _monitoringService,
+                      statCardBuilder: _buildStatCard,
+                    ),
+                  ),
                 ],
               );
             }
@@ -3486,7 +3497,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Approvals (Real-time)',
+                      'Approvals',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
@@ -3495,7 +3506,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Driver documents + Owner vehicle books (updates in real time)',
+                      'Driver Documents + Owner Vehicle Books',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.black54,
@@ -3558,7 +3569,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Text(
-                        'No driver document submissions',
+                        'No Driver Document Submissions',
                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     )
@@ -3649,7 +3660,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Text(
-                        'No owner vehicle submissions',
+                        'No Owner Vehicle Submissions',
                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     )
@@ -4027,4 +4038,180 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   // Removed: _buildFleetOverview, _buildGlobalFleetStatus, _buildLiveFleetMap,
+}
+
+/// Live **Active vehicles** and **Alerts** from RTDB (same rules as owner: monitoring on + heartbeat; critical from `current_stats`).
+class _AdminLiveVehicleFleetMetrics extends StatefulWidget {
+  const _AdminLiveVehicleFleetMetrics({
+    required this.vehicleDocs,
+    required this.isLoading,
+    required this.isMobile,
+    required this.monitoringService,
+    required this.statCardBuilder,
+  });
+
+  final List<QueryDocumentSnapshot> vehicleDocs;
+  final bool isLoading;
+  final bool isMobile;
+  final MonitoringService monitoringService;
+  final Widget Function(
+    String title,
+    String value,
+    String subtitle,
+    IconData icon,
+    Color valueColor,
+    Color subtitleColor,
+    bool isMobile,
+  ) statCardBuilder;
+
+  @override
+  State<_AdminLiveVehicleFleetMetrics> createState() => _AdminLiveVehicleFleetMetricsState();
+}
+
+class _AdminLiveVehicleFleetMetricsState extends State<_AdminLiveVehicleFleetMetrics> {
+  final Map<String, bool> _sessionActiveByDriver = {};
+  final Map<String, Map<String, dynamic>> _statsByDriver = {};
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+
+  static Set<String> _driverIdsFromDocs(List<QueryDocumentSnapshot> docs) {
+    final ids = <String>{};
+    for (final doc in docs) {
+      final raw = doc.data();
+      if (raw is! Map) continue;
+      final data = Map<String, dynamic>.from(raw as Map);
+      final id = data['assignedDriverId'] as String?;
+      if (id != null && id.isNotEmpty) ids.add(id);
+    }
+    return ids;
+  }
+
+  void _resubscribe() {
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
+    setState(() {
+      _sessionActiveByDriver.clear();
+      _statsByDriver.clear();
+    });
+
+    for (final id in _driverIdsFromDocs(widget.vehicleDocs)) {
+      _subscriptions.add(
+        widget.monitoringService.watchHasActiveMonitoringSession(id).listen((active) {
+          if (!mounted) return;
+          setState(() => _sessionActiveByDriver[id] = active);
+        }),
+      );
+      _subscriptions.add(
+        widget.monitoringService.getCurrentStats(id).listen((stats) {
+          if (!mounted) return;
+          setState(() {
+            if (stats.isEmpty) {
+              _statsByDriver.remove(id);
+            } else {
+              _statsByDriver[id] = stats;
+            }
+          });
+        }),
+      );
+    }
+  }
+
+  int _liveActiveVehicleCount() {
+    var n = 0;
+    for (final doc in widget.vehicleDocs) {
+      final raw = doc.data();
+      if (raw is! Map) continue;
+      final data = Map<String, dynamic>.from(raw as Map);
+      final driverId = data['assignedDriverId'] as String?;
+      if (driverId == null || driverId.isEmpty) continue;
+      if (_sessionActiveByDriver[driverId] == true) n++;
+    }
+    return n;
+  }
+
+  int _liveAlertsVehicleCount() {
+    var n = 0;
+    for (final doc in widget.vehicleDocs) {
+      final raw = doc.data();
+      if (raw is! Map) continue;
+      final data = Map<String, dynamic>.from(raw as Map);
+      final driverId = data['assignedDriverId'] as String?;
+      if (driverId == null || driverId.isEmpty) continue;
+      if (_sessionActiveByDriver[driverId] != true) continue;
+      final stats = _statsByDriver[driverId];
+      if (stats == null || stats.isEmpty) continue;
+      if (adminLiveMetricsCritical(stats)) n++;
+    }
+    return n;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _resubscribe();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdminLiveVehicleFleetMetrics oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final a = _driverIdsFromDocs(oldWidget.vehicleDocs);
+    final b = _driverIdsFromDocs(widget.vehicleDocs);
+    if (a.length != b.length || !a.containsAll(b) || !b.containsAll(a)) {
+      _resubscribe();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _liveActiveVehicleCount();
+    final alerts = _liveAlertsVehicleCount();
+    final valueActive = widget.isLoading ? '...' : active.toString();
+    final valueAlerts = widget.isLoading ? '...' : alerts.toString();
+
+    final activeCard = widget.statCardBuilder(
+      'Active Vehicles',
+      valueActive,
+      'Live Monitoring',
+      Icons.directions_car,
+      Colors.black87,
+      AppColors.success,
+      widget.isMobile,
+    );
+    final alertsCard = widget.statCardBuilder(
+      'Alerts',
+      valueAlerts,
+      'Live critical conditions',
+      Icons.warning_amber,
+      Colors.black87,
+      AppColors.warning,
+      widget.isMobile,
+    );
+
+    if (widget.isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          activeCard,
+          const SizedBox(height: 12),
+          alertsCard,
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: activeCard),
+        const SizedBox(width: 20),
+        Expanded(child: alertsCard),
+      ],
+    );
+  }
 }

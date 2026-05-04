@@ -1,7 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
 import '../../models/user.dart';
 import '../../utils/sign_out_flow.dart';
+
+/// Support / contact address shown in the app sidebar.
+const String kAlertMateSupportEmail = 'alertmate.fyp@gmail.com';
+
+/// Opens Gmail compose with [email] in the To field; falls back to [mailto].
+Future<void> launchGmailComposeTo(BuildContext context, String email) async {
+  final trimmed = email.trim();
+  if (trimmed.isEmpty) return;
+
+  final gmailCompose = Uri.parse(
+    'https://mail.google.com/mail/?view=cm&fs=1&to=${Uri.encodeComponent(trimmed)}',
+  );
+  final mailto = Uri(scheme: 'mailto', path: trimmed);
+
+  try {
+    if (await canLaunchUrl(gmailCompose)) {
+      final opened = await launchUrl(gmailCompose, mode: LaunchMode.externalApplication);
+      if (opened) return;
+    }
+    if (await canLaunchUrl(mailto)) {
+      await launchUrl(mailto, mode: LaunchMode.externalApplication);
+      return;
+    }
+    throw Exception('No handler for mail links');
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text('Could not open email (${e.toString()})')),
+      );
+    }
+  }
+}
 
 /// Reusable sidebar widget for all dashboards
 /// Eliminates code duplication across admin, driver, owner, and passenger dashboards
@@ -372,20 +405,27 @@ class AppSidebar extends StatelessWidget {
                     ),
               if (!collapsed) ...[
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.email_outlined, size: 18, color: AppColors.primary),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'support@alertmate.app',
-                          style: TextStyle(fontSize: 13, color: AppColors.primary),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => launchGmailComposeTo(context, kAlertMateSupportEmail),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.email_outlined, size: 18, color: AppColors.primary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              kAlertMateSupportEmail,
+                              style: const TextStyle(fontSize: 13, color: AppColors.primary),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],
