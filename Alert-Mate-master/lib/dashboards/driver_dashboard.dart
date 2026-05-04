@@ -25,13 +25,14 @@ import '../screens/notifications_inbox_screen.dart';
 import '../services/user_notifications_service.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../auth_screen.dart';
+import '../utils/sign_out_flow.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_config.dart';
 import '../screens/driver_history_screen.dart';
 import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
+import '../widgets/dashboard_detail_dialog_theme.dart';
 
 class DriverDashboard extends StatefulWidget {
   final User user;
@@ -86,7 +87,6 @@ class _DriverDashboardState extends State<DriverDashboard>
   bool _isCameraInitialized = false;
   Timer? _frameCaptureTimer;
   
-  Vehicle? _assignedVehicle;
   final VehicleService _vehicleService = VehicleService();
   final DriverDocumentSubmissionService _docSubmissionService = DriverDocumentSubmissionService();
   final EmergencyContactService _emergencyContactService = EmergencyContactService();
@@ -96,6 +96,19 @@ class _DriverDashboardState extends State<DriverDashboard>
   String? _currentSessionId;
   // Track last drowsy state to avoid unnecessary Firestore writes
   bool _lastDrowsyState = false;
+
+  /// Last Firestore `vehicles.status` written during live monitoring (Active/Critical).
+  String? _lastSyncedFirestoreVehicleStatus;
+
+  Future<void> _syncAssignedVehicleFirestoreStatus(String status) async {
+    try {
+      final vehicles = await _vehicleService.getAssignedVehiclesForDriver(widget.user.id);
+      if (vehicles.isEmpty) return;
+      await _vehicleService.updateVehicleStatus(vehicles.first.id, status);
+    } catch (e) {
+      print('⚠️ Sync assigned vehicle status: $e');
+    }
+  }
   
   
   // Animation controllers
@@ -828,7 +841,16 @@ class _DriverDashboardState extends State<DriverDashboard>
         _lastDrowsyState = isDrowsy;
         _locationUpdateService.updateDrowsinessAlert(driverId, isDrowsy);
       }
+
+      final desiredVehicleStatus = isDrowsy ? 'Critical' : 'Active';
+      if (desiredVehicleStatus != _lastSyncedFirestoreVehicleStatus) {
+        _lastSyncedFirestoreVehicleStatus = desiredVehicleStatus;
+        unawaited(_syncAssignedVehicleFirestoreStatus(desiredVehicleStatus));
+      }
     });
+
+    _lastSyncedFirestoreVehicleStatus = 'Active';
+    unawaited(_syncAssignedVehicleFirestoreStatus('Active'));
 
     print('✅ Monitoring started successfully');
   }
@@ -898,6 +920,9 @@ class _DriverDashboardState extends State<DriverDashboard>
         print('⚠️ Error clearing current stats: $e');
       }
     }
+
+    _lastSyncedFirestoreVehicleStatus = null;
+    await _syncAssignedVehicleFirestoreStatus('Offline');
 
     // Revert driver to idle in Firestore and stop GPS updates
     _lastDrowsyState = false;
@@ -1134,17 +1159,10 @@ class _DriverDashboardState extends State<DriverDashboard>
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                widget.user.firstName[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+            child: IconButton(
+              tooltip: 'Sign out',
+              icon: Icon(Icons.logout_rounded, color: AppColors.primary, size: 26),
+              onPressed: () => performSignOutAndGoToAuth(context),
             ),
           ),
         ],
@@ -1319,99 +1337,21 @@ class _DriverDashboardState extends State<DriverDashboard>
                     if (vehicleSnap.hasError) {
                       return Text('Error loading vehicle: ${vehicleSnap.error}');
                     }
-                    if (vehicleSnap.connectionState == ConnectionState.waiting) {
+                    final assignedVehicle = vehicleSnap.data;
+                    final vehicleBusy =
+                        vehicleSnap.connectionState == ConnectionState.waiting && assignedVehicle == null;
+                    if (vehicleBusy) {
                       return const Center(child: CircularProgressIndicator(color: AppColors.primary));
                     }
 
-                    final assignedVehicle = vehicleSnap.data;
-                    
-                    if (assignedVehicle != null && _assignedVehicle?.id != assignedVehicle.id) {
-                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                         if (mounted) setState(() => _assignedVehicle = assignedVehicle);
-                       });
-                    } else if (assignedVehicle == null && _assignedVehicle != null) {
-                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                         if (mounted) setState(() => _assignedVehicle = null);
-                       });
-                    }
-
                     if (assignedVehicle != null) {
-                    final isMobile = MediaQuery.of(context).size.width < 768;
-                    return Column(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.all(isMobile ? 16 : 24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.driverPrimary.withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.directions_car, color: AppColors.primary, size: isMobile ? 20 : 24),
-                                  SizedBox(width: isMobile ? 8 : 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Assigned Vehicle: ${assignedVehicle.make} ${assignedVehicle.model} (${assignedVehicle.year})',
-                                      style: TextStyle(
-                                        fontSize: isMobile ? 14 : 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: isMobile ? 8 : 12),
-                              _buildVehicleInfoChip(Icons.confirmation_number, assignedVehicle.licensePlate, isMobile),
-                              if ((assignedVehicle.ownerEmail ?? '').isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                _buildVehicleInfoChip(Icons.person_outline, 'Owner: ${assignedVehicle.ownerEmail}', isMobile),
-                              ],
-                              FutureBuilder<DocumentSnapshot>(
-                                future: FirebaseFirestore.instance.collection('users').doc(assignedVehicle.ownerId).get(),
-                                builder: (context, ownerSnap) {
-                                  if (!ownerSnap.hasData || !ownerSnap.data!.exists) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  final owner = ownerSnap.data!.data() as Map<String, dynamic>;
-                                  final ownerName = '${owner['firstName'] ?? ''} ${owner['lastName'] ?? ''}'.trim();
-                                  final ownerPhone = (owner['phone'] as String?) ?? '';
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        if (ownerName.isNotEmpty)
-                                          _buildVehicleInfoChip(Icons.badge_outlined, 'Owner Name: $ownerName', isMobile),
-                                        if (ownerPhone.isNotEmpty) ...[
-                                          const SizedBox(height: 8),
-                                          OutlinedButton.icon(
-                                            onPressed: () async {
-                                              final uri = Uri.parse('tel:$ownerPhone');
-                                              if (await canLaunchUrl(uri)) {
-                                                await launchUrl(uri);
-                                              }
-                                            },
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor: AppColors.primary,
-                                              side: const BorderSide(color: AppColors.primary),
-                                            ),
-                                            icon: const Icon(Icons.call_outlined),
-                                            label: const Text('Call Owner'),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
+                      final isMobile = MediaQuery.of(context).size.width < 768;
+                      return Column(
+                        children: [
+                          _DriverAssignedVehicleCard(
+                            key: ValueKey(assignedVehicle.id),
+                            vehicle: assignedVehicle,
+                            isMobile: isMobile,
                           ),
                           SizedBox(height: isMobile ? 24 : 32),
                         ],
@@ -2012,6 +1952,8 @@ class _DriverDashboardState extends State<DriverDashboard>
       context: context,
       builder: (context) =>
           AlertDialog(
+            backgroundColor: DashboardDetailDialogTheme.surface,
+            surfaceTintColor: Colors.transparent,
             title: const Text('Sensitivity Level'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2145,7 +2087,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 child: ValueListenableBuilder<Uint8List?>(
                     valueListenable: _cameraFrameNotifier,
                     builder: (context, frameBytes, _) {
-                      if (frameBytes != null && (_isMonitoring || _isCameraTesting)) {
+                      if (frameBytes != null && _isMonitoring) {
                         return Image.memory(
                           frameBytes,
                           fit: BoxFit.cover,
@@ -2228,30 +2170,33 @@ class _DriverDashboardState extends State<DriverDashboard>
             ),
           ),
           SizedBox(height: isMobile ? 16 : 24),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey[200]!),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  _isMonitoring ? Icons.memory : Icons.pause_circle_outline,
-                  color: _isMonitoring ? AppColors.success : Colors.grey[600],
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: ValueListenableBuilder<Uint8List?>(
+                  valueListenable: _cameraFrameNotifier,
+                  builder: (context, frameBytes, _) {
+                    if (frameBytes != null && _isMonitoring) {
+                      return Image.memory(
+                        frameBytes,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        filterQuality: FilterQuality.low,
+                        width: double.infinity,
+                        height: double.infinity,
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _isMonitoring
-                        ? 'Monitoring runs in background. Live camera preview is hidden to prevent flicker.'
-                        : 'Monitoring is currently stopped.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -3448,34 +3393,138 @@ class _DriverDashboardState extends State<DriverDashboard>
 
 
   Widget _buildVehicleInfoChip(IconData icon, String label, [bool isMobile = false]) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 10 : 12,
-          vertical: isMobile ? 5 : 6),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: isMobile ? 14 : 16, color: Colors.grey[600]),
-          SizedBox(width: isMobile ? 6 : 8),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: isMobile ? 12 : 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[800],
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
+    return _vehicleInfoChip(icon, label, isMobile);
+  }
+}
+
+/// One-shot owner fetch per [vehicle.id] to avoid flicker from repeated stream rebuilds.
+class _DriverAssignedVehicleCard extends StatefulWidget {
+  const _DriverAssignedVehicleCard({
+    super.key,
+    required this.vehicle,
+    required this.isMobile,
+  });
+
+  final Vehicle vehicle;
+  final bool isMobile;
+
+  @override
+  State<_DriverAssignedVehicleCard> createState() => _DriverAssignedVehicleCardState();
+}
+
+class _DriverAssignedVehicleCardState extends State<_DriverAssignedVehicleCard> {
+  late final Future<DocumentSnapshot<Map<String, dynamic>>> _ownerDocFuture =
+      FirebaseFirestore.instance.collection('users').doc(widget.vehicle.ownerId).get();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: _ownerDocFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+          );
+        }
+
+        final ownerDoc = snapshot.data;
+        final owner = (ownerDoc != null && ownerDoc.exists) ? (ownerDoc.data() ?? {}) : <String, dynamic>{};
+        final ownerName =
+            '${owner['firstName'] ?? ''} ${owner['lastName'] ?? ''}'.trim();
+        final ownerPhone = (owner['phone'] as String?) ?? '';
+
+        final v = widget.vehicle;
+        final isMobile = widget.isMobile;
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.driverPrimary.withOpacity(0.3)),
           ),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.directions_car, color: AppColors.primary, size: isMobile ? 20 : 24),
+                  SizedBox(width: isMobile ? 8 : 12),
+                  Expanded(
+                    child: Text(
+                      'Assigned Vehicle: ${v.make} ${v.model} (${v.year})',
+                      style: TextStyle(
+                        fontSize: isMobile ? 14 : 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: isMobile ? 8 : 12),
+              _vehicleInfoChip(Icons.confirmation_number, v.licensePlate, isMobile),
+              if ((v.ownerEmail ?? '').isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _vehicleInfoChip(Icons.person_outline, 'Owner: ${v.ownerEmail}', isMobile),
+              ],
+              if (ownerName.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _vehicleInfoChip(Icons.badge_outlined, 'Owner Name: $ownerName', isMobile),
+              ],
+              if (ownerPhone.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.parse('tel:$ownerPhone');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
+                  icon: const Icon(Icons.call_outlined),
+                  label: const Text('Call Owner'),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
+}
+
+Widget _vehicleInfoChip(IconData icon, String label, bool isMobile) {
+  return Container(
+    padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 12, vertical: isMobile ? 5 : 6),
+    decoration: BoxDecoration(
+      color: Colors.grey[100],
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: isMobile ? 14 : 16, color: Colors.grey[600]),
+        SizedBox(width: isMobile ? 6 : 8),
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: isMobile ? 12 : 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[800],
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // Custom formatter for phone number input (03XX-1234567 format)

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -21,9 +22,20 @@ import '../widgets/shared/live_map.dart';
 import '../screens/notifications_inbox_screen.dart';
 import '../services/user_notifications_service.dart';
 import '../screens/driver_documents_gate_screen.dart';
+import '../utils/sign_out_flow.dart';
 import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
 import '../constants/vehicle_catalog.dart';
+import '../widgets/dashboard_detail_dialog_theme.dart';
+
+/// Matches driver realtime monitoring thresholds (alertness / drowsiness flag).
+bool ownerLiveMetricsCritical(Map<String, dynamic> stats) {
+  final alertness = stats['alertness'];
+  final drowsinessDetected = stats['drowsinessDetected'] == true;
+  if (alertness == null) return false;
+  final alertnessValue = (alertness as num).toDouble();
+  return drowsinessDetected || alertnessValue < 76;
+}
 
 class OwnerDashboard extends StatefulWidget {
   final User user;
@@ -697,17 +709,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                widget.user.firstName[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+            child: IconButton(
+              tooltip: 'Sign out',
+              icon: Icon(Icons.logout_rounded, color: AppColors.primary, size: 26),
+              onPressed: () => performSignOutAndGoToAuth(context),
             ),
           ),
         ],
@@ -826,7 +831,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
 
                     // Calculate dynamic safety score based on vehicle data
-                    final criticalCount = vehicles.where((v) => v.status.toLowerCase() == 'critical').length;
                     final vehiclesWithAlertness = vehicles.where((v) => v.alertness > 0).toList();
                     double safetyScore = 10.0;
                     if (vehicles.isNotEmpty) {
@@ -902,23 +906,29 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           Row(
                             children: [
                               Expanded(
-                                child: _buildStatCard(
-                                  'Critical Alerts',
-                                  criticalCount.toString(),
-                                  'Requires attention',
-                                  Icons.warning_amber_rounded,
-                                  AppColors.danger,
-                                  isMobile,
-                                  () => _showOwnerStatDetails(
+                                child: _OwnerDashboardCriticalAlertsCard(
+                                  vehicles: vehicles,
+                                  isMobile: isMobile,
+                                  monitoringService: _monitoringService,
+                                  builder: (context, criticalVehicles) => _buildStatCard(
                                     'Critical Alerts',
-                                    vehicles
-                                        .where((v) => v.status.toLowerCase() == 'critical' || v.alertness < 50)
-                                        .map((v) => ListTile(
+                                    criticalVehicles.length.toString(),
+                                    'Requires attention',
+                                    Icons.warning_amber_rounded,
+                                    AppColors.danger,
+                                    isMobile,
+                                    () => _showOwnerStatDetails(
+                                      'Critical Alerts',
+                                      criticalVehicles
+                                          .map(
+                                            (v) => ListTile(
                                               dense: true,
                                               title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
                                               subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
-                                            ))
-                                        .toList(),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -988,25 +998,33 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           const SizedBox(height: 16),
                           Row(
                             children: [
-                              Expanded(child: _buildStatCard(
-                                'Critical Alerts',
-                                criticalCount.toString(),
-                                'Requires attention',
-                                Icons.warning_amber_rounded,
-                                AppColors.danger,
-                                isMobile,
-                                () => _showOwnerStatDetails(
-                                  'Critical Alerts',
-                                  vehicles
-                                      .where((v) => v.status.toLowerCase() == 'critical' || v.alertness < 50)
-                                      .map((v) => ListTile(
-                                            dense: true,
-                                            title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
-                                            subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
-                                          ))
-                                      .toList(),
+                              Expanded(
+                                child: _OwnerDashboardCriticalAlertsCard(
+                                  vehicles: vehicles,
+                                  isMobile: isMobile,
+                                  monitoringService: _monitoringService,
+                                  builder: (context, criticalVehicles) => _buildStatCard(
+                                    'Critical Alerts',
+                                    criticalVehicles.length.toString(),
+                                    'Requires attention',
+                                    Icons.warning_amber_rounded,
+                                    AppColors.danger,
+                                    isMobile,
+                                    () => _showOwnerStatDetails(
+                                      'Critical Alerts',
+                                      criticalVehicles
+                                          .map(
+                                            (v) => ListTile(
+                                              dense: true,
+                                              title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
+                                              subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
                                 ),
-                              )),
+                              ),
                               const SizedBox(width: 16),
                               Expanded(child: _buildStatCard(
                                 'Safety Score',
@@ -1070,25 +1088,33 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           const SizedBox(height: 20),
                           Row(
                             children: [
-                              Expanded(child: _buildStatCard(
-                                'Critical Alerts',
-                                criticalCount.toString(),
-                                'Requires attention',
-                                Icons.warning_amber_rounded,
-                                AppColors.danger,
-                                isMobile,
-                                () => _showOwnerStatDetails(
-                                  'Critical Alerts',
-                                  vehicles
-                                      .where((v) => v.status.toLowerCase() == 'critical' || v.alertness < 50)
-                                      .map((v) => ListTile(
-                                            dense: true,
-                                            title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
-                                            subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
-                                          ))
-                                      .toList(),
+                              Expanded(
+                                child: _OwnerDashboardCriticalAlertsCard(
+                                  vehicles: vehicles,
+                                  isMobile: isMobile,
+                                  monitoringService: _monitoringService,
+                                  builder: (context, criticalVehicles) => _buildStatCard(
+                                    'Critical Alerts',
+                                    criticalVehicles.length.toString(),
+                                    'Requires attention',
+                                    Icons.warning_amber_rounded,
+                                    AppColors.danger,
+                                    isMobile,
+                                    () => _showOwnerStatDetails(
+                                      'Critical Alerts',
+                                      criticalVehicles
+                                          .map(
+                                            (v) => ListTile(
+                                              dense: true,
+                                              title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
+                                              subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
                                 ),
-                              )),
+                              ),
                               const SizedBox(width: 20),
                               Expanded(child: _buildStatCard(
                                 'Safety Score',
@@ -1240,11 +1266,36 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
+  /// Active only while driver monitoring feeds realtime stats; otherwise Offline; Critical when drowsy/low alertness.
+  String _ownerOperationalStatusLabel(Vehicle vehicle, Map<String, dynamic>? stats) {
+    final driverId = vehicle.assignedDriverId;
+    if (driverId == null || driverId.isEmpty) return 'Offline';
+    if (stats == null || stats.isEmpty) return 'Offline';
+    if (ownerLiveMetricsCritical(stats)) return 'Critical';
+    return 'Active';
+  }
+
+  Widget _vehicleDetailStatusTile(Vehicle vehicle) {
+    final driverId = vehicle.assignedDriverId;
+    if (driverId == null || driverId.isEmpty) {
+      return const ListTile(title: Text('Status'), subtitle: Text('Offline'));
+    }
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: _monitoringService.getCurrentStats(driverId),
+      builder: (context, snapshot) {
+        final label = _ownerOperationalStatusLabel(vehicle, snapshot.data);
+        return ListTile(title: const Text('Status'), subtitle: Text(label));
+      },
+    );
+  }
+
   Future<void> _showOwnerStatDetails(String title, List<Widget> children) async {
     final maxDialogHeight = MediaQuery.of(context).size.height * 0.78;
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
+        backgroundColor: DashboardDetailDialogTheme.surface,
+        surfaceTintColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ConstrainedBox(
@@ -1256,9 +1307,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: DashboardDetailDialogTheme.surface,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                  border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.35))),
                 ),
                 child: Row(
                   children: [
@@ -1285,6 +1336,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.04),
@@ -1321,7 +1373,15 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text('Status: ${vehicle.status}'),
+            if (vehicle.assignedDriverId == null || vehicle.assignedDriverId!.isEmpty)
+              const Text('Status: Offline')
+            else
+              StreamBuilder<Map<String, dynamic>>(
+                stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
+                builder: (context, snap) {
+                  return Text('Status: ${_ownerOperationalStatusLabel(vehicle, snap.data)}');
+                },
+              ),
             IconButton(
               icon: Icon(Icons.edit_outlined, color: AppColors.primary, size: isMobile ? 18 : 20),
               tooltip: 'Edit',
@@ -1490,6 +1550,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
+                        color: AppColors.background,
                         border: Border.all(color: Colors.grey[300]!),
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -1514,6 +1575,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
+                        color: AppColors.background,
                         border: Border.all(color: Colors.grey[300]!),
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -1554,6 +1616,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
+                          color: AppColors.background,
                           border: Border.all(color: Colors.grey[300]!),
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -1581,6 +1644,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
+                          color: AppColors.background,
                           border: Border.all(color: Colors.grey[300]!),
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -2742,63 +2806,67 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       onTap: () => _showOwnerStatDetails('Vehicle Details', [
         ListTile(title: Text(vehicle.licensePlate), subtitle: Text('${vehicle.make} ${vehicle.model} (${vehicle.year})')),
         ListTile(title: const Text('Driver'), subtitle: Text(vehicle.driverName ?? 'Unassigned')),
-        ListTile(title: const Text('Status'), subtitle: Text(vehicle.status)),
+        _vehicleDetailStatusTile(vehicle),
         ListTile(title: const Text('Location'), subtitle: Text(vehicle.location ?? 'Unknown')),
         ListTile(title: const Text('Alertness'), subtitle: Text('${vehicle.alertness}%')),
         ListTile(
           title: const Text('Actions'),
-          subtitle: Row(
-            children: [
-              TextButton.icon(
-                onPressed: () => _showEditVehicleDialog(vehicle),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit'),
-              ),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: () => _showDeleteVehicleDialog(vehicle),
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                label: const Text('Delete', style: TextStyle(color: Colors.red)),
-              ),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: () async {
-                  // Get driver's phone number from Firestore
-                  if (vehicle.assignedDriverId != null && vehicle.assignedDriverId!.isNotEmpty) {
-                    try {
-                      final driverDoc = await _firestore.collection('users').doc(vehicle.assignedDriverId).get();
-                      if (driverDoc.exists) {
-                        final driverPhone = driverDoc.data()?['phone'] as String?;
-                        if (driverPhone != null && driverPhone.isNotEmpty) {
-                          final uri = Uri.parse('tel:$driverPhone');
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri);
+          subtitle: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showEditVehicleDialog(vehicle),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit'),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => _showDeleteVehicleDialog(vehicle),
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () async {
+                    // Get driver's phone number from Firestore
+                    if (vehicle.assignedDriverId != null && vehicle.assignedDriverId!.isNotEmpty) {
+                      try {
+                        final driverDoc = await _firestore.collection('users').doc(vehicle.assignedDriverId).get();
+                        if (driverDoc.exists) {
+                          final driverPhone = driverDoc.data()?['phone'] as String?;
+                          if (driverPhone != null && driverPhone.isNotEmpty) {
+                            final uri = Uri.parse('tel:$driverPhone');
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Cannot make phone call')),
+                              );
+                            }
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Cannot make phone call'))
+                              const SnackBar(content: Text('Driver phone number not available')),
                             );
                           }
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Driver phone number not available'))
-                          );
                         }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
                       }
-                    } catch (e) {
+                    } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e'))
+                        const SnackBar(content: Text('No driver assigned to this vehicle')),
                       );
                     }
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No driver assigned to this vehicle'))
-                    );
-                  }
-                },
-                icon: const Icon(Icons.phone_outlined),
-                label: const Text('Call'),
-              ),
-            ],
+                  },
+                  icon: const Icon(Icons.phone_outlined),
+                  label: const Text('Call'),
+                ),
+              ],
+            ),
           ),
         ),
       ]),
@@ -2879,7 +2947,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             onTap: () => _showOwnerStatDetails('Vehicle Details', [
               ListTile(title: Text(vehicle.licensePlate), subtitle: Text('${vehicle.make} ${vehicle.model} (${vehicle.year})')),
               ListTile(title: const Text('Driver'), subtitle: Text(vehicle.driverName ?? 'Unassigned')),
-              ListTile(title: const Text('Status'), subtitle: Text(vehicle.status)),
+              _vehicleDetailStatusTile(vehicle),
               ListTile(title: const Text('Location'), subtitle: Text(vehicle.location ?? 'Unknown')),
             ]),
             child: Text(
@@ -2910,6 +2978,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             title: Text(name),
             subtitle: Text('Email: ${vehicle.assignedDriverEmail ?? 'N/A'}\nVehicle: ${vehicle.licensePlate}'),
           ),
+          _vehicleDetailStatusTile(vehicle),
         ]),
         child: Text(
           name,
@@ -2923,36 +2992,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  // Real-time status badge that updates based on driver alertness
+  // Real-time status badge — Active only while monitoring pushes stats to RTDB; else Offline; Critical when unsafe.
   Widget _buildRealtimeStatusBadge(Vehicle vehicle, [bool isMobile = false]) {
-    if (vehicle.assignedDriverId == null) {
+    if (vehicle.assignedDriverId == null || vehicle.assignedDriverId!.isEmpty) {
       return _buildStatusBadge('Offline', isMobile);
     }
 
     return StreamBuilder<Map<String, dynamic>>(
       stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
       builder: (context, snapshot) {
-        String status = 'Offline';
-
-        // If we have real-time data, determine status based on alertness
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          final stats = snapshot.data!;
-          final alertness = stats['alertness'];
-          final drowsinessDetected = stats['drowsinessDetected'] ?? false;
-
-          if (alertness != null) {
-            final alertnessValue = (alertness as num).toDouble();
-            if (drowsinessDetected || alertnessValue < 50) {
-              status = 'Critical';
-            } else {
-              status = 'Active';
-            }
-          }
-        } else {
-          status = 'Offline';
-        }
-
-        return _buildStatusBadge(status, isMobile);
+        final label = _ownerOperationalStatusLabel(vehicle, snapshot.data);
+        return _buildStatusBadge(label, isMobile);
       },
     );
   }
@@ -3393,38 +3443,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  // Mobile real-time status badge
-  Widget _buildMobileRealtimeStatusBadge(Vehicle vehicle) {
-    if (vehicle.assignedDriverId == null) {
-      return _buildStatusBadge('Offline', true);
-    }
-
-    return StreamBuilder<Map<String, dynamic>>(
-      stream: _monitoringService.getCurrentStats(vehicle.assignedDriverId!),
-      builder: (context, snapshot) {
-        String status = 'Offline';
-
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          final stats = snapshot.data!;
-          final alertness = stats['alertness'];
-          final drowsinessDetected = stats['drowsinessDetected'] ?? false;
-
-          if (alertness != null) {
-            final alertnessValue = (alertness as num).toDouble();
-            if (drowsinessDetected || alertnessValue < 50) {
-              status = 'Critical';
-            } else {
-              status = 'Active';
-            }
-          }
-        } else {
-          status = 'Offline';
-        }
-
-        return _buildStatusBadge(status, true);
-      },
-    );
-  }
+  Widget _buildMobileRealtimeStatusBadge(Vehicle vehicle) => _buildRealtimeStatusBadge(vehicle, true);
 
   // Mobile real-time last update widget
   Widget _buildMobileRealtimeLastUpdate(Vehicle vehicle) {
@@ -3471,6 +3490,94 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         );
       },
     );
+  }
+}
+
+/// Live critical list from RTDB `current_stats` per assigned driver (same rules as driver monitoring).
+class _OwnerDashboardCriticalAlertsCard extends StatefulWidget {
+  const _OwnerDashboardCriticalAlertsCard({
+    required this.vehicles,
+    required this.isMobile,
+    required this.monitoringService,
+    required this.builder,
+  });
+
+  final List<Vehicle> vehicles;
+  final bool isMobile;
+  final MonitoringService monitoringService;
+  final Widget Function(BuildContext context, List<Vehicle> criticalVehicles) builder;
+
+  @override
+  State<_OwnerDashboardCriticalAlertsCard> createState() => _OwnerDashboardCriticalAlertsCardState();
+}
+
+class _OwnerDashboardCriticalAlertsCardState extends State<_OwnerDashboardCriticalAlertsCard> {
+  final Map<String, Map<String, dynamic>> _statsByDriver = {};
+  final List<StreamSubscription<Map<String, dynamic>>> _subscriptions = [];
+
+  Set<String> _driverIds() =>
+      widget.vehicles.map((v) => v.assignedDriverId).whereType<String>().toSet();
+
+  void _resubscribe() {
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
+    setState(() => _statsByDriver.clear());
+
+    for (final id in _driverIds()) {
+      _subscriptions.add(
+        widget.monitoringService.getCurrentStats(id).listen((stats) {
+          if (!mounted) return;
+          setState(() {
+            if (stats.isEmpty) {
+              _statsByDriver.remove(id);
+            } else {
+              _statsByDriver[id] = stats;
+            }
+          });
+        }),
+      );
+    }
+  }
+
+  List<Vehicle> _criticalVehicles() {
+    return widget.vehicles.where((v) {
+      final id = v.assignedDriverId;
+      if (id == null || id.isEmpty) return false;
+      final stats = _statsByDriver[id];
+      if (stats == null || stats.isEmpty) return false;
+      return ownerLiveMetricsCritical(stats);
+    }).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _resubscribe();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OwnerDashboardCriticalAlertsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final a = oldWidget.vehicles.map((v) => v.assignedDriverId).whereType<String>().toSet();
+    final b = widget.vehicles.map((v) => v.assignedDriverId).whereType<String>().toSet();
+    if (a.length != b.length || !a.containsAll(b) || !b.containsAll(a)) {
+      _resubscribe();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(context, _criticalVehicles());
   }
 }
 

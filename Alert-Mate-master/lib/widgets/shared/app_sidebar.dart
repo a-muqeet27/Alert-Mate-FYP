@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../models/user.dart';
-import '../../auth_screen.dart';
-import '../../utils/page_transitions.dart';
+import '../../utils/sign_out_flow.dart';
 
 /// Reusable sidebar widget for all dashboards
 /// Eliminates code duplication across admin, driver, owner, and passenger dashboards
@@ -280,6 +279,15 @@ class AppSidebar extends StatelessWidget {
     );
   }
 
+  Future<void> _handleSignOut(BuildContext context) =>
+      performSignOutAndGoToAuth(context);
+
+  String _profileInitial() {
+    final n = (user?.firstName ?? '').trim();
+    if (n.isEmpty) return 'U';
+    return n[0].toUpperCase();
+  }
+
   Widget _buildUserProfile(BuildContext context, bool collapsed) {
     return Column(
       children: [
@@ -288,92 +296,96 @@ class AppSidebar extends StatelessWidget {
           padding: EdgeInsets.all(collapsed ? 8 : 12),
           child: Column(
             children: [
-              Row(
-                mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: accentColor,
-                    child: Text(
-                      user?.firstName[0].toUpperCase() ?? 'U',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  if (!collapsed) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user?.fullName ?? 'User',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            user?.email ?? 'user@example.com',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              if (!collapsed) ...[
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Sign Out'),
-                        content: const Text('Are you sure you want to sign out? You will need to sign in again to access your dashboard.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                            ),
-                            child: const Text('Sign Out'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      Navigator.pushReplacement(
-                        context,
-                        FadeScalePageRoute(page: const AuthScreen()),
-                      );
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
+              collapsed
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.exit_to_app, size: 18, color: AppColors.primary),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Sign Out',
-                          style: TextStyle(fontSize: 14, color: AppColors.primary),
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: accentColor,
+                          child: Text(
+                            _profileInitial(),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        IconButton(
+                          tooltip: 'Sign Out',
+                          onPressed: () => _handleSignOut(context),
+                          icon: const Icon(Icons.logout_rounded, size: 20, color: AppColors.primary),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: accentColor,
+                          child: Text(
+                            _profileInitial(),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                user?.fullName ?? 'User',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                user?.email ?? 'user@example.com',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Sign Out',
+                          onPressed: () => _handleSignOut(context),
+                          icon: const Icon(Icons.logout_rounded, size: 20, color: AppColors.primary),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                         ),
                       ],
                     ),
+              if (!collapsed) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.email_outlined, size: 18, color: AppColors.primary),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'support@alertmate.app',
+                          style: TextStyle(fontSize: 13, color: AppColors.primary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

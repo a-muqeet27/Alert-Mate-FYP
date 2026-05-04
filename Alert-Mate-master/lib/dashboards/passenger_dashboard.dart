@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:math';
 import '../models/user.dart';
 import '../models/emergency_contact.dart';
-import '../auth_screen.dart';
+import '../utils/sign_out_flow.dart';
 import '../widgets/shared/app_sidebar.dart';
 import '../widgets/shared/live_map.dart';
 import '../constants/app_colors.dart';
@@ -252,17 +252,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                widget.user.firstName[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+            child: IconButton(
+              tooltip: 'Sign out',
+              icon: Icon(Icons.logout_rounded, color: AppColors.primary, size: 26),
+              onPressed: () => performSignOutAndGoToAuth(context),
             ),
           ),
         ],
@@ -273,7 +266,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             : Row(
                 children: [
                   AppSidebar(
-                    role: 'passenger',
+                    role: 'Passenger',
                     user: widget.user,
                     selectedIndex: _selectedIndex,
                     onMenuItemTap: (index) => setState(() => _selectedIndex = index),

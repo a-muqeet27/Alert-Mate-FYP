@@ -12,8 +12,10 @@ import '../services/driver_document_submission_service.dart';
 import '../models/driver_document_submission.dart';
 import '../services/owner_vehicle_submission_service.dart';
 import '../models/owner_vehicle_submission.dart';
+import '../utils/sign_out_flow.dart';
 import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
+import '../widgets/dashboard_detail_dialog_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -138,17 +140,10 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                widget.user.firstName[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+            child: IconButton(
+              tooltip: 'Sign out',
+              icon: Icon(Icons.logout_rounded, color: AppColors.primary, size: 26),
+              onPressed: () => performSignOutAndGoToAuth(context),
             ),
           ),
         ],
@@ -1246,6 +1241,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
+                    color: AppColors.background,
                     border: Border.all(color: Colors.grey[300]!),
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -1299,6 +1295,8 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: DashboardDetailDialogTheme.surface,
+        surfaceTintColor: Colors.transparent,
         title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1447,6 +1445,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12),
                               decoration: BoxDecoration(
+                                color: AppColors.background,
                                 border: Border.all(color: Colors.grey[300]!),
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -1591,9 +1590,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1772,6 +1771,8 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: DashboardDetailDialogTheme.surface,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(name.isNotEmpty ? name : 'User Details'),
         content: Column(
@@ -1832,6 +1833,8 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
+            backgroundColor: DashboardDetailDialogTheme.surface,
+            surfaceTintColor: Colors.transparent,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             title: const Row(
               children: [
@@ -2397,38 +2400,47 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                               onChanged: (value) => setState(() => _vehicleSearchQuery = value.trim()),
                             ),
                             const SizedBox(height: 12),
-                            DropdownButtonFormField<String>(
-                              isExpanded: true,
-                              value: _vehicleTypeFilter,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    value: _vehicleTypeFilter,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      isDense: true,
+                                    ),
+                                    items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
+                                        .map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis)))
+                                        .toList(),
+                                    onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
+                                  ),
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                isDense: true,
-                              ),
-                              items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                                  .map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis)))
-                                  .toList(),
-                              onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
-                            ),
-                            const SizedBox(height: 12),
-                            DropdownButtonFormField<String>(
-                              isExpanded: true,
-                              value: _vehicleStatusFilter,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    value: _vehicleStatusFilter,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      isDense: true,
+                                    ),
+                                    items: ['All Statuses', 'Active', 'Offline', 'Critical']
+                                        .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
+                                        .toList(),
+                                    onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
+                                  ),
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                isDense: true,
-                              ),
-                              items: ['All Statuses', 'Active', 'Offline', 'Critical']
-                                  .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
-                                  .toList(),
-                              onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
+                              ],
                             ),
                           ],
                         )
@@ -2469,6 +2481,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8),
                                 decoration: BoxDecoration(
+                                  color: AppColors.background,
                                   border: Border.all(color: Colors.grey[300]!),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -2489,6 +2502,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8),
                                 decoration: BoxDecoration(
+                                  color: AppColors.background,
                                   border: Border.all(color: Colors.grey[300]!),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -2908,6 +2922,8 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: DashboardDetailDialogTheme.surface,
+        surfaceTintColor: Colors.transparent,
         scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(title.isNotEmpty ? title : 'Vehicle Details'),
@@ -2961,9 +2977,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
