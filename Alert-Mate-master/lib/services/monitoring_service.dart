@@ -317,4 +317,48 @@ class MonitoringService {
       print('❌ MonitoringService.clearCurrentStats error: $e');
     }
   }
+
+  /// Same thresholds as driver / owner / admin dashboards for RTDB `current_stats`.
+  static bool currentStatsCritical(Map<String, dynamic> stats) {
+    final alertness = stats['alertness'];
+    final drowsinessDetected = stats['drowsinessDetected'] == true;
+    if (alertness == null) return false;
+    final alertnessValue = (alertness as num).toDouble();
+    return drowsinessDetected || alertnessValue < 76;
+  }
+
+  static final Map<String, dynamic> inactiveVehicleLiveSummary = {
+    'active': false,
+    'alertness': 0,
+    'critical': false,
+  };
+
+  /// One RTDB listener per driver: active session + fresh heartbeat, alertness, critical.
+  Stream<Map<String, dynamic>> watchVehicleLiveSummary(String? driverId) {
+    if (driverId == null || driverId.isEmpty) {
+      return Stream.value(Map<String, dynamic>.from(inactiveVehicleLiveSummary));
+    }
+    return _database.child('drivers').child(driverId).onValue.map((event) {
+      final raw = event.snapshot.value;
+      if (raw == null || raw is! Map) {
+        return Map<String, dynamic>.from(inactiveVehicleLiveSummary);
+      }
+      final map = Map<String, dynamic>.from(raw as Map);
+      final active = _driverNodeHasRealtimeActiveMonitoring(map);
+      Map<String, dynamic> stats = {};
+      final cs = map['current_stats'];
+      if (cs is Map) {
+        stats = Map<String, dynamic>.from(cs as Map);
+      }
+      final critical = active && currentStatsCritical(stats);
+      int alertness = 0;
+      final a = stats['alertness'];
+      if (a is num) alertness = a.round().clamp(0, 100);
+      return {
+        'active': active,
+        'alertness': alertness,
+        'critical': critical,
+      };
+    });
+  }
 }

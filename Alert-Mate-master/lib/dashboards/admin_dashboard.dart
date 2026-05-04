@@ -21,13 +21,139 @@ import '../widgets/dashboard_detail_dialog_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/monitoring_service.dart';
 
-/// Same thresholds as driver / owner live monitoring (RTDB `current_stats`).
-bool adminLiveMetricsCritical(Map<String, dynamic> stats) {
-  final alertness = stats['alertness'];
-  final drowsinessDetected = stats['drowsinessDetected'] == true;
-  if (alertness == null) return false;
-  final alertnessValue = (alertness as num).toDouble();
-  return drowsinessDetected || alertnessValue < 76;
+bool adminLiveMetricsCritical(Map<String, dynamic> stats) =>
+    MonitoringService.currentStatsCritical(stats);
+
+String _adminDriverSetFingerprint(List<Map<String, dynamic>> vehicles) {
+  final ids = vehicles
+      .map((v) => v['assignedDriverId'] as String? ?? '')
+      .where((id) => id.isNotEmpty)
+      .toSet()
+      .toList()
+    ..sort();
+  return ids.join('|');
+}
+
+String _adminVehicleEffectiveStatus(
+  Map<String, dynamic> vehicle,
+  Map<String, Map<String, dynamic>> liveByDriver,
+) {
+  final assignedDriverId = vehicle['assignedDriverId'] as String?;
+  final hasDriver = assignedDriverId != null && assignedDriverId.isNotEmpty;
+  if (!hasDriver) return 'Offline';
+  final live = liveByDriver[assignedDriverId!] ?? MonitoringService.inactiveVehicleLiveSummary;
+  final active = live['active'] == true;
+  final critical = live['critical'] == true;
+  if (active && critical) return 'Critical';
+  if (active) return 'Active';
+  return 'Offline';
+}
+
+int _adminVehicleEffectiveAlertness(
+  Map<String, dynamic> vehicle,
+  Map<String, Map<String, dynamic>> liveByDriver,
+) {
+  final assignedDriverId = vehicle['assignedDriverId'] as String?;
+  if (assignedDriverId == null || assignedDriverId.isEmpty) return 0;
+  final live = liveByDriver[assignedDriverId] ?? MonitoringService.inactiveVehicleLiveSummary;
+  if (live['active'] != true) return 0;
+  final a = live['alertness'];
+  if (a is num) return a.round().clamp(0, 100);
+  return 0;
+}
+
+List<Map<String, dynamic>> _adminFilterVehiclesByLiveStatus(
+  List<Map<String, dynamic>> vehicles,
+  String filter,
+  Map<String, Map<String, dynamic>> liveByDriver,
+) {
+  if (filter == 'All Statuses') return vehicles;
+  return vehicles
+      .where((v) =>
+          _adminVehicleEffectiveStatus(v, liveByDriver).toLowerCase() ==
+          filter.toLowerCase())
+      .toList();
+}
+
+typedef _VehicleLiveTableBuilder = Widget Function(
+  BuildContext context,
+  Map<String, Map<String, dynamic>> liveByDriver,
+);
+
+class _VehicleLiveSubscriptionHost extends StatefulWidget {
+  const _VehicleLiveSubscriptionHost({
+    required this.vehicles,
+    required this.monitoringService,
+    required this.builder,
+  });
+
+  final List<Map<String, dynamic>> vehicles;
+  final MonitoringService monitoringService;
+  final _VehicleLiveTableBuilder builder;
+
+  @override
+  State<_VehicleLiveSubscriptionHost> createState() => _VehicleLiveSubscriptionHostState();
+}
+
+class _VehicleLiveSubscriptionHostState extends State<_VehicleLiveSubscriptionHost> {
+  final Map<String, StreamSubscription<Map<String, dynamic>>> _subscriptions = {};
+  Map<String, Map<String, dynamic>> _liveByDriver = {};
+
+  void _syncSubscriptions() {
+    final needed = widget.vehicles
+        .map((v) => v['assignedDriverId'] as String?)
+        .whereType()
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    var changed = false;
+    for (final id in _subscriptions.keys.toList()) {
+      if (!needed.contains(id)) {
+        _subscriptions[id]!.cancel();
+        _subscriptions.remove(id);
+        _liveByDriver.remove(id);
+        changed = true;
+      }
+    }
+    for (final id in needed) {
+      if (_subscriptions.containsKey(id)) continue;
+      _subscriptions[id] = widget.monitoringService.watchVehicleLiveSummary(id).listen((data) {
+        if (!mounted) return;
+        setState(() {
+          _liveByDriver = {..._liveByDriver, id: data};
+        });
+      });
+    }
+    if (changed && mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSubscriptions();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VehicleLiveSubscriptionHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_adminDriverSetFingerprint(widget.vehicles) !=
+        _adminDriverSetFingerprint(oldWidget.vehicles)) {
+      _syncSubscriptions();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subscriptions.values) {
+      s.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(context, _liveByDriver);
+  }
 }
 
 class AdminDashboard extends StatefulWidget {
@@ -2581,18 +2707,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           }).toList();
         }
 
-        // Apply status filter
-        if (_vehicleStatusFilter != 'All Statuses') {
-          vehicles = vehicles.where((v) {
-            final status = (v['status'] as String? ?? 'Offline');
-            if (_vehicleStatusFilter == 'Active') {
-              final assignedDriverId = v['assignedDriverId'] as String?;
-              return assignedDriverId != null && assignedDriverId.isNotEmpty;
-            }
-            return status.toLowerCase() == _vehicleStatusFilter.toLowerCase();
-          }).toList();
-        }
-
         // Apply search
         if (_vehicleSearchQuery.isNotEmpty) {
           final query = _vehicleSearchQuery.toLowerCase();
@@ -2621,46 +2735,152 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           );
         }
 
-        return Column(
-          children: vehicles.map((v) {
-            final make = v['make'] as String? ?? '';
-            final model = v['model'] as String? ?? '';
-            final type = v['type'] as String? ?? 'Car';
-            final icon = type == 'Bus'
-                ? Icons.directions_bus
-                : type == 'Truck'
-                    ? Icons.local_shipping
-                    : type == 'Van'
-                        ? Icons.airport_shuttle
-                        : type == 'Rickshaw'
-                            ? Icons.electric_rickshaw
-                            : Icons.directions_car;
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                child: Icon(icon, color: AppColors.primary),
-              ),
-              title: Text((v['licensePlate'] as String? ?? '').isNotEmpty ? (v['licensePlate'] as String) : 'Unknown Plate'),
-              subtitle: Text('$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'Unknown Vehicle'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showVehicleQuickDetails(v),
+        return _VehicleLiveSubscriptionHost(
+          vehicles: vehicles,
+          monitoringService: _monitoringService,
+          builder: (context, liveByDriver) {
+            final shown = _adminFilterVehiclesByLiveStatus(
+              vehicles,
+              _vehicleStatusFilter,
+              liveByDriver,
             );
-          }).toList(),
+            if (shown.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(40),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No vehicles match the current filters',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 900;
+                if (narrow) {
+                  return Column(
+                    children: shown
+                        .map((v) => _buildMobileVehicleCard(v, liveByDriver))
+                        .toList(),
+                  );
+                }
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 900),
+                    child: Table(
+                      columnWidths: const {
+                        0: FlexColumnWidth(2),
+                        1: FlexColumnWidth(1.5),
+                        2: FlexColumnWidth(1),
+                        3: FlexColumnWidth(1.5),
+                        4: FlexColumnWidth(1.2),
+                        5: FlexColumnWidth(1.2),
+                        6: FlexColumnWidth(1),
+                      },
+                      children: [
+                        TableRow(
+                          decoration: BoxDecoration(
+                            border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                          ),
+                          children: const [
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text('Vehicle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text('License Plate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text('Type', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text('Driver', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text('Alertness', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                            ),
+                          ],
+                        ),
+                        ...shown.map((v) => _buildVehicleTableDataRow(v, liveByDriver)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildMobileVehicleCard(Map<String, dynamic> vehicle) {
+  TableRow _buildVehicleTableDataRow(
+    Map<String, dynamic> v,
+    Map<String, Map<String, dynamic>> liveByDriver,
+  ) {
+    final make = v['make'] as String? ?? '';
+    final model = v['model'] as String? ?? '';
+    final plate = v['licensePlate'] as String? ?? '';
+    final type = v['type'] as String? ?? 'Car';
+    final driverName = v['driverName'] as String?;
+    final assignedDriverId = v['assignedDriverId'] as String?;
+    final hasDriver = assignedDriverId != null && assignedDriverId.isNotEmpty;
+    final effective = _adminVehicleEffectiveStatus(v, liveByDriver);
+    final alertness = _adminVehicleEffectiveAlertness(v, liveByDriver);
+    final liveActive =
+        hasDriver && (liveByDriver[assignedDriverId!]?['active'] == true);
+
+    return TableRow(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+      ),
+      children: [
+        _buildTableCell('$make $model'.trim()),
+        _buildTableCell(plate),
+        _buildVehicleTypeBadge(type),
+        _buildTableCell(hasDriver ? (driverName ?? 'Assigned') : 'Unassigned'),
+        _buildVehicleStatusBadgeLive(effective),
+        _buildAlertnessBadgeLive(alertness, liveActive),
+        _buildVehicleActionsCell(v),
+      ],
+    );
+  }
+
+  Widget _buildMobileVehicleCard(
+    Map<String, dynamic> vehicle,
+    Map<String, Map<String, dynamic>> liveByDriver,
+  ) {
     final make = vehicle['make'] as String? ?? '';
     final model = vehicle['model'] as String? ?? '';
     final plate = vehicle['licensePlate'] as String? ?? '';
     final type = vehicle['type'] as String? ?? 'Car';
     final driverName = vehicle['driverName'] as String?;
-    final status = vehicle['status'] as String? ?? 'Offline';
-    final alertness = vehicle['alertness'] as int? ?? 0;
     final assignedDriverId = vehicle['assignedDriverId'] as String?;
     final hasDriver = assignedDriverId != null && assignedDriverId.isNotEmpty;
+    final effective = _adminVehicleEffectiveStatus(vehicle, liveByDriver);
+    final alertness = _adminVehicleEffectiveAlertness(vehicle, liveByDriver);
+    final liveActive =
+        hasDriver && (liveByDriver[assignedDriverId!]?['active'] == true);
     final ownerEmail = vehicle['ownerEmail'] as String? ?? '';
 
     final typeIcons = {
@@ -2672,9 +2892,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     };
 
     Color statusColor;
-    if (hasDriver) {
+    if (effective == 'Active') {
       statusColor = const Color(0xFF4CAF50);
-    } else if (status.toLowerCase() == 'critical') {
+    } else if (effective == 'Critical') {
       statusColor = Colors.red;
     } else {
       statusColor = Colors.grey;
@@ -2684,103 +2904,112 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       onTap: () => _showVehicleQuickDetails(vehicle),
       borderRadius: BorderRadius.circular(10),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: statusColor.withOpacity(0.15),
-                child: Icon(typeIcons[type] ?? Icons.directions_car, size: 20, color: statusColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'Unknown Vehicle',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(plate, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  hasDriver ? 'Active' : status,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF607D8B),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(type, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(width: 12),
-              Icon(Icons.person, size: 14, color: Colors.grey[500]),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  hasDriver ? (driverName ?? 'Assigned') : 'Unassigned',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const Spacer(),
-              if (alertness > 0) ...[
-                Icon(
-                  Icons.speed,
-                  size: 14,
-                  color: alertness >= 70 ? const Color(0xFF4CAF50) : alertness >= 50 ? const Color(0xFFFF9800) : Colors.red,
-                ),
-                const SizedBox(width: 4),
-                Text('$alertness%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-              ],
-            ],
-          ),
-          if (ownerEmail.isNotEmpty) ...[
-            const SizedBox(height: 8),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
-                Icon(Icons.email_outlined, size: 14, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(ownerEmail, style: TextStyle(fontSize: 12, color: Colors.grey[600]), overflow: TextOverflow.ellipsis),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: statusColor.withValues(alpha: 0.15),
+                  child: Icon(typeIcons[type] ?? Icons.directions_car, size: 20, color: statusColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'Unknown Vehicle',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(plate, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    effective,
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF607D8B),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(type, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 12),
+                Icon(Icons.person, size: 14, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    hasDriver ? (driverName ?? 'Assigned') : 'Unassigned',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Spacer(),
+                if (liveActive) ...[
+                  Icon(
+                    Icons.speed,
+                    size: 14,
+                    color: alertness >= 70
+                        ? const Color(0xFF4CAF50)
+                        : alertness >= 50
+                            ? const Color(0xFFFF9800)
+                            : Colors.red,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('$alertness%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ] else ...[
+                  Icon(Icons.speed, size: 14, color: Colors.grey[400]),
+                  const SizedBox(width: 4),
+                  Text('N/A', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                ],
+              ],
+            ),
+            if (ownerEmail.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.email_outlined, size: 14, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(ownerEmail, style: TextStyle(fontSize: 12, color: Colors.grey[600]), overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              'Tap for details',
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
           ],
-          const SizedBox(height: 8),
-          Text(
-            'Tap for details',
-            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-          ),
-        ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _buildVehicleTypeBadge(String type) {
@@ -2810,18 +3039,14 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildVehicleStatusBadge(String status, bool hasDriver) {
+  Widget _buildVehicleStatusBadgeLive(String effectiveStatus) {
     Color color;
-    String displayStatus;
-    if (hasDriver) {
+    if (effectiveStatus == 'Active') {
       color = const Color(0xFF4CAF50);
-      displayStatus = 'Active';
-    } else if (status.toLowerCase() == 'critical') {
+    } else if (effectiveStatus == 'Critical') {
       color = Colors.red;
-      displayStatus = 'Critical';
     } else {
       color = Colors.grey[500]!;
-      displayStatus = status;
     }
 
     return Padding(
@@ -2833,7 +3058,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
-          displayStatus,
+          effectiveStatus,
           style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
           textAlign: TextAlign.center,
         ),
@@ -2841,18 +3066,32 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildAlertnessBadge(int alertness) {
+  Widget _buildAlertnessBadgeLive(int alertness, bool liveActive) {
+    if (!liveActive) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Text(
+          'N/A',
+          style: TextStyle(fontSize: 13, color: Colors.grey[400], fontWeight: FontWeight.w500),
+        ),
+      );
+    }
+    return _buildAlertnessBadge(alertness, liveSession: true);
+  }
+
+  Widget _buildAlertnessBadge(int alertness, {bool liveSession = false}) {
     Color color;
     if (alertness >= 70) {
       color = const Color(0xFF4CAF50);
     } else if (alertness >= 50) {
       color = const Color(0xFFFF9800);
-    } else if (alertness > 0) {
+    } else if (alertness > 0 || liveSession) {
       color = Colors.red;
     } else {
       color = Colors.grey[400]!;
     }
 
+    final showPct = liveSession || alertness > 0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       child: Row(
@@ -2868,7 +3107,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           ),
           const SizedBox(width: 6),
           Text(
-            alertness > 0 ? '$alertness%' : 'N/A',
+            showPct ? '$alertness%' : 'N/A',
             style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w500),
           ),
         ],
@@ -2928,8 +3167,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         }
       }
     } catch (_) {}
-    final status = vehicle['status'] as String? ?? 'Offline';
-    final alertness = vehicle['alertness']?.toString() ?? '0';
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2953,9 +3190,35 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               const SizedBox(height: 10),
               _buildQuickDetailCardRow(Icons.alternate_email, 'Driver Email', driverEmail),
               const SizedBox(height: 10),
-              _buildQuickDetailCardRow(Icons.info_outline, 'Status', status),
-              const SizedBox(height: 10),
-              _buildQuickDetailCardRow(Icons.speed, 'Alertness', '$alertness%'),
+              if (driverId != null && driverId.isNotEmpty)
+                StreamBuilder<Map<String, dynamic>>(
+                  stream: _monitoringService.watchVehicleLiveSummary(driverId),
+                  initialData: Map<String, dynamic>.from(MonitoringService.inactiveVehicleLiveSummary),
+                  builder: (context, snap) {
+                    final live = snap.data ?? MonitoringService.inactiveVehicleLiveSummary;
+                    final liveMap = <String, Map<String, dynamic>>{driverId: live};
+                    final st = _adminVehicleEffectiveStatus(vehicle, liveMap);
+                    final al = _adminVehicleEffectiveAlertness(vehicle, liveMap);
+                    final liveActive = live['active'] == true;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildQuickDetailCardRow(Icons.info_outline, 'Status', st),
+                        const SizedBox(height: 10),
+                        _buildQuickDetailCardRow(
+                          Icons.speed,
+                          'Alertness',
+                          liveActive ? '$al%' : 'N/A',
+                        ),
+                      ],
+                    );
+                  },
+                )
+              else ...[
+                _buildQuickDetailCardRow(Icons.info_outline, 'Status', 'Offline'),
+                const SizedBox(height: 10),
+                _buildQuickDetailCardRow(Icons.speed, 'Alertness', 'N/A'),
+              ],
             ],
           ),
         ),
