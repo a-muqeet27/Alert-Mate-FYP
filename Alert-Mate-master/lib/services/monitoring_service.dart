@@ -8,6 +8,7 @@ class MonitoringService {
     databaseURL: 'https://alertmate-26d10-default-rtdb.asia-southeast1.firebasedatabase.app',
   ).ref();
   String? _currentSessionId;
+  static const Duration _activeHeartbeatGrace = Duration(seconds: 20);
 
   // Start a new monitoring session
   Future<String> startMonitoringSession(String driverId) async {
@@ -254,23 +255,49 @@ class MonitoringService {
     }
   }
 
+  static bool monitoringSessionsHasActive(dynamic value) {
+    if (value == null || value is! Map) return false;
+    for (final session in value.values) {
+      if (session is Map && session['status']?.toString() == 'active') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _isStatsHeartbeatFresh(dynamic value) {
+    if (value == null || value is! Map) return false;
+    final raw = value['lastUpdate'];
+    if (raw is! num) return false;
+    final lastUpdate = DateTime.fromMillisecondsSinceEpoch(raw.toInt());
+    final age = DateTime.now().difference(lastUpdate);
+    return age <= _activeHeartbeatGrace;
+  }
+
+  static bool _driverNodeHasRealtimeActiveMonitoring(dynamic value) {
+    if (value == null || value is! Map) return false;
+    final sessionActive = monitoringSessionsHasActive(value['monitoring_sessions']);
+    if (!sessionActive) return false;
+    return _isStatsHeartbeatFresh(value['current_stats']);
+  }
+
+  Stream<bool> watchHasActiveMonitoringSession(String driverId) {
+    return _database
+        .child('drivers')
+        .child(driverId)
+        .onValue
+        .map((event) => _driverNodeHasRealtimeActiveMonitoring(event.snapshot.value));
+  }
+
   // Check if a driver has an active monitoring session (one-time read)
   Future<bool> hasActiveSession(String driverId) async {
     try {
       final snapshot = await _database
           .child('drivers')
           .child(driverId)
-          .child('current_stats')
           .get()
           .timeout(const Duration(seconds: 5));
-
-      if (!snapshot.exists || snapshot.value == null) {
-        return false;
-      }
-
-      final stats = snapshot.value as Map<dynamic, dynamic>?;
-      // If current_stats exists and has data, there's an active session
-      return stats != null && stats.isNotEmpty;
+      return _driverNodeHasRealtimeActiveMonitoring(snapshot.value);
     } catch (e) {
       print('Error checking active session for driver $driverId: $e');
       return false;
