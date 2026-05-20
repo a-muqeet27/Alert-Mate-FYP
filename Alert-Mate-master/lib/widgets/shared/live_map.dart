@@ -26,13 +26,18 @@ class LiveMap extends StatefulWidget {
   /// Optional list of driver IDs to display. If null, shows all non-offline drivers.
   final List<String>? filterDriverIds;
 
-  /// Map height (required since it's inside a ScrollView)
+  /// Map area height when the parent does not bound total height (e.g. in a scroll view).
+  /// When the parent supplies a finite max height, the map fills the space below the header.
   final double height;
+
+  /// When false, only the map is shown (use if the parent already provides a title).
+  final bool showHeader;
 
   const LiveMap({
     super.key,
     this.filterDriverIds,
     this.height = 450,
+    this.showHeader = true,
   });
 
   @override
@@ -128,148 +133,183 @@ class _LiveMapState extends State<LiveMap> with TickerProviderStateMixin {
     final isMobile = MediaQuery.of(context).size.width < 768;
     final alertCount = _drivers.where((d) => d.drowsinessAlert).length;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tightHeight = constraints.hasBoundedHeight &&
+            constraints.maxHeight.isFinite &&
+            constraints.maxHeight > 0;
+
+        final mapRadius = widget.showHeader
+            ? const BorderRadius.only(
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              )
+            : BorderRadius.circular(16);
+
+        Widget mapArea = ClipRRect(
+          borderRadius: mapRadius,
+          child: _buildMapStack(isMobile),
+        );
+
+        if (!tightHeight) {
+          mapArea = SizedBox(height: widget.height, child: mapArea);
+        }
+
+        final children = <Widget>[
+          if (widget.showHeader) _buildHeader(isMobile, alertCount),
+          if (tightHeight) Expanded(child: mapArea) else mapArea,
+        ];
+
+        return Container(
+          height: tightHeight ? constraints.maxHeight : null,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Padding(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            child: Row(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: tightHeight ? MainAxisSize.max : MainAxisSize.min,
+            children: children,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader(bool isMobile, int alertCount) {
+    final compact = MediaQuery.of(context).size.width < 520;
+
+    final titleBlock = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: EdgeInsets.all(compact ? 8 : 10),
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.map_outlined,
+            color: AppColors.primary,
+            size: isMobile ? 20 : 24,
+          ),
+        ),
+        SizedBox(width: isMobile ? 12 : 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Live Driver Tracking',
+                style: TextStyle(
+                  fontSize: isMobile ? 16 : 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Real-time driver locations on map',
+                style: TextStyle(
+                  fontSize: isMobile ? 12 : 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final badges = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      children: [
+        _buildCountBadge(
+          _drivers.length.toString(),
+          'Active',
+          AppColors.success,
+          isMobile,
+        ),
+        if (alertCount > 0)
+          _buildCountBadge(
+            alertCount.toString(),
+            'Alert',
+            AppColors.danger,
+            isMobile,
+          ),
+      ],
+    );
+
+    return Padding(
+      padding: EdgeInsets.all(isMobile ? 14 : 24),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.map_outlined,
-                    color: AppColors.primary,
-                    size: isMobile ? 20 : 24,
-                  ),
-                ),
-                SizedBox(width: isMobile ? 12 : 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Live Driver Tracking',
-                        style: TextStyle(
-                          fontSize: isMobile ? 16 : 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Real-time driver locations on map',
-                        style: TextStyle(
-                          fontSize: isMobile ? 12 : 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Driver count badges
-                Row(
-                  children: [
-                    _buildCountBadge(
-                      _drivers.length.toString(),
-                      'Active',
-                      AppColors.success,
-                      isMobile,
-                    ),
-                    if (alertCount > 0) ...[
-                      const SizedBox(width: 8),
-                      _buildCountBadge(
-                        alertCount.toString(),
-                        'Alert',
-                        AppColors.danger,
-                        isMobile,
-                      ),
-                    ],
-                  ],
-                ),
+                titleBlock,
+                const SizedBox(height: 10),
+                badges,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: titleBlock),
+                badges,
               ],
             ),
+    );
+  }
+
+  Widget _buildMapStack(bool isMobile) {
+    if (_isLoading) {
+      return _buildLoadingState();
+    }
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _defaultCenter,
+            initialZoom: _defaultZoom,
+            onTap: (_, __) {
+              if (_selectedDriverId != null) {
+                setState(() => _selectedDriverId = null);
+              }
+            },
           ),
-
-          // Map
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(16),
+          children: [
+            TileLayer(
+              urlTemplate:
+                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.alertmate.app',
+              maxZoom: 19,
             ),
-            child: SizedBox(
-              height: widget.height,
-              child: _isLoading
-                  ? _buildLoadingState()
-                  : Stack(
-                      children: [
-                        // The map
-                        FlutterMap(
-                          mapController: _mapController,
-                          options: MapOptions(
-                            initialCenter: _defaultCenter,
-                            initialZoom: _defaultZoom,
-                            onTap: (_, __) {
-                              if (_selectedDriverId != null) {
-                                setState(() => _selectedDriverId = null);
-                              }
-                            },
-                          ),
-                          children: [
-                            // OpenStreetMap tile layer
-                            TileLayer(
-                              urlTemplate:
-                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.alertmate.app',
-                              maxZoom: 19,
-                            ),
-                            // Driver markers
-                            MarkerLayer(
-                              markers: _drivers
-                                  .map((driver) => _buildMarker(driver))
-                                  .toList(),
-                            ),
-                          ],
-                        ),
-
-                        // Selected driver popup card
-                        if (_selectedDriver != null)
-                          _buildDriverInfoCard(
-                              _selectedDriver!, isMobile),
-
-                        // Legend overlay
-                        Positioned(
-                          bottom: isMobile ? 12 : 16,
-                          left: isMobile ? 12 : 16,
-                          child: _buildLegend(isMobile),
-                        ),
-
-                        // Empty state overlay
-                        if (_drivers.isEmpty && !_isLoading)
-                          _buildEmptyState(isMobile),
-                      ],
-                    ),
+            MarkerLayer(
+              markers:
+                  _drivers.map((driver) => _buildMarker(driver)).toList(),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+        if (_selectedDriver != null)
+          _buildDriverInfoCard(_selectedDriver!, isMobile),
+        Positioned(
+          bottom: isMobile ? 12 : 16,
+          left: isMobile ? 12 : 16,
+          child: _buildLegend(isMobile),
+        ),
+        if (_drivers.isEmpty && !_isLoading) _buildEmptyState(isMobile),
+      ],
     );
   }
 
@@ -627,9 +667,8 @@ class _LiveMapState extends State<LiveMap> with TickerProviderStateMixin {
   }
 
   Widget _buildLoadingState() {
-    return Container(
-      height: widget.height,
-      color: Colors.grey[50],
+    return ColoredBox(
+      color: Colors.grey.shade50,
       child: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

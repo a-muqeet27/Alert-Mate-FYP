@@ -47,6 +47,8 @@ class AppSidebar extends StatelessWidget {
   final bool isCollapsible;
   final Color accentColor;
   final Color accentLightColor;
+  /// When true, sign out navigates to [AdminAuthScreen] instead of mobile [AuthScreen].
+  final bool adminPortal;
 
   const AppSidebar({
     Key? key,
@@ -58,6 +60,7 @@ class AppSidebar extends StatelessWidget {
     this.isCollapsible = true,
     this.accentColor = AppColors.primary,
     this.accentLightColor = AppColors.primaryLight,
+    this.adminPortal = false,
   }) : super(key: key);
 
   @override
@@ -70,26 +73,53 @@ class AppSidebar extends StatelessWidget {
         final shouldCollapse = isCollapsible && !isInDrawer && MediaQuery.of(context).size.width < 768;
         
         return Container(
-          width: shouldCollapse ? 80 : (isInDrawer ? null : 290),
+          width: shouldCollapse ? 80 : (isInDrawer ? null : 280),
           color: AppColors.surface,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(shouldCollapse),
-              const SizedBox(height: 16),
-              ...menuItems.asMap().entries.map((entry) {
-                return _buildMenuItem(
-                  entry.value,
-                  entry.key,
-                  shouldCollapse,
-                );
-              }).toList(),
-              const Spacer(),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  children: _buildMenuEntries(shouldCollapse),
+                ),
+              ),
               _buildUserProfile(context, shouldCollapse),
             ],
           ),
         );
       },
+    );
+  }
+
+  List<Widget> _buildMenuEntries(bool collapsed) {
+    final widgets = <Widget>[];
+    String? lastSection;
+    for (var i = 0; i < menuItems.length; i++) {
+      final item = menuItems[i];
+      final section = item.section?.trim();
+      if (!collapsed && section != null && section.isNotEmpty && section != lastSection) {
+        widgets.add(_buildSectionHeader(section));
+        lastSection = section;
+      }
+      widgets.add(_buildMenuItem(item, i, collapsed));
+    }
+    return widgets;
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 16, 2),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+          color: AppColors.textSecondary,
+        ),
+      ),
     );
   }
 
@@ -106,7 +136,7 @@ class AppSidebar extends StatelessWidget {
 
   Widget _buildHeader(bool collapsed) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(collapsed ? 12 : 24, 32, collapsed ? 12 : 24, 16),
+      padding: EdgeInsets.fromLTRB(collapsed ? 12 : 20, 20, collapsed ? 12 : 20, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -312,8 +342,12 @@ class AppSidebar extends StatelessWidget {
     );
   }
 
-  Future<void> _handleSignOut(BuildContext context) =>
-      performSignOutAndGoToAuth(context);
+  Future<void> _handleSignOut(BuildContext context) {
+    if (adminPortal) {
+      return performSignOutAndGoToAdminAuth(context);
+    }
+    return performSignOutAndGoToAuth(context);
+  }
 
   String _profileInitial() {
     final n = (user?.firstName ?? '').trim();
@@ -441,11 +475,14 @@ class AppSidebar extends StatelessWidget {
 class MenuItem {
   final IconData icon;
   final String title;
+  /// Optional section label shown above the first item in a group.
+  final String? section;
   final Stream<int>? unreadBadgeStream;
 
   const MenuItem({
     required this.icon,
     required this.title,
+    this.section,
     this.unreadBadgeStream,
   });
 }

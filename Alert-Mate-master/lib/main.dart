@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'screens/public_live_tracking_screen.dart';
-import 'constants/app_colors.dart';
+import 'constants/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,48 +40,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Alert Mate',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-        scaffoldBackgroundColor: AppColors.background,
-        canvasColor: AppColors.background,
-        dialogTheme: DialogThemeData(
-          backgroundColor: AppColors.background,
-          surfaceTintColor: Colors.transparent,
-        ),
-        popupMenuTheme: PopupMenuThemeData(
-          color: AppColors.background,
-          surfaceTintColor: Colors.transparent,
-        ),
-        dropdownMenuTheme: DropdownMenuThemeData(
-          menuStyle: MenuStyle(
-            backgroundColor: WidgetStateProperty.all(AppColors.background),
-            surfaceTintColor: WidgetStateProperty.all(Colors.transparent),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: AppColors.background,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: AppColors.primary, width: 1.5),
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
-        textSelectionTheme: TextSelectionThemeData(
-          cursorColor: AppColors.primary,
-          selectionColor: AppColors.primary.withOpacity(0.3),
-          selectionHandleColor: AppColors.primary,
-        ),
-      ),
+      theme: buildAlertMateTheme(),
       home: const SplashScreen(),
       // Route handling for tracking links
       onGenerateRoute: (settings) {

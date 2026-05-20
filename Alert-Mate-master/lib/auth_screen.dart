@@ -10,7 +10,6 @@ import 'services/firebase_auth_service.dart';
 import 'dashboards/driver_dashboard.dart';
 import 'dashboards/passenger_dashboard.dart';
 import 'dashboards/owner_dashboard.dart';
-import 'dashboards/admin_dashboard.dart';
 import 'screens/driver_documents_gate_screen.dart';
 import 'utils/page_transitions.dart';
 import 'constants/app_colors.dart';
@@ -36,6 +35,7 @@ class _AuthScreenState extends State<AuthScreen>
   // ... all your existing variables stay the same ...
   bool isSignIn = true;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   int _selectedDashboard = 0;
   late AnimationController _animationController;
@@ -55,6 +55,7 @@ class _AuthScreenState extends State<AuthScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
   // ... all your existing helper methods stay the same ...
   String _getSelectedRole() {
@@ -62,7 +63,6 @@ class _AuthScreenState extends State<AuthScreen>
       case 0: return 'driver';
       case 1: return 'passenger';
       case 2: return 'owner';
-      case 3: return 'admin';
       default: return 'driver';
     }
   }
@@ -100,12 +100,9 @@ class _AuthScreenState extends State<AuthScreen>
       case 0: return 'Driver';
       case 1: return 'Passenger';
       case 2: return 'Vehicle Owner';
-      case 3: return 'Admin';
       default: return 'Driver';
     }
   }
-
-  bool get _isAdminRole => _selectedDashboard == 3;
 
   String _phoneHintForCountry() {
     switch (_selectedCountryIso.toUpperCase()) {
@@ -185,11 +182,6 @@ class _AuthScreenState extends State<AuthScreen>
       isSignIn = widget.initialIsSignIn!;
     }
 
-    // Admin: sign-in only (no self-service registration).
-    if (widget.initialDashboardIndex == 3) {
-      isSignIn = true;
-    }
-
     // NEW: If owner becoming driver, set to driver role and signup mode
     if (widget.isOwnerBecomingDriver) {
       _selectedDashboard = 0; // Driver
@@ -207,12 +199,12 @@ class _AuthScreenState extends State<AuthScreen>
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   // ... your existing methods stay the same ...
   void _toggleAuthMode() {
-    if (_isAdminRole) return;
     setState(() {
       isSignIn = !isSignIn;
     });
@@ -229,7 +221,7 @@ class _AuthScreenState extends State<AuthScreen>
         _emailController.clear();
         _phoneController.clear();
         _passwordController.clear();
-        // Admin is sign-in only; other roles default to sign-in when switching.
+        _confirmPasswordController.clear();
         isSignIn = true;
       });
       _animationController.reset();
@@ -249,21 +241,12 @@ class _AuthScreenState extends State<AuthScreen>
       final selectedRole = _getSelectedRole();
       final email = _emailController.text.trim();
 
-      if (!isSignIn && selectedRole == 'admin') {
-        setState(() => _isLoading = false);
-        _showErrorDialog(
-          'Admin accounts cannot be registered here. Use the credentials provided by your organization.',
-        );
-        return;
-      }
-
       if (isSignIn) {
         // SIGN IN FLOW
         try {
           final user = await _authService.signIn(
             email,
             _passwordController.text,
-            skipEmailVerification: selectedRole == 'admin',
           );
           setState(() { _isLoading = false; });
 
@@ -380,6 +363,7 @@ class _AuthScreenState extends State<AuthScreen>
                 _lastNameController.clear();
                 _phoneController.clear();
                 _passwordController.clear();
+                _confirmPasswordController.clear();
               });
             },
             child: const Text('Continue to Sign In'),
@@ -580,6 +564,7 @@ class _AuthScreenState extends State<AuthScreen>
                 _lastNameController.clear();
                 _phoneController.clear();
                 _passwordController.clear();
+                _confirmPasswordController.clear();
               });
             },
             child: const Text('OK'),
@@ -621,6 +606,7 @@ class _AuthScreenState extends State<AuthScreen>
                 _lastNameController.clear();
                 _phoneController.clear();
                 _passwordController.clear();
+                _confirmPasswordController.clear();
               });
             },
             child: const Text('Continue to Sign In'),
@@ -636,14 +622,6 @@ class _AuthScreenState extends State<AuthScreen>
       _showErrorDialog('Session expired. Please sign in again.');
       return;
     }
-    if (_selectedDashboard == 3) {
-      Navigator.pushReplacement(
-        context,
-        FadeScalePageRoute(page: AdminDashboard(user: user)),
-      );
-      return;
-    }
-
     await fb.reload();
     await fb.getIdToken(true);
     await fb.reload();
@@ -676,9 +654,6 @@ class _AuthScreenState extends State<AuthScreen>
         break;
       case 2:
         dashboardScreen = OwnerDashboard(user: user);
-        break;
-      case 3:
-        dashboardScreen = AdminDashboard(user: user);
         break;
       default:
         dashboardScreen = DriverDashboard(user: user);
@@ -745,8 +720,6 @@ class _AuthScreenState extends State<AuthScreen>
                             const SizedBox(width: 16),
                             _buildNavIcon(
                                 Icons.admin_panel_settings, 2, 'Vehicle Owner'),
-                            const SizedBox(width: 16),
-                            _buildNavIcon(Icons.settings, 3, 'Admin'),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -820,26 +793,10 @@ class _AuthScreenState extends State<AuthScreen>
                                       ),
                                       const SizedBox(width: 16),
                                       Expanded(
-                                        child: _isAdminRole
-                                            ? Opacity(
-                                                opacity: 0.45,
-                                                child: _buildToggleButton(
-                                                    'Sign-Up', false, () {
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                                    SnackBar(
-                                                      backgroundColor: AppColors.primary,
-                                                      content: Text(
-                                                        'Admin sign-up is not available. Use credentials from your organization.',
-                                                      ),
-                                                    ),
-                                                  );
-                                                }),
-                                              )
-                                            : _buildToggleButton(
-                                                'Sign-Up', !isSignIn, () {
-                                              if (isSignIn) _toggleAuthMode();
-                                            }),
+                                        child: _buildToggleButton(
+                                            'Sign-Up', !isSignIn, () {
+                                          if (isSignIn) _toggleAuthMode();
+                                        }),
                                       ),
                                     ],
                                   ),
@@ -902,8 +859,11 @@ class _AuthScreenState extends State<AuthScreen>
                                   ],
                                   const SizedBox(height: 20),
                                   _buildPasswordField(),
-                                  if (isSignIn && _selectedDashboard != 3) ...[
-                                    // Don't show forgot password for admin (index 3)
+                                  if (!isSignIn) ...[
+                                    const SizedBox(height: 20),
+                                    _buildConfirmPasswordField(),
+                                  ],
+                                  if (isSignIn) ...[
                                     const SizedBox(height: 12),
                                     Align(
                                       alignment: Alignment.centerRight,
@@ -1005,7 +965,7 @@ class _AuthScreenState extends State<AuthScreen>
                                       ),
                                     ),
                                   ],
-                                  if (isSignIn && !_isAdminRole) ...[
+                                  if (isSignIn) ...[
                                     const SizedBox(height: 16),
                                     _buildSignUpLink(),
                                   ],
@@ -1286,6 +1246,76 @@ class _AuthScreenState extends State<AuthScreen>
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildConfirmPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Confirm Password',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF2C3E50),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _confirmPasswordController,
+          obscureText: _obscureConfirmPassword,
+          cursorColor: AppColors.primary,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please confirm your password';
+            }
+            if (value != _passwordController.text) {
+              return 'Passwords do not match';
+            }
+            return null;
+          },
+          decoration: InputDecoration(
+            hintText: 'Re-enter your password',
+            hintStyle: const TextStyle(color: Color(0xFFBDC3C7), fontSize: 13),
+            filled: true,
+            fillColor: const Color(0xFFF8F9FA),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                color: const Color(0xFF7F8C8D),
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                });
+              },
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.red),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
         ),
       ],
     );

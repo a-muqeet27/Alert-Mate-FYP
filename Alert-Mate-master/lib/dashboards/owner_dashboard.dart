@@ -27,6 +27,7 @@ import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
 import '../constants/vehicle_catalog.dart';
 import '../widgets/dashboard_detail_dialog_theme.dart';
+import '../utils/dashboard_responsive.dart';
 
 /// Matches driver realtime monitoring thresholds (alertness / drowsiness flag).
 bool ownerLiveMetricsCritical(Map<String, dynamic> stats) {
@@ -57,9 +58,28 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   bool _isLoading = false;
 
   List<MenuItem> get _sidebarMenuItems => [
-        const MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-        const MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+        const MenuItem(
+          section: 'Fleet',
+          icon: Icons.home_outlined,
+          title: 'Overview',
+        ),
+        const MenuItem(
+          section: 'Fleet',
+          icon: Icons.directions_car_outlined,
+          title: 'Fleet Management',
+        ),
+        const MenuItem(
+          section: 'Fleet',
+          icon: Icons.map_outlined,
+          title: 'Live Map',
+        ),
+        const MenuItem(
+          section: 'Safety',
+          icon: Icons.phone_outlined,
+          title: 'Emergency',
+        ),
         MenuItem(
+          section: 'Account',
           icon: Icons.notifications_outlined,
           title: 'Notifications',
           unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
@@ -69,12 +89,89 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   Widget _sidebarMainBody() {
     switch (_selectedIndex) {
       case 0:
-        return _buildDashboard();
+        return _buildOwnerOverviewPage();
       case 1:
+        return _buildOwnerFleetPage();
+      case 2:
+        return _buildOwnerLiveMapPage();
+      case 3:
         return _buildEmergency();
+      case 4:
+        return _buildOwnerNotificationsPage();
       default:
-        return NotificationsInboxScreen(user: widget.user);
+        return _buildOwnerOverviewPage();
     }
+  }
+
+  String get _currentPageTitle {
+    switch (_selectedIndex) {
+      case 0:
+        return 'Overview';
+      case 1:
+        return 'Fleet Management';
+      case 2:
+        return 'Live Map';
+      case 3:
+        return 'Emergency';
+      case 4:
+        return 'Notifications';
+      default:
+        return 'Overview';
+    }
+  }
+
+  String get _currentPageSubtitle {
+    switch (_selectedIndex) {
+      case 0:
+        return 'Monitor and manage your vehicle fleet';
+      case 1:
+        return 'View and manage all registered vehicles';
+      case 2:
+        return 'Track drivers assigned to your vehicles';
+      case 3:
+        return 'Quick access to emergency services and contacts';
+      case 4:
+        return 'Alerts and system messages';
+      default:
+        return 'Monitor and manage your vehicle fleet';
+    }
+  }
+
+  Widget _buildOwnerNotificationsPage() {
+    return _ownerPageShell(
+      title: 'Notifications',
+      subtitle: 'Alerts and system messages',
+      child: NotificationsInboxScreen(user: widget.user, embedded: true),
+    );
+  }
+
+  Widget _ownerPageShell({
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
+    return DashboardLayout.scrollPage(
+      context: context,
+      desktopTitle: title,
+      desktopSubtitle: subtitle,
+      child: child,
+    );
+  }
+
+  Widget _buildOwnerFleetPage() {
+    return _ownerPageShell(
+      title: 'Fleet Management',
+      subtitle: 'View and manage all registered vehicles',
+      child: _buildFleetOverview(),
+    );
+  }
+
+  Widget _buildOwnerLiveMapPage() {
+    return _ownerPageShell(
+      title: 'Live Map',
+      subtitle: 'Track drivers assigned to your vehicles',
+      child: _buildOwnerLiveMapSection(),
+    );
   }
   String _statusFilter = 'All Status';
   String _typeFilter = 'All Types';
@@ -668,13 +765,28 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
           ),
         ),
-        title: Text(
-          'Owner Dashboard',
-          style: const TextStyle(
-            color: Colors.black87,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _currentPageTitle,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              _currentPageSubtitle,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 11,
+                fontWeight: FontWeight.normal,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
         actions: [
           Padding(
@@ -688,22 +800,19 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         ],
       ) : null,
       body: EmailVerifiedGuard(
-        child: isMobile
-            ? _sidebarMainBody()
-            : Row(
-                children: [
-                  AppSidebar(
-                    role: 'owner',
-                    user: widget.user is User ? widget.user : null,
-                    selectedIndex: _selectedIndex,
-                    onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                    menuItems: _sidebarMenuItems,
-                    accentColor: AppColors.primary,
-                    accentLightColor: AppColors.primaryLight,
-                  ),
-                  Expanded(child: _sidebarMainBody()),
-                ],
-              ),
+        child: DashboardLayout.scaffoldBody(
+          context: context,
+          sidebar: AppSidebar(
+            role: 'owner',
+            user: widget.user is User ? widget.user : null,
+            selectedIndex: _selectedIndex,
+            onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+            menuItems: _sidebarMenuItems,
+            accentColor: AppColors.primary,
+            accentLightColor: AppColors.primaryLight,
+          ),
+          body: _sidebarMainBody(),
+        ),
       ),
     );
   }
@@ -729,76 +838,39 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildDashboard() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = MediaQuery.of(context).size.width < 768;
-        final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
-        return SingleChildScrollView(
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.all(isMobile ? 16.0 : isTablet ? 24.0 : 40.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!isMobile) _buildStaggeredItem(
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Vehicle Owner Dashboard',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 24 : isTablet ? 28 : 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              SizedBox(height: isMobile ? 6 : 8),
-                              Text(
-                                'Monitor and manage your vehicle fleet',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 13 : isTablet ? 14 : 16,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox.shrink(),
-                        ],
-                      ),
-                      0,
-                    ),
-                    if (isMobile) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _showAddVehicleDialog,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add Vehicle'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
+  Widget _buildOwnerOverviewPage() {
+    final isMobile = DashboardLayout.isMobile(context);
+    return _ownerPageShell(
+      title: 'Overview',
+      subtitle: 'Monitor and manage your vehicle fleet',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isMobile)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _showAddVehicleDialog,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Vehicle'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 16),
-                ],
-                SizedBox(height: isMobile ? 24 : 32),
-                StreamBuilder<List<Vehicle>>(
+                ),
+              ),
+            ),
+          if (isMobile) const SizedBox(height: 16),
+          StreamBuilder<List<Vehicle>>(
                   stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
                   builder: (context, snapshot) {
                     final vehicles = snapshot.data ?? [];
-                    final isMobile = MediaQuery.of(context).size.width < 768;
-                    final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
+                    final isMobile = DashboardLayout.isMobile(context);
+                    final isTablet = DashboardLayout.isTablet(context);
 
                     return _buildStaggeredItem(
                       isMobile
@@ -1067,26 +1139,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     );
                   },
                 ),
-                SizedBox(height: isMobile ? 24 : 32),
-                _buildStaggeredItem(
-                  _buildFleetOverview(),
-                  2,
-                ),
-                SizedBox(height: isMobile ? 24 : 32),
-                _buildStaggeredItem(
-                  _buildOwnerLiveMapSection(),
-                  3,
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
-          ),
-          ],
-        ),
-      );
-    },
-  );
-}
+        ],
+      ),
+    );
+  }
 
   /// Builds the LiveMap section filtered to only show drivers assigned
   /// to this owner's vehicles.
@@ -1101,7 +1157,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             .toSet()
             .toList();
 
-        return LiveMap(filterDriverIds: driverIds);
+        return SizedBox(
+          height: DashboardLayout.liveMapHeight(context),
+          child: LiveMap(filterDriverIds: driverIds),
+        );
       },
     );
   }
@@ -1423,7 +1482,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             }).toList();
 
             return Container(
-              padding: EdgeInsets.all(isMobile ? 16 : 28),
+              padding: EdgeInsets.all(isMobile ? 14 : 18),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -1438,39 +1497,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Vehicle(s) Details',
-                    style: TextStyle(
-                      fontSize: isMobile ? 16 : 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  if (!isMobile)
-                    ElevatedButton.icon(
-                      onPressed: _showAddVehicleDialog,
-                      icon: Icon(Icons.add, size: isMobile ? 16 : 18),
-                      label: Text('Add Vehicle', style: TextStyle(fontSize: isMobile ? 13 : 14)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.black,
-                        padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 12 : 20,
-                            vertical: isMobile ? 10 : 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(height: isMobile ? 16 : 20),
               if (!isMobile)
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       'Filter by:',
@@ -1532,9 +1561,42 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                         },
                       ),
                     ),
+                    const Spacer(),
+                    ElevatedButton.icon(
+                      onPressed: _showAddVehicleDialog,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add Vehicle'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               if (isMobile) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _showAddVehicleDialog,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Vehicle'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   'Filter by:',
                   style: TextStyle(
@@ -1606,7 +1668,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   ],
                 ),
               ],
-              SizedBox(height: isMobile ? 16 : 16),
+              SizedBox(height: isMobile ? 10 : 12),
               if (_statusFilter != 'All Status' || _typeFilter != 'All Types')
                 Padding(
                   padding: EdgeInsets.only(bottom: isMobile ? 8 : 12),
@@ -1643,7 +1705,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     ],
                   ),
                 ),
-              SizedBox(height: isMobile ? 8 : 8),
+              const SizedBox(height: 8),
               if (filteredVehicles.isEmpty)
                 Center(
                   child: Padding(
@@ -1729,29 +1791,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   }
   Widget _buildEmergency() {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    return SingleChildScrollView(
-      child: Padding(
-        padding: EdgeInsets.all(isMobile ? 16.0 : 40.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Emergency Contacts',
-              style: TextStyle(
-                fontSize: isMobile ? 24 : 36,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            SizedBox(height: isMobile ? 6 : 8),
-            Text(
-              'Quick access to emergency services and contacts',
-              style: TextStyle(
-                fontSize: isMobile ? 13 : 16,
-                color: Colors.black54,
-              ),
-            ),
-            SizedBox(height: isMobile ? 24 : 32),
+    return _ownerPageShell(
+      title: 'Emergency',
+      subtitle: 'Quick access to emergency services and contacts',
+      child: _buildEmergencyContent(isMobile),
+    );
+  }
+
+  Widget _buildEmergencyContent(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
             isMobile
                 ? Column(
                     children: [
@@ -1863,13 +1913,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       ),
                     ],
                   ),
-            SizedBox(height: isMobile ? 24 : 32),
-            _buildEmergencyContactsTable(isMobile),
-          ],
-        ),
-      ),
+            SizedBox(height: isMobile ? 20 : 24),
+        _buildEmergencyContactsTable(isMobile),
+      ],
     );
   }
+
   Widget _buildEmergencyContactsTable([bool isMobile = false]) {
     return StreamBuilder<List<EmergencyContact>>(
       stream: _emergencyContactService.getEmergencyContactsStream(widget.user.id),
@@ -1930,52 +1979,46 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Emergency Contacts',
-                          style: TextStyle(
-                            fontSize: isMobile ? 18 : 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: isMobile ? 2 : 4),
-                        Text(
-                          'Manage your emergency contact list',
-                          style: TextStyle(
-                            fontSize: isMobile ? 12 : 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: isMobile ? 8 : 12),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _showAddContactDialog();
-                    },
-                    icon: Icon(Icons.add, size: isMobile ? 16 : 18),
-                    label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 12 : 20,
-                          vertical: isMobile ? 10 : 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+              DashboardLayout.sectionHeader(
+                context: context,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Emergency Contacts',
+                      style: TextStyle(
+                        fontSize: isMobile ? 18 : 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
                     ),
+                    SizedBox(height: isMobile ? 2 : 4),
+                    Text(
+                      'Manage your emergency contact list',
+                      style: TextStyle(
+                        fontSize: isMobile ? 12 : 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                action: ElevatedButton.icon(
+                  onPressed: _showAddContactDialog,
+                  icon: Icon(Icons.add, size: isMobile ? 16 : 18),
+                  label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 20,
+                      vertical: isMobile ? 10 : 12,
+                    ),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                ],
+                ),
               ),
               SizedBox(height: isMobile ? 16 : 24),
               isMobile
@@ -1998,11 +2041,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                 child: _buildMobileContactCard(contact),
                               )).toList(),
                         )
-                  : SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(minWidth: isMobile ? 0 : 800),
-                        child: Table(
+                    : DashboardLayout.horizontalTable(
+                  context: context,
+                  minWidth: 800,
+                  table: Table(
                           columnWidths: const {
                             0: FlexColumnWidth(1.5),
                             1: FlexColumnWidth(1.2),
@@ -2031,7 +2073,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
                           ],
                         ),
-                      ),
                     ),
               SizedBox(height: isMobile ? 16 : 20),
               Row(
@@ -2971,8 +3012,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   Widget _buildTableHeader(String text, [bool isMobile = false]) {
     return Padding(
       padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16,
-          vertical: isMobile ? 8 : 12),
+          horizontal: isMobile ? 8 : 14,
+          vertical: isMobile ? 8 : 10),
       child: Text(
         text,
         style: TextStyle(
@@ -2987,8 +3028,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   Widget _buildTableCell(String text, [bool isMobile = false]) {
     return Padding(
       padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16,
-          vertical: isMobile ? 12 : 16),
+          horizontal: isMobile ? 8 : 14,
+          vertical: isMobile ? 10 : 12),
       child: Text(
         text,
         style: TextStyle(
@@ -3003,7 +3044,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     return TableRow(
       children: [
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 16, vertical: isMobile ? 12 : 16),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 14, vertical: isMobile ? 10 : 12),
           child: InkWell(
             onTap: () => _showOwnerStatDetails('Vehicle Details', [
               ListTile(title: Text(vehicle.licensePlate), subtitle: Text('${vehicle.make} ${vehicle.model} (${vehicle.year})')),

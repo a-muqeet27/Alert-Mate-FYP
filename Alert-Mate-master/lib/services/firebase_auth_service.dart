@@ -347,6 +347,38 @@ class FirebaseAuthService {
     }
   }
 
+  /// Loads the Firestore user profile for [uid], or null if missing.
+  Future<app_models.User?> fetchUserProfile(String uid) async {
+    final doc = await _firestore.collection('users').doc(uid).get();
+    if (!doc.exists) return null;
+
+    final data = doc.data() as Map<String, dynamic>;
+    List<String> roles;
+    String activeRole;
+
+    if (data.containsKey('roles')) {
+      roles = List<String>.from(data['roles'] ?? ['passenger']);
+      activeRole = data['activeRole'] ?? roles.first;
+    } else if (data.containsKey('role')) {
+      final oldRole = data['role'] ?? 'passenger';
+      roles = [oldRole];
+      activeRole = oldRole;
+    } else {
+      roles = ['passenger'];
+      activeRole = 'passenger';
+    }
+
+    return app_models.User(
+      id: uid,
+      firstName: data['firstName'] ?? '',
+      lastName: data['lastName'] ?? '',
+      email: data['email'] ?? '',
+      phone: data['phone'] ?? '',
+      role: activeRole,
+      roles: roles,
+    );
+  }
+
   // Update active role for a user
   Future<void> updateActiveRole(String uid, String newActiveRole) async {
     try {

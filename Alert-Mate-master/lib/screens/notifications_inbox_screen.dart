@@ -13,8 +13,13 @@ import '../services/emergency_alert_service.dart';
 /// Full-area inbox opened from the sidebar "Notifications" item.
 class NotificationsInboxScreen extends StatefulWidget {
   final User user;
+  final bool embedded;
 
-  const NotificationsInboxScreen({Key? key, required this.user}) : super(key: key);
+  const NotificationsInboxScreen({
+    Key? key,
+    required this.user,
+    this.embedded = false,
+  }) : super(key: key);
 
   @override
   State<NotificationsInboxScreen> createState() => _NotificationsInboxScreenState();
@@ -341,13 +346,82 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
     final isMobile = MediaQuery.of(context).size.width < 768;
     final unread = _entries.where((e) => e.unread).length;
 
+    final listPadding = widget.embedded
+        ? EdgeInsets.zero
+        : EdgeInsets.fromLTRB(isMobile ? 16 : 24, 8, isMobile ? 16 : 24, 24);
+
+    Widget buildList() {
+      if (_entries.isEmpty) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Center(
+            child: Text(
+              'No notifications yet.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ),
+        );
+      }
+
+      final listView = ListView.builder(
+        padding: listPadding,
+        shrinkWrap: widget.embedded,
+        physics: widget.embedded
+            ? const NeverScrollableScrollPhysics()
+            : null,
+        itemCount: _entries.length,
+        itemBuilder: (context, i) => _buildTile(_entries[i]),
+      );
+
+      if (widget.embedded || _entries.length <= 8) {
+        return listView;
+      }
+
+      return Scrollbar(
+        thumbVisibility: true,
+        child: listView,
+      );
+    }
+
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (unread > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade100),
+                  ),
+                  child: Text(
+                    '$unread unread',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red.shade800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          buildList(),
+        ],
+      );
+    }
+
     return Container(
       color: AppColors.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(isMobile ? 16 : 40, isMobile ? 16 : 24, isMobile ? 16 : 40, 8),
+            padding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, isMobile ? 12 : 16, isMobile ? 16 : 24, 8),
             child: Row(
               children: [
                 Icon(Icons.notifications_active, color: AppColors.primaryDark, size: 26),
@@ -355,7 +429,7 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
                 Text(
                   'Notifications',
                   style: TextStyle(
-                    fontSize: isMobile ? 22 : 28,
+                    fontSize: isMobile ? 22 : 26,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
@@ -381,23 +455,7 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: _entries.isEmpty
-                ? Center(
-                    child: Text(
-                      'No notifications yet.',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
-                  )
-                : Scrollbar(
-                    thumbVisibility: _entries.length > 8,
-                    child: ListView.builder(
-                      padding: EdgeInsets.fromLTRB(isMobile ? 16 : 40, 8, isMobile ? 16 : 40, 24),
-                      itemCount: _entries.length,
-                      itemBuilder: (context, i) => _buildTile(_entries[i]),
-                    ),
-                  ),
-          ),
+          Expanded(child: buildList()),
         ],
       ),
     );

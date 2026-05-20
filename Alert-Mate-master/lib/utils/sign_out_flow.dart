@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../auth_screen.dart';
 import '../constants/app_colors.dart';
+import '../screens/admin_auth_screen.dart';
 import '../services/firebase_auth_service.dart';
 import 'page_transitions.dart';
 
@@ -36,6 +37,18 @@ Future<bool> showSignOutConfirmationDialog(BuildContext context) async {
 
 /// Confirms, signs out of Firebase, then replaces the stack with [AuthScreen].
 Future<void> performSignOutAndGoToAuth(BuildContext context) async {
+  await _performSignOutAndNavigate(context, const AuthScreen());
+}
+
+/// Signs out and returns to the admin web portal login screen.
+Future<void> performSignOutAndGoToAdminAuth(BuildContext context) async {
+  await _performSignOutAndNavigate(context, const AdminAuthScreen());
+}
+
+Future<void> _performSignOutAndNavigate(
+  BuildContext context,
+  Widget landingScreen,
+) async {
   if (!await showSignOutConfirmationDialog(context)) return;
   if (!context.mounted) return;
   try {
@@ -46,6 +59,6 @@ Future<void> performSignOutAndGoToAuth(BuildContext context) async {
   if (!context.mounted) return;
   Navigator.pushReplacement(
     context,
-    FadeScalePageRoute(page: const AuthScreen()),
+    FadeScalePageRoute(page: landingScreen),
   );
 }

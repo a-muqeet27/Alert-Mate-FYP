@@ -18,6 +18,7 @@ import '../screens/notifications_inbox_screen.dart';
 import '../services/user_notifications_service.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../utils/dashboard_responsive.dart';
 
 class PassengerDashboard extends StatefulWidget {
   final User user;
@@ -34,9 +35,28 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   final Random _random = Random();
 
   List<MenuItem> get _sidebarMenuItems => [
-        const MenuItem(icon: Icons.home_outlined, title: 'Dashboard'),
-        const MenuItem(icon: Icons.phone_outlined, title: 'Emergency'),
+        const MenuItem(
+          section: 'Trip',
+          icon: Icons.search,
+          title: 'Find Vehicle',
+        ),
+        const MenuItem(
+          section: 'Trip',
+          icon: Icons.map_outlined,
+          title: 'Trip & Map',
+        ),
+        const MenuItem(
+          section: 'Safety',
+          icon: Icons.warning_amber_rounded,
+          title: 'Emergency Alert',
+        ),
+        const MenuItem(
+          section: 'Safety',
+          icon: Icons.phone_outlined,
+          title: 'Emergency Services',
+        ),
         MenuItem(
+          section: 'Account',
           icon: Icons.notifications_outlined,
           title: 'Notifications',
           unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
@@ -46,12 +66,104 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   Widget _sidebarMainBody() {
     switch (_selectedIndex) {
       case 0:
-        return _buildDashboard();
+        return _buildVehicleLookupPage();
       case 1:
+        return _buildTripMapPage();
+      case 2:
+        return _buildEmergencyAlertPage();
+      case 3:
         return _buildEmergency();
+      case 4:
+        return _buildPassengerNotificationsPage();
       default:
-        return NotificationsInboxScreen(user: widget.user);
+        return _buildVehicleLookupPage();
     }
+  }
+
+  String get _currentPageTitle {
+    switch (_selectedIndex) {
+      case 0:
+        return 'Find Vehicle';
+      case 1:
+        return 'Trip & Map';
+      case 2:
+        return 'Emergency Alert';
+      case 3:
+        return 'Emergency Services';
+      case 4:
+        return 'Notifications';
+      default:
+        return 'Find Vehicle';
+    }
+  }
+
+  String get _currentPageSubtitle {
+    switch (_selectedIndex) {
+      case 0:
+        return 'Search by license plate to connect with your driver';
+      case 1:
+        return 'Live trip information and driver location';
+      case 2:
+        return 'Notify driver, owner, and administrators in an emergency';
+      case 3:
+        return 'Quick access to emergency services and contacts';
+      case 4:
+        return 'Alerts and system messages';
+      default:
+        return 'Search by license plate to connect with your driver';
+    }
+  }
+
+  Widget _buildPassengerNotificationsPage() {
+    return _passengerPageShell(
+      title: 'Notifications',
+      subtitle: 'Alerts and system messages',
+      child: NotificationsInboxScreen(user: widget.user, embedded: true),
+    );
+  }
+
+  Widget _passengerPageShell({
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
+    return DashboardLayout.scrollPage(
+      context: context,
+      desktopTitle: title,
+      desktopSubtitle: subtitle,
+      child: child,
+    );
+  }
+
+  Widget _buildVehicleLookupPage() {
+    return _passengerPageShell(
+      title: 'Find Vehicle',
+      subtitle: 'Search by license plate to connect with your driver',
+      child: _buildStaggeredItem(_buildPlateLookupSection(), 0),
+    );
+  }
+
+  Widget _buildTripMapPage() {
+    return _passengerPageShell(
+      title: 'Trip & Map',
+      subtitle: 'Live trip information and driver location',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildStaggeredItem(_buildTripInformation(), 0),
+          const SizedBox(height: 16),
+          _buildStaggeredItem(_buildLocationTab(), 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmergencyAlertPage() {
+    return _passengerPageShell(
+      title: 'Emergency Alert',
+      subtitle: 'Notify driver, owner, and administrators in an emergency',
+      child: _buildStaggeredItem(_buildEmergencyControlsCard(), 0),
+    );
   }
   late EmergencyContactService _emergencyContactService;
   final EmergencyAlertService _emergencyAlertService = EmergencyAlertService();
@@ -241,13 +353,28 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
           ),
         ),
-        title: Text(
-          'Passenger Dashboard',
-          style: const TextStyle(
-            color: Colors.black87,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _currentPageTitle,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              _currentPageSubtitle,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 11,
+                fontWeight: FontWeight.normal,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
         actions: [
           Padding(
@@ -261,22 +388,19 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         ],
       ) : null,
       body: EmailVerifiedGuard(
-        child: isMobile
-            ? _sidebarMainBody()
-            : Row(
-                children: [
-                  AppSidebar(
-                    role: 'Passenger',
-                    user: widget.user,
-                    selectedIndex: _selectedIndex,
-                    onMenuItemTap: (index) => setState(() => _selectedIndex = index),
-                    menuItems: _sidebarMenuItems,
-                    accentColor: AppColors.primary,
-                    accentLightColor: AppColors.primaryLight,
-                  ),
-                  Expanded(child: _sidebarMainBody()),
-                ],
-              ),
+        child: DashboardLayout.scaffoldBody(
+          context: context,
+          sidebar: AppSidebar(
+            role: 'Passenger',
+            user: widget.user,
+            selectedIndex: _selectedIndex,
+            onMenuItemTap: (index) => setState(() => _selectedIndex = index),
+            menuItems: _sidebarMenuItems,
+            accentColor: AppColors.primary,
+            accentLightColor: AppColors.primaryLight,
+          ),
+          body: _sidebarMainBody(),
+        ),
       ),
     );
   }
@@ -327,82 +451,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
 
 
 
-  Widget _buildDashboard() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 768;
-        return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              isMobile ? 0 : 40,
-              isMobile ? 8 : 40,
-              isMobile ? 0 : 40,
-              isMobile ? 16 : 40,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!isMobile) ...[
-                        _buildStaggeredItem(
-                          Text(
-                            'Passenger Safety Monitor',
-                            style: TextStyle(
-                              fontSize: isMobile ? 24 : 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          0,
-                        ),
-                        SizedBox(height: isMobile ? 6 : 8),
-                        _buildStaggeredItem(
-                          Text(
-                            'Real-time monitoring of driver status and trip safety',
-                            style: TextStyle(
-                              fontSize: isMobile ? 13 : 16,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          1,
-                        ),
-                      ],
-                      const SizedBox(height: 32),
-                      _buildStaggeredItem(
-                        _buildEmergencyControlsCard(),
-                        2,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildStaggeredItem(
-                        _buildPlateLookupSection(),
-                        2,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildStaggeredItem(
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildTripInformation(),
-                            const SizedBox(height: 16),
-                            _buildLocationTab(),
-                          ],
-                        ),
-                        5,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   // Normalize license plate: uppercase, remove spaces and hyphens
   String _normalizePlate(String input) {
@@ -512,70 +560,110 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   Widget _buildPlateLookupSection() {
     final isMobile = MediaQuery.of(context).size.width < 768;
     return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      padding: EdgeInsets.all(isMobile ? 14 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1.5),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Find Driver by License Plate',
+            'License plate search',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: isMobile ? 14 : 15,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _plateController,
-                  textCapitalization: TextCapitalization.characters,
-                  cursorColor: AppColors.primary,
-                  decoration: InputDecoration(
-                    hintText: 'Enter license plate (e.g., ABC-123)',
-                    isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+          SizedBox(height: isMobile ? 8 : 10),
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _plateController,
+                      textCapitalization: TextCapitalization.characters,
+                      cursorColor: AppColors.primary,
+                      decoration: InputDecoration(
+                        hintText: 'e.g. ABC-123',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.primary, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 40,
+                      child: ElevatedButton.icon(
+                        onPressed: _isSearchingPlate ? null : _searchByPlate,
+                        icon: const Icon(Icons.search, size: 18),
+                        label: Text(_isSearchingPlate ? 'Searching...' : 'Search'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: _plateController,
+                        textCapitalization: TextCapitalization.characters,
+                        cursorColor: AppColors.primary,
+                        decoration: InputDecoration(
+                          hintText: 'Enter license plate (e.g., ABC-123)',
+                          isDense: true,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      height: 40,
+                      child: ElevatedButton.icon(
+                        onPressed: _isSearchingPlate ? null : _searchByPlate,
+                        icon: const Icon(Icons.search, size: 18),
+                        label: Text(_isSearchingPlate ? 'Searching...' : 'Search'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                height: 44,
-                child: ElevatedButton.icon(
-                  onPressed: _isSearchingPlate ? null : _searchByPlate,
-                  icon: const Icon(Icons.search, size: 18),
-                  label: Text(_isSearchingPlate ? 'Searching...' : 'Search'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
-            ],
-          ),
           if (_plateError != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               _plateError!,
               style: const TextStyle(fontSize: 13, color: Colors.red),
             ),
           ],
-          const SizedBox(height: 16),
-          _buildPlateLookupResults(),
+          if (_lookupVehicle != null || _lookupDriverId != null) ...[
+            const SizedBox(height: 12),
+            _buildPlateLookupResults(),
+          ],
         ],
       ),
     );
@@ -833,6 +921,32 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   Widget _buildEmergencyControlsCard() {
+    final driverId = _lookupDriverId;
+    if (driverId == null || driverId.isEmpty) {
+      return _buildEmergencyControlsCardContent(
+        canSend: false,
+        statusMessage: 'Search for a vehicle under Find Vehicle before sending an alert.',
+      );
+    }
+
+    return StreamBuilder<bool>(
+      stream: _monitoringService.watchHasActiveMonitoringSession(driverId),
+      builder: (context, snapshot) {
+        final sessionActive = snapshot.data ?? false;
+        return _buildEmergencyControlsCardContent(
+          canSend: sessionActive,
+          statusMessage: sessionActive
+              ? null
+              : 'The driver has not started monitoring yet. You can send an alert after they tap Start Monitoring.',
+        );
+      },
+    );
+  }
+
+  Widget _buildEmergencyControlsCardContent({
+    required bool canSend,
+    String? statusMessage,
+  }) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -842,7 +956,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       ),
       child: Column(
         children: [
-          // Warning Icon
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -873,7 +986,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
           ),
           const SizedBox(height: 16),
-          // Warning Message
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -887,7 +999,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '⚠️ Use only in case of absolute emergency',
+                    'Use only in case of absolute emergency',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -898,12 +1010,37 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               ],
             ),
           ),
+          if (statusMessage != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.schedule, color: Colors.blueGrey[700], size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      statusMessage,
+                      style: TextStyle(fontSize: 13, color: Colors.blueGrey[800]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             height: 60,
             child: ElevatedButton.icon(
-              onPressed: _showEmergencyAlertDialog,
+              onPressed: canSend ? _showEmergencyAlertDialog : null,
               icon: const Icon(Icons.notifications_active, size: 24),
               label: const Text(
                 'SEND EMERGENCY ALERT',
@@ -916,6 +1053,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade400,
+                disabledForegroundColor: Colors.white70,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -1309,22 +1448,27 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   Widget _buildTripInfoRow(String label, String value) {
+    final isMobile = DashboardLayout.isMobile(context);
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 14,
+          style: TextStyle(
+            fontSize: isMobile ? 13 : 14,
             color: Colors.black87,
           ),
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: isMobile ? 13 : 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
           ),
         ),
       ],
@@ -1381,60 +1525,28 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1.5),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(isMobile ? 16 : 20, isMobile ? 16 : 20, isMobile ? 16 : 20, 8),
-            child: Text(
-              'Live Driver Tracking',
-              style: TextStyle(
-                fontSize: isMobile ? 16 : 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          LiveMap(
-            filterDriverIds: [driverId],
-            height: isMobile ? 350 : 450,
-          ),
-        ],
+      child: SizedBox(
+        height: DashboardLayout.liveMapHeight(context),
+        child: LiveMap(
+          filterDriverIds: [driverId],
+        ),
       ),
     );
   }
 
-  // Add this method to your dashboard state class
   Widget _buildEmergency() {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    return SingleChildScrollView(
-      child: Padding(
-        padding: EdgeInsets.all(isMobile ? 16.0 : 40.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Emergency Contacts',
-              style: TextStyle(
-                fontSize: isMobile ? 24 : 36,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            SizedBox(height: isMobile ? 6 : 8),
-            SizedBox(
-              width: double.infinity,
-              child: Text(
-                'Quick access to emergency services and contacts',
-                style: TextStyle(
-                  fontSize: isMobile ? 13 : 16,
-                  color: Colors.black54,
-                ),
-              ),
-            ),
-            SizedBox(height: isMobile ? 24 : 32),
+    return _passengerPageShell(
+      title: 'Emergency Services',
+      subtitle: 'Quick access to emergency services and contacts',
+      child: _buildEmergencyContent(isMobile),
+    );
+  }
 
-            // Emergency Services Grid (2×2 like driver dashboard)
+  Widget _buildEmergencyContent(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
             isMobile
                 ? Column(
                     children: [
@@ -1546,12 +1658,9 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                       ),
                     ],
                   ),
-            SizedBox(height: isMobile ? 24 : 32),
-
-            _buildEmergencyContactsTable(isMobile),
-          ],
-        ),
-      ),
+            SizedBox(height: isMobile ? 20 : 24),
+        _buildEmergencyContactsTable(isMobile),
+      ],
     );
   }
 
@@ -1694,52 +1803,48 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Emergency Contacts',
-                          style: TextStyle(
-                            fontSize: isMobile ? 18 : 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: isMobile ? 2 : 4),
-                        Text(
-                          'Manage your emergency contact list',
-                          style: TextStyle(
-                            fontSize: isMobile ? 12 : 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: isMobile ? 8 : 12),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _showContactDialog(context: context);
-                    },
-                    icon: Icon(Icons.add, size: isMobile ? 16 : 18),
-                    label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 12 : 20,
-                          vertical: isMobile ? 10 : 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+              DashboardLayout.sectionHeader(
+                context: context,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Emergency Contacts',
+                      style: TextStyle(
+                        fontSize: isMobile ? 18 : 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
                     ),
+                    SizedBox(height: isMobile ? 2 : 4),
+                    Text(
+                      'Manage your emergency contact list',
+                      style: TextStyle(
+                        fontSize: isMobile ? 12 : 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                action: ElevatedButton.icon(
+                  onPressed: () {
+                    _showContactDialog(context: context);
+                  },
+                  icon: Icon(Icons.add, size: isMobile ? 16 : 18),
+                  label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 20,
+                      vertical: isMobile ? 10 : 12,
+                    ),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                ],
+                ),
               ),
               SizedBox(height: isMobile ? 16 : 24),
               isMobile
@@ -1762,11 +1867,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                                 child: _buildPassengerMobileContactCard(contact),
                               )).toList(),
                         )
-                  : SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 800),
-                        child: Table(
+                  : DashboardLayout.horizontalTable(
+                      context: context,
+                      minWidth: 800,
+                      table: Table(
                           columnWidths: const {
                             0: FlexColumnWidth(1.5),
                             1: FlexColumnWidth(1.2),
@@ -1795,7 +1899,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                             ...contacts.map((contact) => _buildEmergencyContactRow(contact)),
                           ],
                         ),
-                      ),
                     ),
               SizedBox(height: isMobile ? 16 : 20),
               Row(
@@ -2267,6 +2370,20 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         const SnackBar(
           content: Text('Please search for a vehicle first'),
           backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final hasActiveSession = await _monitoringService.hasActiveSession(driverId);
+    if (!hasActiveSession) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Cannot send alert: the driver has not started a monitoring session yet.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
         ),
       );
       return;
