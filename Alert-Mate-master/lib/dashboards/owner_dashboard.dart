@@ -125,7 +125,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       case 0:
         return 'Monitor and manage your vehicle fleet';
       case 1:
-        return 'View and manage all registered vehicles';
+        return 'Search, filter, and manage your vehicles';
       case 2:
         return 'Track drivers assigned to your vehicles';
       case 3:
@@ -175,6 +175,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   }
   String _statusFilter = 'All Status';
   String _typeFilter = 'All Types';
+  final TextEditingController _vehicleSearchController = TextEditingController();
+  String _vehicleSearchQuery = '';
 
 
   // Animation controllers
@@ -202,9 +204,66 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   @override
   void dispose() {
+    _vehicleSearchController.dispose();
     _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
+  }
+
+  bool _vehicleMatchesSearch(Vehicle vehicle, String query) {
+    if (query.isEmpty) return true;
+    final plate = vehicle.licensePlate.toLowerCase();
+    final makeModel = '${vehicle.make} ${vehicle.model}'.toLowerCase();
+    final driver = (vehicle.driverName ?? '').toLowerCase();
+    return plate.contains(query) ||
+        makeModel.contains(query) ||
+        driver.contains(query) ||
+        vehicle.type.toLowerCase().contains(query);
+  }
+
+  Widget _buildFleetSearchField(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Search vehicle',
+          style: TextStyle(
+            fontSize: isMobile ? 13 : 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _vehicleSearchController,
+          textCapitalization: TextCapitalization.characters,
+          cursorColor: AppColors.primary,
+          decoration: InputDecoration(
+            hintText: 'License plate, make, model, or driver',
+            prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+            suffixIcon: _vehicleSearchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 20),
+                    onPressed: () {
+                      _vehicleSearchController.clear();
+                      setState(() => _vehicleSearchQuery = '');
+                    },
+                  )
+                : null,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+            filled: true,
+            fillColor: AppColors.background,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+          onChanged: (v) => setState(() => _vehicleSearchQuery = v),
+        ),
+      ],
+    );
   }
 
   bool _contactAllowsCall(EmergencyContact contact) =>
@@ -846,25 +905,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isMobile)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _showAddVehicleDialog,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add Vehicle'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          if (isMobile) const SizedBox(height: 16),
           StreamBuilder<List<Vehicle>>(
                   stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
                   builder: (context, snapshot) {
@@ -1395,6 +1435,84 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
+  Widget _buildFleetStatusFilter(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Status',
+          style: TextStyle(
+            fontSize: isMobile ? 13 : 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButton<String>(
+            value: _statusFilter,
+            isExpanded: true,
+            underline: const SizedBox(),
+            icon: const Icon(Icons.arrow_drop_down),
+            items: const [
+              DropdownMenuItem(value: 'All Status', child: Text('All Status')),
+              DropdownMenuItem(value: 'Active', child: Text('Active')),
+              DropdownMenuItem(value: 'Critical', child: Text('Critical')),
+              DropdownMenuItem(value: 'Offline', child: Text('Offline')),
+            ],
+            onChanged: (value) => setState(() => _statusFilter = value!),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFleetTypeFilter(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Vehicle type',
+          style: TextStyle(
+            fontSize: isMobile ? 13 : 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButton<String>(
+            value: _typeFilter,
+            isExpanded: true,
+            underline: const SizedBox(),
+            icon: const Icon(Icons.arrow_drop_down),
+            items: const [
+              DropdownMenuItem(value: 'All Types', child: Text('All Types')),
+              DropdownMenuItem(value: 'Car', child: Text('Car')),
+              DropdownMenuItem(value: 'Bus', child: Text('Bus')),
+              DropdownMenuItem(value: 'Van', child: Text('Van')),
+              DropdownMenuItem(value: 'Truck', child: Text('Truck')),
+              DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
+            ],
+            onChanged: (value) => setState(() => _typeFilter = value!),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildFleetOverview() {
     final isMobile = MediaQuery.of(context).size.width < 768;
     
@@ -1448,8 +1566,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             // --- FILTERING ---
             final statusFilterActive = _statusFilter != 'All Status';
             final typeFilterActive = _typeFilter != 'All Types';
+            final searchQuery = _vehicleSearchQuery.trim().toLowerCase();
+            final searchActive = searchQuery.isNotEmpty;
             
             List<Vehicle> filteredVehicles = vehicles.where((vehicle) {
+              if (!_vehicleMatchesSearch(vehicle, searchQuery)) return false;
               // Only check filters if they're active
               bool matchesStatusFilter = true;
               if (statusFilterActive) {
@@ -1497,71 +1618,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildFleetSearchField(isMobile),
+              SizedBox(height: isMobile ? 14 : 16),
               if (!isMobile)
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      'Filter by:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _statusFilter,
-                        underline: const SizedBox(),
-                        icon: const Icon(Icons.arrow_drop_down),
-                        items: const [
-                          DropdownMenuItem(value: 'All Status', child: Text('All Status')),
-                          DropdownMenuItem(value: 'Active', child: Text('Active')),
-                          DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-                          DropdownMenuItem(value: 'Offline', child: Text('Offline')),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _statusFilter = value!;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _typeFilter,
-                        underline: const SizedBox(),
-                        icon: const Icon(Icons.arrow_drop_down),
-                        items: const [
-                          DropdownMenuItem(value: 'All Types', child: Text('All Types')),
-                          DropdownMenuItem(value: 'Car', child: Text('Car')),
-                          DropdownMenuItem(value: 'Bus', child: Text('Bus')),
-                          DropdownMenuItem(value: 'Van', child: Text('Van')),
-                          DropdownMenuItem(value: 'Truck', child: Text('Truck')),
-                          DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _typeFilter = value!;
-                          });
-                        },
-                      ),
-                    ),
-                    const Spacer(),
+                    Expanded(child: _buildFleetStatusFilter(isMobile)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildFleetTypeFilter(isMobile)),
+                    const SizedBox(width: 16),
                     ElevatedButton.icon(
                       onPressed: _showAddVehicleDialog,
                       icon: const Icon(Icons.add, size: 18),
@@ -1569,7 +1635,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1596,80 +1662,13 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'Filter by:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: DropdownButton<String>(
-                          value: _statusFilter,
-                          isExpanded: true,
-                          underline: const SizedBox(),
-                          icon: const Icon(Icons.arrow_drop_down),
-                          items: const [
-                            DropdownMenuItem(value: 'All Status', child: Text('All Status')),
-                            DropdownMenuItem(value: 'Active', child: Text('Active')),
-                            DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-                            DropdownMenuItem(value: 'Offline', child: Text('Offline')),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _statusFilter = value!;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: DropdownButton<String>(
-                          value: _typeFilter,
-                          isExpanded: true,
-                          underline: const SizedBox(),
-                          icon: const Icon(Icons.arrow_drop_down),
-                          items: const [
-                            DropdownMenuItem(value: 'All Types', child: Text('All Types')),
-                            DropdownMenuItem(value: 'Car', child: Text('Car')),
-                            DropdownMenuItem(value: 'Bus', child: Text('Bus')),
-                            DropdownMenuItem(value: 'Van', child: Text('Van')),
-                            DropdownMenuItem(value: 'Truck', child: Text('Truck')),
-                            DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _typeFilter = value!;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                const SizedBox(height: 14),
+                _buildFleetStatusFilter(isMobile),
+                const SizedBox(height: 14),
+                _buildFleetTypeFilter(isMobile),
               ],
               SizedBox(height: isMobile ? 10 : 12),
-              if (_statusFilter != 'All Status' || _typeFilter != 'All Types')
+              if (searchActive || _statusFilter != 'All Status' || _typeFilter != 'All Types')
                 Padding(
                   padding: EdgeInsets.only(bottom: isMobile ? 8 : 12),
                   child: Row(
@@ -1682,17 +1681,44 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      if (_statusFilter != 'All Status' || _typeFilter != 'All Types') ...[
+                      if (searchActive) ...[
+                        SizedBox(width: isMobile ? 6 : 8),
+                        TextButton(
+                          onPressed: () {
+                            _vehicleSearchController.clear();
+                            setState(() => _vehicleSearchQuery = '');
+                          },
+                          child: Text('Clear search', style: TextStyle(fontSize: isMobile ? 12 : 13)),
+                        ),
+                      ],
+                      if (_statusFilter != 'All Status') ...[
+                        SizedBox(width: isMobile ? 6 : 8),
+                        TextButton(
+                          onPressed: () => setState(() => _statusFilter = 'All Status'),
+                          child: Text('Clear status', style: TextStyle(fontSize: isMobile ? 12 : 13)),
+                        ),
+                      ],
+                      if (_typeFilter != 'All Types') ...[
+                        SizedBox(width: isMobile ? 6 : 8),
+                        TextButton(
+                          onPressed: () => setState(() => _typeFilter = 'All Types'),
+                          child: Text('Clear type', style: TextStyle(fontSize: isMobile ? 12 : 13)),
+                        ),
+                      ],
+                      if (searchActive &&
+                          (_statusFilter != 'All Status' || _typeFilter != 'All Types')) ...[
                         SizedBox(width: isMobile ? 6 : 8),
                         TextButton.icon(
                           onPressed: () {
+                            _vehicleSearchController.clear();
                             setState(() {
+                              _vehicleSearchQuery = '';
                               _statusFilter = 'All Status';
                               _typeFilter = 'All Types';
                             });
                           },
-                          icon: Icon(Icons.clear, size: isMobile ? 14 : 16),
-                          label: Text('Clear filters', style: TextStyle(fontSize: isMobile ? 12 : 14)),
+                          icon: Icon(Icons.clear_all, size: isMobile ? 14 : 16),
+                          label: Text('Clear all', style: TextStyle(fontSize: isMobile ? 12 : 14)),
                           style: TextButton.styleFrom(
                             padding: EdgeInsets.symmetric(
                                 horizontal: isMobile ? 6 : 8,
@@ -1713,7 +1739,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     child: Column(
                       children: [
                         Icon(
-                          _statusFilter != 'All Status' || _typeFilter != 'All Types'
+                          searchActive ||
+                                  _statusFilter != 'All Status' ||
+                                  _typeFilter != 'All Types'
                               ? Icons.filter_alt_off
                               : Icons.directions_car_outlined,
                           size: isMobile ? 40 : 48,
@@ -1721,8 +1749,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                         ),
                         SizedBox(height: isMobile ? 12 : 16),
                         Text(
-                          _statusFilter != 'All Status' || _typeFilter != 'All Types'
-                              ? 'No vehicles match your filters'
+                          searchActive ||
+                                  _statusFilter != 'All Status' ||
+                                  _typeFilter != 'All Types'
+                              ? 'No vehicles match your search or filters'
                               : 'No vehicles found',
                           style: TextStyle(
                             fontSize: isMobile ? 14 : 16,
@@ -1730,16 +1760,21 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        if (_statusFilter != 'All Status' || _typeFilter != 'All Types') ...[
+                        if (searchActive ||
+                            _statusFilter != 'All Status' ||
+                            _typeFilter != 'All Types') ...[
                           SizedBox(height: isMobile ? 6 : 8),
                           TextButton(
                             onPressed: () {
+                              _vehicleSearchController.clear();
                               setState(() {
+                                _vehicleSearchQuery = '';
                                 _statusFilter = 'All Status';
                                 _typeFilter = 'All Types';
                               });
                             },
-                            child: Text('Clear filters', style: TextStyle(fontSize: isMobile ? 13 : 14)),
+                            child: Text('Clear search & filters',
+                                style: TextStyle(fontSize: isMobile ? 13 : 14)),
                           ),
                         ],
                       ],
@@ -2904,76 +2939,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   // Helper methods for fleet overview table
   Widget _buildMobileVehicleCard(Vehicle vehicle) {
-    return InkWell(
-      onTap: () => _showOwnerStatDetails('Vehicle Details', [
-        ListTile(title: Text(vehicle.licensePlate), subtitle: Text('${vehicle.make} ${vehicle.model} (${vehicle.year})')),
-        ListTile(title: const Text('Driver'), subtitle: Text(vehicle.driverName ?? 'Unassigned')),
-        _vehicleDetailStatusTile(vehicle),
-        ListTile(title: const Text('Location'), subtitle: Text(vehicle.location ?? 'Unknown')),
-        ListTile(title: const Text('Alertness'), subtitle: Text('${vehicle.alertness}%')),
-        ListTile(
-          title: const Text('Actions'),
-          subtitle: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextButton.icon(
-                  onPressed: () => _showEditVehicleDialog(vehicle),
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit'),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: () => _showDeleteVehicleDialog(vehicle),
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  label: const Text('Delete', style: TextStyle(color: Colors.red)),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: () async {
-                    // Get driver's phone number from Firestore
-                    if (vehicle.assignedDriverId != null && vehicle.assignedDriverId!.isNotEmpty) {
-                      try {
-                        final driverDoc = await _firestore.collection('users').doc(vehicle.assignedDriverId).get();
-                        if (driverDoc.exists) {
-                          final driverPhone = driverDoc.data()?['phone'] as String?;
-                          if (driverPhone != null && driverPhone.isNotEmpty) {
-                            final uri = Uri.parse('tel:$driverPhone');
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Cannot make phone call')),
-                              );
-                            }
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Driver phone number not available')),
-                            );
-                          }
-                        }
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
-                      }
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No driver assigned to this vehicle')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.phone_outlined),
-                  label: const Text('Call'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ]),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
+    return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -2984,29 +2950,56 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  vehicle.licensePlate,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      vehicle.licensePlate,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${vehicle.make} ${vehicle.model}',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                    ),
+                    if (vehicle.driverName != null && vehicle.driverName!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        vehicle.driverName!,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               _buildMobileRealtimeStatusBadge(vehicle),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Edit vehicle',
+                onPressed: () => _showEditVehicleDialog(vehicle),
+                icon: Icon(Icons.edit_outlined, color: AppColors.primary, size: 22),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              ),
+              IconButton(
+                tooltip: 'Delete vehicle',
+                onPressed: () => _showDeleteVehicleDialog(vehicle),
+                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              ),
             ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${vehicle.make} ${vehicle.model}',
-            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
           ),
         ],
       ),
-    ));
+    );
   }
 
   Widget _buildTableHeader(String text, [bool isMobile = false]) {

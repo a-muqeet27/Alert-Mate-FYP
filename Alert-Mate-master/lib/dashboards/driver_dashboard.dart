@@ -52,13 +52,13 @@ class _DriverDashboardState extends State<DriverDashboard>
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
           section: 'Monitoring',
-          icon: Icons.home_outlined,
-          title: 'Overview',
+          icon: Icons.monitor_heart_outlined,
+          title: 'Drowsiness Monitoring',
         ),
         const MenuItem(
           section: 'Monitoring',
-          icon: Icons.show_chart_outlined,
-          title: 'Alertness',
+          icon: Icons.history,
+          title: 'History',
         ),
         const MenuItem(
           section: 'Monitoring',
@@ -88,7 +88,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       case 0:
         return _buildDriverOverviewPage();
       case 1:
-        return _buildDriverAlertnessPage();
+        return _buildDriverHistoryPage();
       case 2:
         return _buildDriverLiveMonitoringPage();
       case 3:
@@ -105,9 +105,9 @@ class _DriverDashboardState extends State<DriverDashboard>
   String get _currentPageTitle {
     switch (_selectedIndex) {
       case 0:
-        return 'Overview';
+        return 'Drowsiness Monitoring';
       case 1:
-        return 'Alertness';
+        return 'History';
       case 2:
         return 'Live Monitoring';
       case 3:
@@ -117,18 +117,18 @@ class _DriverDashboardState extends State<DriverDashboard>
       case 5:
         return 'Notifications';
       default:
-        return 'Overview';
+        return 'Drowsiness Monitoring';
     }
   }
 
   String get _currentPageSubtitle {
     switch (_selectedIndex) {
       case 0:
-        return 'Real-time drowsiness monitoring';
+        return 'Start monitoring and manage your vehicle';
       case 1:
-        return 'Current alertness level and eye metrics';
+        return 'Past driving sessions and alert history';
       case 2:
-        return 'Real-time camera and drowsiness detection';
+        return 'Live camera feed and alertness level';
       case 3:
         return 'Audio alerts, contacts, and sensitivity';
       case 4:
@@ -136,7 +136,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       case 5:
         return 'Alerts and system messages';
       default:
-        return 'Real-time drowsiness monitoring';
+        return 'Start monitoring and manage your vehicle';
     }
   }
 
@@ -161,31 +161,17 @@ class _DriverDashboardState extends State<DriverDashboard>
     );
   }
 
-  Widget _buildDriverAlertnessPage() {
-    final isMobile = MediaQuery.of(context).size.width < 768;
-    final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
-    final gap = isMobile ? 12.0 : (isTablet ? 16.0 : 20.0);
+  Widget _buildDriverHistoryPage() {
     return _driverPageShell(
-      title: 'Alertness',
-      subtitle: 'Current alertness level and eye metrics',
-      child: isMobile
-          ? Column(
-              children: [
-                _buildAlertCard(isMobile),
-                SizedBox(height: gap),
-                _buildEARMARCard(isMobile),
-              ],
-            )
-          : IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: _buildAlertCard(isMobile)),
-                  SizedBox(width: gap),
-                  Expanded(child: _buildEARMARCard(isMobile)),
-                ],
-              ),
-            ),
+      title: 'History',
+      subtitle: 'Past driving sessions and alert history',
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        child: DriverHistoryScreen(
+          driverId: widget.user.id,
+          embedded: true,
+        ),
+      ),
     );
   }
 
@@ -1386,27 +1372,12 @@ class _DriverDashboardState extends State<DriverDashboard>
   Widget _buildDriverOverviewPage() {
     final isMobile = MediaQuery.of(context).size.width < 768;
     return _driverPageShell(
-      title: 'Overview',
-      subtitle: 'Real-time drowsiness monitoring',
+      title: 'Drowsiness Monitoring',
+      subtitle: 'Start a session and manage your assigned vehicle',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          isMobile
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildOverviewMonitoringButton(isMobile),
-                    const SizedBox(height: 10),
-                    _buildOverviewHistoryButton(isMobile),
-                  ],
-                )
-              : Row(
-                  children: [
-                    _buildOverviewMonitoringButton(isMobile),
-                    const SizedBox(width: 12),
-                    _buildOverviewHistoryButton(isMobile),
-                  ],
-                ),
+          _buildOverviewMonitoringButton(isMobile),
           const SizedBox(height: 16),
           StreamBuilder<Vehicle?>(
                   stream: _vehicleService.getVehicleByDriverStream(widget.user.id),
@@ -1552,9 +1523,16 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   Widget _buildOverviewMonitoringButton(bool isMobile) {
     return SizedBox(
-      width: isMobile ? double.infinity : null,
+      width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: _isMonitoring ? _stopMonitoring : _startMonitoring,
+        onPressed: () {
+          if (_isMonitoring) {
+            _stopMonitoring();
+          } else {
+            _startMonitoring();
+            setState(() => _selectedIndex = 2);
+          }
+        },
         icon: Icon(_isMonitoring ? Icons.pause : Icons.visibility),
         label: Text(_isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'),
         style: ElevatedButton.styleFrom(
@@ -1566,33 +1544,6 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           elevation: 0,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOverviewHistoryButton(bool isMobile) {
-    return SizedBox(
-      width: isMobile ? double.infinity : null,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DriverHistoryScreen(driverId: widget.user.id),
-            ),
-          );
-        },
-        icon: const Icon(Icons.history),
-        label: const Text('View History'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.primary),
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 20 : 24,
-            vertical: isMobile ? 12 : 14,
-          ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
@@ -1627,44 +1578,53 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
           SizedBox(height: isMobile ? 12 : 16),
           Text(
-            '${_alertness.clamp(0, 100).toStringAsFixed(1)}%',
+            _isMonitoring ? '${_alertness.clamp(0, 100).toStringAsFixed(1)}%' : '--',
             style: TextStyle(
               fontSize: isMobile ? 36 : 48,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: _isMonitoring ? Colors.black87 : Colors.grey[400],
             ),
           ),
-          const SizedBox(height: 10),
-          _buildAlertnessStatusBadge(),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final targetWidth =
-                  (constraints.maxWidth * (_alertness.clamp(0, 100) / 100.0)).clamp(0.0, constraints.maxWidth);
-              return Stack(
-                children: [
-                  Container(
-                    height: 10,
-                    width: constraints.maxWidth,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE0E0E0),
-                      borderRadius: BorderRadius.circular(5),
+          if (_isMonitoring) ...[
+            const SizedBox(height: 10),
+            _buildAlertnessStatusBadge(),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final targetWidth = (constraints.maxWidth *
+                        (_alertness.clamp(0, 100) / 100.0))
+                    .clamp(0.0, constraints.maxWidth);
+                return Stack(
+                  children: [
+                    Container(
+                      height: 10,
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0E0E0),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
                     ),
-                  ),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOut,
-                    width: targetWidth,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: _getAlertnessColor(),
-                      borderRadius: BorderRadius.circular(5),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      width: targetWidth,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: _getAlertnessColor(),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
-          ),
+                  ],
+                );
+              },
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              'Start monitoring to see live alertness',
+              style: TextStyle(fontSize: isMobile ? 12 : 13, color: Colors.grey[600]),
+            ),
+          ],
         ],
       ),
     );
@@ -1847,31 +1807,59 @@ class _DriverDashboardState extends State<DriverDashboard>
   Widget _buildAlertSettingsTab() {
     final isMobile = MediaQuery.of(context).size.width < 768;
     return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 32),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Alert Configuration',
-            style: TextStyle(
-              fontSize: isMobile ? 18 : 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.tune, color: AppColors.primary, size: isMobile ? 22 : 26),
+              ),
+              SizedBox(width: isMobile ? 12 : 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Alert Configuration',
+                      style: TextStyle(
+                        fontSize: isMobile ? 18 : 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: isMobile ? 2 : 4),
+                    Text(
+                      'Customize drowsiness detection alerts',
+                      style: TextStyle(
+                        fontSize: isMobile ? 12 : 14,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: isMobile ? 6 : 8),
-          Text(
-            'Customize your Drowsiness Detection Alerts',
-            style: TextStyle(
-              fontSize: isMobile ? 12 : 14,
-              color: Colors.black54,
-            ),
-          ),
-          SizedBox(height: isMobile ? 24 : 32),
+          SizedBox(height: isMobile ? 20 : 28),
           _buildSettingRow(
             'Audio Alerts',
             'Sound alarm when drowsiness detected',
@@ -1998,43 +1986,34 @@ class _DriverDashboardState extends State<DriverDashboard>
         ),
       ],
     );
+    final button = ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(
+        buttonText,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+    );
     if (isMobile) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           label,
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton(
-              onPressed: onPressed,
-              child: Text(buttonText),
-            ),
-          ),
+          const SizedBox(height: 10),
+          Align(alignment: Alignment.centerLeft, child: button),
         ],
       );
     }
     return Row(
       children: [
         Expanded(child: label),
-        OutlinedButton(
-          onPressed: onPressed,
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            side: BorderSide(color: Colors.grey[300]!),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: Text(
-            buttonText,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[700],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
+        button,
       ],
     );
   }
@@ -2264,7 +2243,31 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   Widget _buildRealtimeAlertness() {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    return Container(
+    final isTablet = MediaQuery.of(context).size.width < 1024 && !isMobile;
+    final gap = isMobile ? 12.0 : (isTablet ? 16.0 : 20.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        isMobile
+            ? Column(
+                children: [
+                  _buildAlertCard(isMobile),
+                  SizedBox(height: gap),
+                  _buildEARMARCard(isMobile),
+                ],
+              )
+            : IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: _buildAlertCard(isMobile)),
+                    SizedBox(width: gap),
+                    Expanded(child: _buildEARMARCard(isMobile)),
+                  ],
+                ),
+              ),
+        SizedBox(height: isMobile ? 16 : 24),
+        Container(
       padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -2274,7 +2277,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Real-time Alertness',
+            'Camera Feed',
             style: TextStyle(
               fontSize: isMobile ? 16 : 18,
               fontWeight: FontWeight.w600,
@@ -2283,7 +2286,9 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
           SizedBox(height: isMobile ? 4 : 6),
           Text(
-            'Live drowsiness detection from the camera',
+            _isMonitoring
+                ? 'Live drowsiness detection from the camera'
+                : 'Tap Start Monitoring on Drowsiness Monitoring to begin',
             style: TextStyle(
               fontSize: isMobile ? 12 : 14,
               color: Colors.black54,
@@ -2321,6 +2326,8 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
         ],
       ),
+    ),
+      ],
     );
   }
 

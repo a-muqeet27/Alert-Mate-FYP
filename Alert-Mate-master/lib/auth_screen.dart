@@ -2,6 +2,7 @@
 // Replace your _handleAuth() method with this updated version
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'models/user.dart';
 import 'package:country_picker/country_picker.dart';
@@ -13,6 +14,7 @@ import 'dashboards/owner_dashboard.dart';
 import 'screens/driver_documents_gate_screen.dart';
 import 'utils/page_transitions.dart';
 import 'constants/app_colors.dart';
+import 'utils/form_validators.dart';
 
 class AuthScreen extends StatefulWidget {
   final int? initialDashboardIndex;
@@ -121,25 +123,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   String? _validatePhoneByCountry(String value) {
-    final cleaned = value.replaceAll(RegExp(r'[^0-9]'), '');
-    switch (_selectedCountryIso.toUpperCase()) {
-      case 'PK':
-        if (!RegExp(r'^03\d{9}$').hasMatch(cleaned)) {
-          return 'Use format 03XX-XXXXXXX';
-        }
-        break;
-      case 'US':
-      case 'CA':
-        if (!RegExp(r'^\d{10}$').hasMatch(cleaned)) {
-          return 'Use 10-digit phone number';
-        }
-        break;
-      default:
-        if (cleaned.length < 7 || cleaned.length > 15) {
-          return 'Enter valid phone number';
-        }
-    }
-    return null;
+    return FormValidators.validatePhone(value, countryIso: _selectedCountryIso);
   }
 
   @override
@@ -680,37 +664,42 @@ class _AuthScreenState extends State<AuthScreen>
                     scale: _scaleAnimation,
                     child: Column(
                       children: [
-                        const SizedBox(height: 20),
-                        Column(
-                          children: [
-                            Image.asset(
-                              'assets/images/Alert Mate New.png',
-                              width: 80,
-                              height: 60,
-                              fit: BoxFit.contain,
+                        const SizedBox(height: 12),
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            child: Column(
+                              children: [
+                                Image.asset(
+                                  'assets/images/Alert Mate New.png',
+                                  width: 120,
+                                  height: 90,
+                                  fit: BoxFit.contain,
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'ALERT MATE',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 4,
+                                    color: Color(0xFF2C3E50),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Drowsiness Detection',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF7F8C8D),
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'ALERT MATE',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 4,
-                                color: Color(0xFF2C3E50),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Drowsiness Detection',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF7F8C8D),
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 28),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -809,13 +798,10 @@ class _AuthScreenState extends State<AuthScreen>
                                             'First Name',
                                             '(e.g., Wahb)',
                                             _firstNameController,
-                                            validator: (value) {
-                                              if (value == null ||
-                                                  value.isEmpty) {
-                                                return 'Required';
-                                              }
-                                              return null;
-                                            },
+                                            validator: FormValidators.validateFirstName,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z]')),
+                                            ],
                                           ),
                                         ),
                                         const SizedBox(width: 16),
@@ -824,13 +810,10 @@ class _AuthScreenState extends State<AuthScreen>
                                             'Last Name',
                                             '(e.g., Muqeet)',
                                             _lastNameController,
-                                            validator: (value) {
-                                              if (value == null ||
-                                                  value.isEmpty) {
-                                                return 'Required';
-                                              }
-                                              return null;
-                                            },
+                                            validator: FormValidators.validateLastName,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z]')),
+                                            ],
                                           ),
                                         ),
                                       ],
@@ -1097,6 +1080,7 @@ class _AuthScreenState extends State<AuthScreen>
       String hint,
       TextEditingController controller, {
         String? Function(String?)? validator,
+        List<TextInputFormatter>? inputFormatters,
       }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1113,6 +1097,7 @@ class _AuthScreenState extends State<AuthScreen>
         TextFormField(
           controller: controller,
           validator: validator,
+          inputFormatters: inputFormatters,
           cursorColor: AppColors.primary,
           decoration: InputDecoration(
             hintText: hint,
@@ -1206,15 +1191,18 @@ class _AuthScreenState extends State<AuthScreen>
                 controller: _phoneController,
                 cursorColor: AppColors.primary,
                 validator: (value) {
-                  if (!isSignIn && (value == null || value.isEmpty)) {
-                    return 'Phone Number is Required';
+                  if (!isSignIn && (value == null || value.trim().isEmpty)) {
+                    return 'Please enter a valid phone number';
                   }
-                  if (!isSignIn && value != null && value.isNotEmpty) {
+                  if (!isSignIn && value != null && value.trim().isNotEmpty) {
                     return _validatePhoneByCountry(value.trim());
                   }
                   return null;
                 },
+                maxLines: 1,
+                style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
+                  errorMaxLines: 3,
                   hintText: _phoneHintForCountry(),
                   hintStyle: const TextStyle(color: Color(0xFFBDC3C7)),
                   filled: true,

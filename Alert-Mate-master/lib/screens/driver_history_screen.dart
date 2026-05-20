@@ -4,8 +4,13 @@ import '../constants/app_colors.dart';
 
 class DriverHistoryScreen extends StatefulWidget {
   final String driverId;
+  final bool embedded;
 
-  const DriverHistoryScreen({Key? key, required this.driverId}) : super(key: key);
+  const DriverHistoryScreen({
+    Key? key,
+    required this.driverId,
+    this.embedded = false,
+  }) : super(key: key);
 
   @override
   State<DriverHistoryScreen> createState() => _DriverHistoryScreenState();
@@ -101,32 +106,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Driving History',
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: isMobile ? 20 : 24,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black87),
-            onPressed: _loadSessions,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: _isLoading
+    final body = _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _error.isNotEmpty
               ? Center(
@@ -286,7 +266,65 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                           ),
                         ),
                       ),
+                    );
+
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(isMobile ? 0 : 0, 0, 0, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Driving History',
+                    style: TextStyle(
+                      fontSize: isMobile ? 18 : 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: AppColors.primary),
+                  onPressed: _loadSessions,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: body),
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Driving History',
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: isMobile ? 20 : 24,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black87),
+            onPressed: _loadSessions,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: body,
     );
   }
 

@@ -43,7 +43,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         const MenuItem(
           section: 'Trip',
           icon: Icons.map_outlined,
-          title: 'Trip & Map',
+          title: 'Map',
         ),
         const MenuItem(
           section: 'Safety',
@@ -85,7 +85,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       case 0:
         return 'Find Vehicle';
       case 1:
-        return 'Trip & Map';
+        return 'Map';
       case 2:
         return 'Emergency Alert';
       case 3:
@@ -102,7 +102,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       case 0:
         return 'Search by license plate to connect with your driver';
       case 1:
-        return 'Live trip information and driver location';
+        return 'Live driver location on map';
       case 2:
         return 'Notify driver, owner, and administrators in an emergency';
       case 3:
@@ -145,16 +145,9 @@ class _PassengerDashboardState extends State<PassengerDashboard>
 
   Widget _buildTripMapPage() {
     return _passengerPageShell(
-      title: 'Trip & Map',
-      subtitle: 'Live trip information and driver location',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildStaggeredItem(_buildTripInformation(), 0),
-          const SizedBox(height: 16),
-          _buildStaggeredItem(_buildLocationTab(), 1),
-        ],
-      ),
+      title: 'Map',
+      subtitle: 'Live driver location',
+      child: _buildStaggeredItem(_buildLocationTab(), 0),
     );
   }
 
@@ -706,6 +699,9 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        const SizedBox(height: 16),
+        _buildFindVehicleTripInfo(),
         const SizedBox(height: 16),
         if (driverId != null && driverId.isNotEmpty)
           _buildLiveStatusCards(driverId)
@@ -1294,6 +1290,9 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       ),
     );
   }
+
+  /// Trip details shown under Find Vehicle after a plate search.
+  Widget _buildFindVehicleTripInfo() => _buildTripInformation();
 
   Widget _buildTripInformation() {
     final driverId = _lookupDriverId;
@@ -2360,7 +2359,16 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     );
   }
 
-  // New emergency alert dialog with confirmation
+  static const List<String> _emergencyCategories = [
+    'Driver Not Responding',
+    'Car Issue',
+    'Tyre Issue',
+    'Medical Emergency',
+    'Over Speeding',
+    'Other',
+  ];
+
+  // Emergency alert dialog with category selection and confirmation
   void _showEmergencyAlertDialog() async {
     final vehicle = _lookupVehicle;
     final driverId = _lookupDriverId;
@@ -2409,11 +2417,13 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     String driverName = vehicle.driverName ?? 'Unknown Driver';
 
     final scaffoldContext = context;
+    String selectedCategory = _emergencyCategories.first;
 
     await showDialog<void>(
       context: scaffoldContext,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
         title: Row(
           children: [
             Container(
@@ -2436,7 +2446,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
           ],
         ),
-        content: Column(
+        content: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2466,6 +2477,23 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
             const SizedBox(height: 16),
             const Text(
+              'Emergency type',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            ..._emergencyCategories.map((cat) => RadioListTile<String>(
+              value: cat,
+              groupValue: selectedCategory,
+              onChanged: (v) {
+                if (v != null) setDialogState(() => selectedCategory = v);
+              },
+              title: Text(cat, style: const TextStyle(fontSize: 14)),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              activeColor: AppColors.primary,
+            )),
+            const SizedBox(height: 12),
+            const Text(
               'This alert will immediately notify:',
               style: TextStyle(
                 fontSize: 14,
@@ -2490,6 +2518,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
           ],
         ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -2497,6 +2526,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
           ElevatedButton(
             onPressed: () {
+              final category = selectedCategory;
               Navigator.pop(dialogContext);
 
               WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -2533,6 +2563,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                     vehiclePlate: vehicle.licensePlate,
                     vehicleMake: vehicle.make,
                     vehicleModel: vehicle.model,
+                    category: category,
                     ownerId: ownerId,
                     ownerName: ownerName,
                   ).timeout(const Duration(seconds: 40));
@@ -2550,7 +2581,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Emergency alert sent for vehicle plate $plate. Driver, owner, and admins were notified.',
+                                'Emergency alert ($category) sent for plate $plate. Driver, owner, and admins were notified.',
                               ),
                             ),
                           ],
@@ -2597,6 +2628,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             child: const Text('SEND EMERGENCY ALERT'),
           ),
         ],
+      ),
       ),
     );
   }

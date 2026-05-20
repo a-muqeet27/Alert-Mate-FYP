@@ -75,12 +75,13 @@ class InAppNotificationService {
     required String licensePlate,
     required String vehicleMake,
     required String vehicleModel,
+    required String category,
   }) async {
     final plate = licensePlate.trim();
     final makeModel = '$vehicleMake $vehicleModel'.trim();
-    final title = 'Emergency alert';
+    final title = 'Emergency alert: $category';
     final body =
-        'Passenger $passengerName pressed the emergency alert for vehicle $makeModel — plate $plate.';
+        'Passenger $passengerName reported "$category" for vehicle $makeModel (plate $plate). Please respond immediately.';
 
     final targets = <String>{driverId};
     if (ownerId != null && ownerId.isNotEmpty) targets.add(ownerId);

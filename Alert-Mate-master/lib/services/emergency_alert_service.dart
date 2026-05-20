@@ -19,6 +19,7 @@ class EmergencyAlertService {
     required String vehiclePlate,
     required String vehicleMake,
     required String vehicleModel,
+    required String category,
     String? ownerId,
     String? ownerName,
   }) async {
@@ -35,6 +36,7 @@ class EmergencyAlertService {
         'vehiclePlate': vehiclePlate,
         'vehicleMake': vehicleMake,
         'vehicleModel': vehicleModel,
+        'category': category,
         'ownerId': ownerId,
         'ownerName': ownerName,
         'status': 'active', // active, acknowledged, resolved
@@ -53,6 +55,7 @@ class EmergencyAlertService {
           licensePlate: vehiclePlate,
           vehicleMake: vehicleMake,
           vehicleModel: vehicleModel,
+          category: category,
         );
       } catch (e) {
         print('⚠️ EmergencyAlertService: in-app notification fan-out failed: $e');
