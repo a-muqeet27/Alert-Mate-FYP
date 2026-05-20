@@ -17,6 +17,7 @@ import '../widgets/email_verified_guard.dart';
 import '../screens/notifications_inbox_screen.dart';
 import '../services/user_notifications_service.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
+import '../widgets/emergency_contact_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/dashboard_responsive.dart';
 
@@ -1967,7 +1968,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 ),
               ),
               const SizedBox(width: 8),
-              Switch(
+              EmergencyContactUi.themedSwitch(
                 value: contact.enabled,
                 onChanged: (value) async {
                   try {
@@ -1980,7 +1981,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                     }
                   }
                 },
-                activeColor: AppColors.primary,
               ),
             ],
           ),
@@ -1990,22 +1990,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   Widget _buildCompactPriorityChip(String priority) {
-    final isPrimary = priority == 'primary';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: isPrimary ? Colors.red : const Color(0xFFFF6F00),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        priority,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
-    );
+    return EmergencyContactUi.priorityBadge(priority, compact: true);
   }
 
   Widget _buildTableHeader(String text) {
@@ -2066,25 +2051,9 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   }
 
   Widget _buildPriorityBadgeCell(String priority) {
-    final isPrimary = priority == 'primary';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isPrimary ? Colors.red : const Color(0xFFFF6F00),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          priority,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
+      child: EmergencyContactUi.priorityBadge(priority),
     );
   }
 
@@ -2105,25 +2074,14 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   Widget _buildMethodsCell(List<dynamic> methods) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          if (methods.contains('call'))
-            Icon(Icons.phone, size: 18, color: Colors.green[600]),
-          if (methods.contains('call')) const SizedBox(width: 6),
-          if (methods.contains('sms'))
-            Icon(Icons.message, size: 18, color: Colors.blue[600]),
-          if (methods.contains('sms')) const SizedBox(width: 6),
-          if (methods.contains('email'))
-            Icon(Icons.email, size: 18, color: Colors.grey[600]),
-        ],
-      ),
+      child: EmergencyContactUi.methodsRow(methods),
     );
   }
 
   Widget _buildStatusToggleCell(EmergencyContact contact) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Switch(
+      child: EmergencyContactUi.themedSwitch(
         value: contact.enabled,
         onChanged: (value) async {
           try {
@@ -2136,7 +2094,6 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             }
           }
         },
-        activeColor: AppColors.primary,
       ),
     );
   }
@@ -2147,7 +2104,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 20),
+            icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.primary),
             onPressed: () {
               _showContactDialog(context: context, contact: contact);
             },
@@ -2649,7 +2606,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text(contact == null ? 'Add Contact' : 'Edit Contact'),
+            title: Text(
+              contact == null ? 'Add Emergency Contact' : 'Edit Emergency Contact',
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
             content: Form(
               key: formKey,
               child: SingleChildScrollView(
@@ -2658,97 +2618,43 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                   children: [
                     TextFormField(
                       controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Name'),
+                      decoration: EmergencyContactUi.inputDecoration('Name *'),
                       validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    TextFormField(
-                      controller: relationshipController,
-                      decoration: const InputDecoration(labelText: 'Relationship'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    TextFormField(
-                      controller: phoneController,
-                      decoration: const InputDecoration(labelText: 'Phone'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    TextFormField(
-                      controller: emailController,
-                      decoration: const InputDecoration(labelText: 'Email (optional)'),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Text('Priority:'),
-                        const SizedBox(width: 12),
-                        DropdownButton<String>(
-                          value: priority,
-                          items: const [
-                            DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                            DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setDialogState(() => priority = val);
-                            }
-                          },
-                        ),
-                      ],
+                    TextFormField(
+                      controller: relationshipController,
+                      decoration: EmergencyContactUi.inputDecoration('Relationship *'),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                     ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 12,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                            Checkbox(
-                              value: methods.contains('call'),
-                              onChanged: (val) {
-                                setDialogState(() {
-                                  if (val == true) { methods.add('call'); } else { methods.remove('call'); }
-                                });
-                              },
-                            ),
-                            const Text('Call'),
-                          ]),
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                            Checkbox(
-                              value: methods.contains('sms'),
-                              onChanged: (val) {
-                                setDialogState(() {
-                                  if (val == true) { methods.add('sms'); } else { methods.remove('sms'); }
-                                });
-                              },
-                            ),
-                            const Text('SMS'),
-                          ]),
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                            Checkbox(
-                              value: methods.contains('email'),
-                              onChanged: (val) {
-                                setDialogState(() {
-                                  if (val == true) { methods.add('email'); } else { methods.remove('email'); }
-                                });
-                              },
-                            ),
-                            const Text('Email'),
-                          ]),
-                        ],
-                      ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phoneController,
+                      decoration: EmergencyContactUi.inputDecoration('Phone *', hint: '03XX-1234567'),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Text('Enabled'),
-                        const SizedBox(width: 12),
-                        Switch(
-                          value: enabled,
-                          onChanged: (val) {
-                            setDialogState(() => enabled = val);
-                          },
-                        ),
-                      ],
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: emailController,
+                      decoration: EmergencyContactUi.inputDecoration('Email (optional)'),
+                    ),
+                    const SizedBox(height: 16),
+                    EmergencyContactUi.priorityDropdown(
+                      value: priority,
+                      onChanged: (val) => setDialogState(() => priority = val),
+                    ),
+                    const SizedBox(height: 16),
+                    EmergencyContactUi.contactMethodsSection(
+                      methods: methods,
+                      onChanged: (next) => setDialogState(() {
+                        methods
+                          ..clear()
+                          ..addAll(next);
+                      }),
+                    ),
+                    EmergencyContactUi.enabledSwitchRow(
+                      value: enabled,
+                      onChanged: (val) => setDialogState(() => enabled = val),
                     ),
                   ],
                 ),
@@ -2757,9 +2663,10 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
               ),
               ElevatedButton(
+                style: EmergencyContactUi.primaryButtonStyle,
                 onPressed: () async {
                   if (formKey.currentState?.validate() != true) return;
                   if (methods.isEmpty) {

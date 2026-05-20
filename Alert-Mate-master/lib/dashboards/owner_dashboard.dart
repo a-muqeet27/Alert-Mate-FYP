@@ -25,6 +25,7 @@ import '../screens/driver_documents_gate_screen.dart';
 import '../utils/sign_out_flow.dart';
 import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
+import '../widgets/emergency_contact_ui.dart';
 import '../constants/vehicle_catalog.dart';
 import '../widgets/dashboard_detail_dialog_theme.dart';
 import '../utils/dashboard_responsive.dart';
@@ -2642,10 +2643,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 children: [
                   TextFormField(
                     controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Name *',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: EmergencyContactUi.inputDecoration('Name *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Name is required';
@@ -2656,10 +2654,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: relationshipController,
-                    decoration: const InputDecoration(
-                      labelText: 'Relationship *',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: EmergencyContactUi.inputDecoration('Relationship *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Relationship is required';
@@ -2670,10 +2665,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number *',
-                      hintText: '03XX-1234567',
-                      border: OutlineInputBorder(),
+                    decoration: EmergencyContactUi.inputDecoration(
+                      'Phone Number *',
+                      hint: '03XX-1234567',
                     ),
                     keyboardType: TextInputType.phone,
                     inputFormatters: [
@@ -2694,10 +2688,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email (Optional)',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value != null && value.trim().isNotEmpty) {
@@ -2709,69 +2700,25 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     },
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
+                  EmergencyContactUi.priorityDropdown(
                     value: priority,
-                    decoration: const InputDecoration(
-                      labelText: 'Priority',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                      DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                    ],
-                    onChanged: (value) {
-                      setDialogState(() {
-                        priority = value!;
-                      });
-                    },
+                    onChanged: (value) => setDialogState(() => priority = value),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
-                  CheckboxListTile(
-                    title: const Text('Phone Call'),
-                    value: methods.contains('call'),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        if (value == true) {
-                          methods.add('call');
-                        } else {
-                          methods.remove('call');
-                        }
-                      });
-                    },
-                  ),
-                  CheckboxListTile(
-                    title: const Text('SMS'),
-                    value: methods.contains('sms'),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        if (value == true) {
-                          methods.add('sms');
-                        } else {
-                          methods.remove('sms');
-                        }
-                      });
-                    },
-                  ),
-                  CheckboxListTile(
-                    title: const Text('Email'),
-                    value: methods.contains('email'),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        if (value == true) {
-                          methods.add('email');
-                        } else {
-                          methods.remove('email');
-                        }
-                      });
-                    },
+                  EmergencyContactUi.contactMethodsSection(
+                    methods: methods.toSet(),
+                    onChanged: (next) => setDialogState(() {
+                      methods
+                        ..clear()
+                        ..addAll(next);
+                    }),
                   ),
                   if (methods.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
                       child: Text(
                         'At least one contact method is required',
-                        style: TextStyle(color: Colors.red[700], fontSize: 12),
+                        style: TextStyle(color: AppColors.danger, fontSize: 12),
                       ),
                     ),
                 ],
@@ -2787,7 +2734,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               onPressed: () async {
                 if (methods.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please select at least one contact method')),
+                    const SnackBar(
+                      content: Text('Please select at least one contact method'),
+                      backgroundColor: AppColors.danger,
+                    ),
                   );
                   return;
                 }
@@ -2826,10 +2776,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   }
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
+              style: EmergencyContactUi.primaryButtonStyle,
               child: const Text('Add Contact'),
             ),
           ],
@@ -2860,10 +2807,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 children: [
                   TextFormField(
                     controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Name *',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: EmergencyContactUi.inputDecoration('Name *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Name is required';
@@ -2874,10 +2818,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: relationshipController,
-                    decoration: const InputDecoration(
-                      labelText: 'Relationship *',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: EmergencyContactUi.inputDecoration('Relationship *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Relationship is required';
@@ -2888,10 +2829,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number *',
-                      hintText: '03XX-1234567',
-                      border: OutlineInputBorder(),
+                    decoration: EmergencyContactUi.inputDecoration(
+                      'Phone Number *',
+                      hint: '03XX-1234567',
                     ),
                     keyboardType: TextInputType.phone,
                     inputFormatters: [
@@ -2912,10 +2852,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email (Optional)',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value != null && value.trim().isNotEmpty) {
@@ -2927,69 +2864,25 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     },
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
+                  EmergencyContactUi.priorityDropdown(
                     value: priority,
-                    decoration: const InputDecoration(
-                      labelText: 'Priority',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                      DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                    ],
-                    onChanged: (value) {
-                      setDialogState(() {
-                        priority = value!;
-                      });
-                    },
+                    onChanged: (value) => setDialogState(() => priority = value),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
-                CheckboxListTile(
-                  title: const Text('Phone Call'),
-                  value: methods.contains('call'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('call');
-                      } else {
-                        methods.remove('call');
-                      }
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('SMS'),
-                  value: methods.contains('sms'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('sms');
-                      } else {
-                        methods.remove('sms');
-                      }
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Email'),
-                  value: methods.contains('email'),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('email');
-                      } else {
-                        methods.remove('email');
-                      }
-                    });
-                  },
-                ),
+                  EmergencyContactUi.contactMethodsSection(
+                    methods: methods.toSet(),
+                    onChanged: (next) => setDialogState(() {
+                      methods
+                        ..clear()
+                        ..addAll(next);
+                    }),
+                  ),
                   if (methods.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
                       child: Text(
                         'At least one contact method is required',
-                        style: TextStyle(color: Colors.red[700], fontSize: 12),
+                        style: TextStyle(color: AppColors.danger, fontSize: 12),
                       ),
                     ),
                 ],
@@ -3002,10 +2895,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               child: const Text('Cancel'),
             ),
             ElevatedButton(
+              style: EmergencyContactUi.primaryButtonStyle,
               onPressed: () async {
                 if (methods.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please select at least one contact method')),
+                    const SnackBar(
+                      content: Text('Please select at least one contact method'),
+                      backgroundColor: AppColors.danger,
+                    ),
                   );
                   return;
                 }
@@ -3043,10 +2940,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   }
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Save Changes'),
             ),
           ],
@@ -3209,29 +3102,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   }
 
   Widget _buildPriorityBadgeCell(String priority, [bool isMobile = false]) {
-    final isPrimary = priority == 'primary';
     return Padding(
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 0 : 16,
           vertical: isMobile ? 0 : 12),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 8 : 12,
-            vertical: isMobile ? 4 : 6),
-        decoration: BoxDecoration(
-          color: isPrimary ? Colors.red : const Color(0xFFFF6F00),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          priority,
-          style: TextStyle(
-            fontSize: isMobile ? 10 : 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
+      child: EmergencyContactUi.priorityBadge(priority, compact: isMobile),
     );
   }
 
@@ -3240,19 +3115,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 0 : 16,
           vertical: isMobile ? 0 : 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (methods.contains('call'))
-            Icon(Icons.phone, size: isMobile ? 16 : 18, color: Colors.green[600]),
-          if (methods.contains('call')) SizedBox(width: isMobile ? 4 : 6),
-          if (methods.contains('sms'))
-            Icon(Icons.message, size: isMobile ? 16 : 18, color: Colors.blue[600]),
-          if (methods.contains('sms')) SizedBox(width: isMobile ? 4 : 6),
-          if (methods.contains('email'))
-            Icon(Icons.email, size: isMobile ? 16 : 18, color: Colors.grey[600]),
-        ],
-      ),
+      child: EmergencyContactUi.methodsRow(methods, iconSize: isMobile ? 16 : 18),
     );
   }
 
@@ -3261,7 +3124,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 0 : 16,
           vertical: isMobile ? 0 : 12),
-      child: Switch(
+      child: EmergencyContactUi.themedSwitch(
         value: contact.enabled,
         onChanged: (value) async {
           try {
@@ -3274,7 +3137,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             }
           }
         },
-        activeColor: const Color(0xFF2196F3),
       ),
     );
   }

@@ -32,6 +32,7 @@ import '../constants/app_config.dart';
 import '../screens/driver_history_screen.dart';
 import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
+import '../widgets/emergency_contact_ui.dart';
 import '../widgets/dashboard_detail_dialog_theme.dart';
 import '../utils/dashboard_responsive.dart';
 
@@ -2727,10 +2728,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               children: [
                   TextFormField(
                   controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: EmergencyContactUi.inputDecoration('Name *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Name is required';
@@ -2741,10 +2739,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(height: 16),
                   TextFormField(
                   controller: relationshipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship *',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: EmergencyContactUi.inputDecoration('Relationship *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Relationship is required';
@@ -2755,10 +2750,9 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(height: 16),
                   TextFormField(
                   controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                      hintText: '03XX-1234567',
-                    border: OutlineInputBorder(),
+                  decoration: EmergencyContactUi.inputDecoration(
+                    'Phone Number *',
+                    hint: '03XX-1234567',
                   ),
                   keyboardType: TextInputType.phone,
                     inputFormatters: [
@@ -2779,10 +2773,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(height: 16),
                   TextFormField(
                   controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (Optional)',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
                   keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value != null && value.trim().isNotEmpty) {
@@ -2794,60 +2785,28 @@ class _DriverDashboardState extends State<DriverDashboard>
                     },
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
+                EmergencyContactUi.priorityDropdown(
                   value: priority,
-                  decoration: const InputDecoration(
-                    labelText: 'Priority',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                    DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      priority = value!;
-                    });
-                  },
+                  onChanged: (value) => setDialogState(() => priority = value),
                 ),
                 const SizedBox(height: 16),
-                  const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
-                CheckboxListTile(
-                  title: const Text('Phone Call'),
-                  value: methods.contains('call'),
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('call');
-                      } else {
-                        methods.remove('call');
-                      }
-                    });
-                  },
+                EmergencyContactUi.contactMethodsSection(
+                  methods: methods.toSet(),
+                  includeSms: true,
+                  onChanged: (next) => setDialogState(() {
+                    methods
+                      ..clear()
+                      ..addAll(next);
+                  }),
                 ),
-                CheckboxListTile(
-                  title: const Text('Email'),
-                  value: methods.contains('email'),
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('email');
-                      } else {
-                        methods.remove('email');
-                      }
-                    });
-                  },
-                ),
-                  if (methods.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'At least one contact method is required',
-                        style: TextStyle(color: Colors.red[700], fontSize: 12),
-                      ),
+                if (methods.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'At least one contact method is required',
+                      style: TextStyle(color: AppColors.danger, fontSize: 12),
                     ),
+                  ),
               ],
               ),
             ),
@@ -2858,16 +2817,13 @@ class _DriverDashboardState extends State<DriverDashboard>
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
+              style: EmergencyContactUi.primaryButtonStyle,
               onPressed: () async {
                 if (methods.isEmpty) {
                   ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                     const SnackBar(
                       content: Text('Please select at least one contact method'),
-                      backgroundColor: Colors.red,
+                      backgroundColor: AppColors.danger,
                     ),
                   );
                   return;
@@ -2943,10 +2899,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               children: [
                   TextFormField(
                   controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: EmergencyContactUi.inputDecoration('Name *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Name is required';
@@ -2957,10 +2910,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(height: 16),
                   TextFormField(
                   controller: relationshipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship *',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: EmergencyContactUi.inputDecoration('Relationship *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Relationship is required';
@@ -2971,10 +2921,9 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(height: 16),
                   TextFormField(
                   controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                      hintText: '03XX-1234567',
-                    border: OutlineInputBorder(),
+                  decoration: EmergencyContactUi.inputDecoration(
+                    'Phone Number *',
+                    hint: '03XX-1234567',
                   ),
                   keyboardType: TextInputType.phone,
                     inputFormatters: [
@@ -2995,10 +2944,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (Optional)',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value != null && value.trim().isNotEmpty) {
@@ -3010,60 +2956,28 @@ class _DriverDashboardState extends State<DriverDashboard>
                   },
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
+                EmergencyContactUi.priorityDropdown(
                   value: priority,
-                  decoration: const InputDecoration(
-                    labelText: 'Priority',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'primary', child: Text('Primary')),
-                    DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      priority = value!;
-                    });
-                  },
+                  onChanged: (value) => setDialogState(() => priority = value),
                 ),
                 const SizedBox(height: 16),
-                const Text('Contact Methods: *', style: TextStyle(fontWeight: FontWeight.bold)),
-                CheckboxListTile(
-                  title: const Text('Phone Call'),
-                  value: methods.contains('call'),
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('call');
-                      } else {
-                        methods.remove('call');
-                      }
-                    });
-                  },
+                EmergencyContactUi.contactMethodsSection(
+                  methods: methods.toSet(),
+                  includeSms: true,
+                  onChanged: (next) => setDialogState(() {
+                    methods
+                      ..clear()
+                      ..addAll(next);
+                  }),
                 ),
-                CheckboxListTile(
-                  title: const Text('Email'),
-                  value: methods.contains('email'),
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value == true) {
-                        methods.add('email');
-                      } else {
-                        methods.remove('email');
-                      }
-                    });
-                  },
-                ),
-                  if (methods.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'At least one contact method is required',
-                        style: TextStyle(color: Colors.red[700], fontSize: 12),
-                      ),
+                if (methods.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'At least one contact method is required',
+                      style: TextStyle(color: AppColors.danger, fontSize: 12),
                     ),
+                  ),
               ],
               ),
             ),
@@ -3074,10 +2988,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
+              style: EmergencyContactUi.primaryButtonStyle,
               onPressed: () async {
                 if (methods.isEmpty) {
                   ScaffoldMessenger.of(scaffoldContext).showSnackBar(
@@ -3427,29 +3338,11 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   Widget _buildPriorityBadgeCell(String priority, [bool isMobile = false]) {
-    final isPrimary = priority == 'primary';
     return Padding(
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 0 : 16,
           vertical: isMobile ? 0 : 12),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 8 : 12,
-            vertical: isMobile ? 4 : 6),
-        decoration: BoxDecoration(
-          color: isPrimary ? Colors.red : const Color(0xFFFF6F00),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          priority,
-          style: TextStyle(
-            fontSize: isMobile ? 10 : 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
+      child: EmergencyContactUi.priorityBadge(priority, compact: isMobile),
     );
   }
 
@@ -3458,16 +3351,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 8 : 16,
           vertical: isMobile ? 8 : 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (methods.contains('call'))
-            Icon(Icons.phone, size: isMobile ? 16 : 18, color: AppColors.primary),
-          if (methods.contains('call')) SizedBox(width: isMobile ? 4 : 6),
-          if (methods.contains('email'))
-            Icon(Icons.email, size: isMobile ? 16 : 18, color: AppColors.primary),
-        ],
-      ),
+      child: EmergencyContactUi.methodsRow(methods, iconSize: isMobile ? 16 : 18),
     );
   }
 
@@ -3476,7 +3360,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 0 : 16,
           vertical: isMobile ? 0 : 12),
-      child: Switch(
+      child: EmergencyContactUi.themedSwitch(
         value: contact.enabled,
         onChanged: (value) async {
           try {
@@ -3492,7 +3376,6 @@ class _DriverDashboardState extends State<DriverDashboard>
             }
           }
         },
-        activeColor: const Color(0xFF2196F3),
       ),
     );
   }
@@ -3506,7 +3389,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: Icon(Icons.call_outlined, size: isMobile ? 18 : 20, color: Colors.green[700]),
+            icon: Icon(Icons.call_outlined, size: isMobile ? 18 : 20, color: AppColors.primary),
             onPressed: () async {
               final uri = Uri.parse('tel:${contact.phone}');
               if (await canLaunchUrl(uri)) {

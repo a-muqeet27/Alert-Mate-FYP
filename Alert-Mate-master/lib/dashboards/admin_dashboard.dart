@@ -275,6 +275,376 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     return DashboardLayout.scrollPage(context: context, child: child);
   }
 
+  double _adminSectionSpacing(bool isMobile) => isMobile ? 20 : 28;
+
+  Widget _adminSectionGap(bool isMobile) => SizedBox(height: _adminSectionSpacing(isMobile));
+
+  InputDecoration _adminInputDecoration({
+    required String hintText,
+    IconData? prefixIcon,
+    Widget? suffixIcon,
+    bool isMobile = false,
+  }) {
+    final radius = BorderRadius.circular(12);
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: TextStyle(fontSize: isMobile ? 15 : 16, color: AppColors.textSecondary),
+      prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 24, color: AppColors.primary) : null,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Colors.grey.shade300)),
+      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Colors.grey.shade300)),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+      ),
+      contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: isMobile ? 16 : 18),
+    );
+  }
+
+  Widget _buildAdminSectionCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    bool isMobile = false,
+    String? subtitle,
+    Widget? trailing,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 20 : 28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isMobile ? 12 : 14),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: isMobile ? 26 : 30),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: isMobile ? 18 : 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: isMobile ? 13 : 15,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          SizedBox(height: isMobile ? 20 : 24),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminMetricPanel({required Widget child, bool isMobile = false}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 18 : 24),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildAdminOptionBlock({
+    required String label,
+    required Widget child,
+    bool isMobile = false,
+    String? hint,
+    IconData? icon,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 18 : 22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: AppColors.primary, size: isMobile ? 22 : 26),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (hint != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              hint,
+              style: TextStyle(
+                fontSize: isMobile ? 13 : 14,
+                color: AppColors.textSecondary,
+                height: 1.35,
+              ),
+            ),
+          ],
+          SizedBox(height: isMobile ? 14 : 18),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminSeparatedOptions({
+    required List<Widget> options,
+    bool isMobile = false,
+  }) {
+    if (options.isEmpty) return const SizedBox.shrink();
+    if (options.length == 1) return options.first;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < options.length; i++) ...[
+          if (i > 0) SizedBox(height: isMobile ? 16 : 20),
+          options[i],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAdminMetricChip(String label, String value, {Color? valueColor, bool large = true}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: large ? 18 : 14, vertical: large ? 18 : 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: large ? 13 : 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: large ? 8 : 6),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: large ? 28 : 20,
+              fontWeight: FontWeight.w800,
+              color: valueColor ?? AppColors.primary,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _adminFleetStatusColor(String option) {
+    switch (option.toLowerCase()) {
+      case 'active':
+        return AppColors.success;
+      case 'critical':
+        return AppColors.danger;
+      case 'offline':
+        return Colors.grey;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  Widget _buildAdminRoleDropdown({
+    required String value,
+    required ValueChanged<String> onChanged,
+    bool isMobile = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary, size: 28),
+          style: TextStyle(
+            fontSize: isMobile ? 16 : 17,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+          items: ['All Roles', 'Admin', 'Driver', 'Owner', 'Passenger']
+              .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminUserTypeDropdown(bool isMobile) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _userTypeFilter,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary, size: 28),
+          style: TextStyle(
+            fontSize: isMobile ? 16 : 17,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+          items: const [
+            DropdownMenuItem(value: 'All Users', child: Text('All Users')),
+            DropdownMenuItem(value: 'Drivers', child: Text('Drivers')),
+            DropdownMenuItem(value: 'Owners', child: Text('Owners')),
+            DropdownMenuItem(value: 'Passengers', child: Text('Passengers')),
+          ],
+          onChanged: (val) => setState(() => _userTypeFilter = val!),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminVehicleTypeDropdown(bool isMobile) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _vehicleTypeFilter,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary, size: 28),
+          style: TextStyle(
+            fontSize: isMobile ? 16 : 17,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+          items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
+              .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) setState(() => _vehicleTypeFilter = v);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminVehicleStatusDropdown(bool isMobile) {
+    Widget statusRow(String option) {
+      return Row(
+        children: [
+          Icon(Icons.circle, size: 14, color: _adminFleetStatusColor(option)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(option)),
+        ],
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _vehicleStatusFilter,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary, size: 28),
+          selectedItemBuilder: (context) => ['All Statuses', 'Active', 'Offline', 'Critical']
+              .map((o) => Align(alignment: Alignment.centerLeft, child: statusRow(o)))
+              .toList(),
+          style: TextStyle(
+            fontSize: isMobile ? 16 : 17,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+          items: ['All Statuses', 'Active', 'Offline', 'Critical']
+              .map((s) => DropdownMenuItem(value: s, child: statusRow(s)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) setState(() => _vehicleStatusFilter = v);
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildDesktopAdminHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -291,15 +661,15 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 Text(
                   _currentPageTitle,
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 26,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black87,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   _currentPageSubtitle,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -315,16 +685,27 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildAdminStatsPage() {
-    final isMobile = MediaQuery.of(context).size.width < 768;
-    return _adminPageShell(child: _buildDynamicStats(isMobile));
+    final isMobile = DashboardLayout.isMobile(context);
+    return _adminPageShell(
+      child: _buildDynamicStatsSections(isMobile),
+    );
   }
 
   Widget _buildAdminLiveMapPage() {
-    final mapHeight = DashboardLayout.liveMapHeight(context);
+    final mapHeight = DashboardLayout.liveMapHeight(context) + (DashboardLayout.isMobile(context) ? 40 : 80);
     return _adminPageShell(
-      child: SizedBox(
-        height: mapHeight,
-        child: const LiveMap(),
+      child: _buildStaggeredItem(
+        SizedBox(
+          height: mapHeight,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: LiveMap(
+              showHeader: true,
+              height: mapHeight,
+            ),
+          ),
+        ),
+        0,
       ),
     );
   }
@@ -338,7 +719,19 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildAdminActivityPage() {
-    return _adminPageShell(child: _buildRecentActivities());
+    final isMobile = DashboardLayout.isMobile(context);
+    return _adminPageShell(
+      child: _buildStaggeredItem(
+        _buildAdminSectionCard(
+          isMobile: isMobile,
+          icon: Icons.history,
+          title: 'Recent Activity',
+          subtitle: 'Latest system events and updates',
+          child: _buildRecentActivitiesContent(),
+        ),
+        0,
+      ),
+    );
   }
 
   Widget _buildAdminDocumentsPage() {
@@ -433,16 +826,16 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             Text(
               _currentPageTitle,
               style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
               ),
             ),
             Text(
               _currentPageSubtitle,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 11,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
                 fontWeight: FontWeight.normal,
               ),
               maxLines: 1,
@@ -509,55 +902,24 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
 
-  Widget _buildStatCard(String title, String value, String subtitle,
-      IconData icon, Color valueColor, Color subtitleColor, [bool isMobile = false]) {
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Icon(icon, color: Colors.grey[400], size: 20),
-            ],
-          ),
-          SizedBox(height: isMobile ? 10 : 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isMobile ? 24 : 32,
-              fontWeight: FontWeight.bold,
-              color: valueColor,
-            ),
-          ),
-          SizedBox(height: isMobile ? 6 : 8),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: isMobile ? 12 : 13,
-              color: subtitleColor,
-            ),
-          ),
-        ],
-      ),
+  Widget _buildStatCardContent(String title, String value, String subtitle,
+      IconData icon, Color valueColor, Color subtitleColor, bool isMobile) {
+    return _buildAdminSeparatedOptions(
+      isMobile: isMobile,
+      options: [
+        _buildAdminOptionBlock(
+          isMobile: isMobile,
+          label: title,
+          hint: subtitle,
+          icon: icon,
+          child: _buildAdminMetricChip('Count', value, valueColor: valueColor),
+        ),
+      ],
     );
   }
 
-  // --- Dynamic Stats Section ---
-  Widget _buildDynamicStats(bool isMobile) {
+  // --- Dynamic Stats: separate section per metric ---
+  Widget _buildDynamicStatsSections(bool isMobile) {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore.collection('users').snapshots(),
       builder: (context, usersSnapshot) {
@@ -603,109 +965,84 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             }
 
             final isLoading = !usersSnapshot.hasData || !vehiclesSnapshot.hasData;
+            var sectionIndex = 0;
 
-            if (isMobile) {
-              return Column(
-                children: [
-                  _buildTotalUsersCard(isLoading ? '...' : usersValue, usersSubtitle, isMobile),
-                  const SizedBox(height: 12),
-                  _AdminLiveVehicleFleetMetrics(
-                    vehicleDocs: vehicleDocs,
-                    isLoading: isLoading,
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildStaggeredItem(
+                  _buildAdminSectionCard(
                     isMobile: isMobile,
-                    monitoringService: _monitoringService,
-                    statCardBuilder: _buildStatCard,
+                    icon: Icons.people_outline,
+                    title: 'User Statistics',
+                    subtitle: 'Registered accounts by role',
+                    child: _buildAdminSeparatedOptions(
+                      isMobile: isMobile,
+                      options: [
+                        _buildAdminOptionBlock(
+                          isMobile: isMobile,
+                          label: 'User Type',
+                          hint: 'Choose which user group to count',
+                          icon: Icons.filter_alt_outlined,
+                          child: _buildAdminUserTypeDropdown(isMobile),
+                        ),
+                        _buildAdminOptionBlock(
+                          isMobile: isMobile,
+                          label: 'Total Count',
+                          hint: usersSubtitle,
+                          icon: Icons.groups_outlined,
+                          child: _buildAdminMetricChip(
+                            'Users',
+                            isLoading ? '...' : usersValue,
+                            valueColor: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              );
-            } else {
-              return Row(
-                children: [
-                  Expanded(child: _buildTotalUsersCard(isLoading ? '...' : usersValue, usersSubtitle, isMobile)),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    flex: 2,
+                  sectionIndex++,
+                ),
+                _adminSectionGap(isMobile),
+                _buildStaggeredItem(
+                  _buildAdminSectionCard(
+                    isMobile: isMobile,
+                    icon: Icons.directions_car_filled_outlined,
+                    title: 'Active Vehicles',
+                    subtitle: 'Vehicles with live monitoring sessions',
                     child: _AdminLiveVehicleFleetMetrics(
                       vehicleDocs: vehicleDocs,
                       isLoading: isLoading,
                       isMobile: isMobile,
                       monitoringService: _monitoringService,
-                      statCardBuilder: _buildStatCard,
+                      metricOnly: 'active',
+                      statCardBuilder: _buildStatCardContent,
                     ),
                   ),
-                ],
-              );
-            }
+                  sectionIndex++,
+                ),
+                _adminSectionGap(isMobile),
+                _buildStaggeredItem(
+                  _buildAdminSectionCard(
+                    isMobile: isMobile,
+                    icon: Icons.warning_amber_rounded,
+                    title: 'Critical Alerts',
+                    subtitle: 'Vehicles in critical live condition',
+                    child: _AdminLiveVehicleFleetMetrics(
+                      vehicleDocs: vehicleDocs,
+                      isLoading: isLoading,
+                      isMobile: isMobile,
+                      monitoringService: _monitoringService,
+                      metricOnly: 'alerts',
+                      statCardBuilder: _buildStatCardContent,
+                    ),
+                  ),
+                  sectionIndex++,
+                ),
+              ],
+            );
           },
         );
       },
-    );
-  }
-
-  Widget _buildTotalUsersCard(String value, String subtitle, bool isMobile) {
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButton<String>(
-                    value: _userTypeFilter,
-                    underline: const SizedBox(),
-                    isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down, size: 20),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w500,
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'All Users', child: Text('All Users')),
-                      DropdownMenuItem(value: 'Drivers', child: Text('Drivers')),
-                      DropdownMenuItem(value: 'Owners', child: Text('Owners')),
-                      DropdownMenuItem(value: 'Passengers', child: Text('Passengers')),
-                    ],
-                    onChanged: (val) => setState(() => _userTypeFilter = val!),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.people, color: Colors.grey[400], size: 20),
-            ],
-          ),
-          SizedBox(height: isMobile ? 10 : 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isMobile ? 24 : 32,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          SizedBox(height: isMobile ? 6 : 8),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: isMobile ? 12 : 13,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -745,123 +1082,81 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
   }
 
-  Widget _buildUserManagement() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: EdgeInsets.all(MediaQuery.of(context).size.width < 768 ? 16 : 24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return constraints.maxWidth < DashboardLayout.mobileBreakpoint
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextField(
-                              controller: _userSearchController,
-                              decoration: InputDecoration(
-                                hintText: 'Search users...',
-                                prefixIcon: const Icon(Icons.search, size: 20),
-                                suffixIcon: _userSearchQuery.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.clear, size: 18),
-                                        onPressed: () {
-                                          _userSearchController.clear();
-                                          setState(() => _userSearchQuery = '');
-                                        },
-                                      )
-                                    : null,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              ),
-                              onChanged: (value) => setState(() => _userSearchQuery = value.trim()),
-                            ),
-                            const SizedBox(height: 12),
-                            DropdownButtonFormField<String>(
-                              value: _selectedRoleFilter,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              ),
-                              items: ['All Roles', 'Admin', 'Driver', 'Owner', 'Passenger']
-                                  .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                                  .toList(),
-                              onChanged: (value) => setState(() => _selectedRoleFilter = value!),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _userSearchController,
-                                decoration: InputDecoration(
-                                  hintText: 'Search users...',
-                                  prefixIcon: const Icon(Icons.search, size: 20),
-                                  suffixIcon: _userSearchQuery.isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(Icons.clear, size: 18),
-                                          onPressed: () {
-                                            _userSearchController.clear();
-                                            setState(() => _userSearchQuery = '');
-                                          },
-                                        )
-                                      : null,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                onChanged: (value) => setState(() => _userSearchQuery = value.trim()),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: AppColors.background,
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<String>(
-                                value: _selectedRoleFilter,
-                                items: ['All Roles', 'Admin', 'Driver', 'Owner', 'Passenger']
-                                    .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                                    .toList(),
-                                onChanged: (value) => setState(() => _selectedRoleFilter = value!),
-                                underline: const SizedBox(),
-                              ),
-                            ),
-                          ],
-                        );
+  Widget _buildUserSearchField(bool isMobile) {
+    return TextField(
+      controller: _userSearchController,
+      style: TextStyle(fontSize: isMobile ? 16 : 17),
+      decoration: _adminInputDecoration(
+        hintText: 'Search by name or email...',
+        prefixIcon: Icons.search,
+        isMobile: isMobile,
+        suffixIcon: _userSearchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 22),
+                onPressed: () {
+                  _userSearchController.clear();
+                  setState(() => _userSearchQuery = '');
                 },
-              ),
-              const SizedBox(height: 24),
-              _buildUserTable(),
-            ],
+              )
+            : null,
+      ),
+      onChanged: (value) => setState(() => _userSearchQuery = value.trim()),
+    );
+  }
+
+  Widget _buildUserManagement() {
+    final isMobile = DashboardLayout.isMobile(context);
+    var index = 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.search,
+            title: 'Search Users',
+            subtitle: 'Find accounts by name or email address',
+            child: _buildAdminOptionBlock(
+              isMobile: isMobile,
+              label: 'Search Query',
+              hint: 'Type to filter the user list below',
+              icon: Icons.person_search_outlined,
+              child: _buildUserSearchField(isMobile),
+            ),
           ),
+          index++,
+        ),
+        _adminSectionGap(isMobile),
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.admin_panel_settings_outlined,
+            title: 'Filter by Role',
+            subtitle: 'Show only selected user roles',
+            child: _buildAdminOptionBlock(
+              isMobile: isMobile,
+              label: 'Role',
+              hint: 'All roles or a specific account type',
+              icon: Icons.badge_outlined,
+              child: _buildAdminRoleDropdown(
+                value: _selectedRoleFilter,
+                onChanged: (v) => setState(() => _selectedRoleFilter = v),
+                isMobile: isMobile,
+              ),
+            ),
+          ),
+          index++,
+        ),
+        _adminSectionGap(isMobile),
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.people_outline,
+            title: 'User Directory',
+            subtitle: 'Tap a user for details and actions',
+            child: _buildUserTable(),
+          ),
+          index++,
         ),
       ],
     );
@@ -978,16 +1273,17 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     };
     final roleColor = roleColors[activeRole.toLowerCase()] ?? Colors.grey;
 
+    final isMobile = DashboardLayout.isMobile(context);
     return InkWell(
       onTap: () => _showUserQuickDetails(user),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 16 : 18),
       decoration: BoxDecoration(
         color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1041,37 +1337,29 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: roleColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  activeRole,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+              Expanded(
+                child: _buildAdminMetricChip('Role', activeRole, valueColor: roleColor, large: false),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildAdminMetricChip(
+                  'Status',
+                  isActive ? 'Active' : 'Inactive',
+                  valueColor: isActive ? AppColors.success : AppColors.textSecondary,
+                  large: false,
                 ),
               ),
-              const SizedBox(width: 12),
-              if (phone.isNotEmpty) ...[
-                Icon(Icons.phone, size: 14, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Flexible(child: Text(phone, style: TextStyle(fontSize: 12, color: Colors.grey[600]), overflow: TextOverflow.ellipsis)),
-              ],
-              const Spacer(),
-              Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
-              const SizedBox(width: 4),
-              Text(joinedText, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Tap for details',
-            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-          ),
+          if (phone.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildAdminMetricChip('Phone', phone, large: false),
+          ],
+          const SizedBox(height: 10),
+          _buildAdminMetricChip('Joined', joinedText, large: false),
         ],
       ),
     ));
@@ -1545,7 +1833,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildRecentActivities() {
+  Widget _buildRecentActivitiesContent() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore.collection('users').orderBy('createdAt', descending: true).limit(3).snapshots(),
       builder: (context, usersSnapshot) {
@@ -1613,30 +1901,9 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             // Take only first 5
             final recentActivities = activities.take(5).toList();
 
-            final isMobile = DashboardLayout.isMobile(context);
-            return Container(
-              padding: DashboardLayout.cardPadding(context),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
+            return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Recent Activities',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Latest system activities',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 24),
                   if (!usersSnapshot.hasData && !vehiclesSnapshot.hasData)
                     const Center(child: CircularProgressIndicator(color: AppColors.primary))
                   else if (recentActivities.isEmpty)
@@ -1668,7 +1935,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                       );
                     }),
                 ],
-              ),
             );
           },
         );
@@ -1678,22 +1944,23 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
 
   Widget _buildActivityItem(IconData icon, String title, String subtitle, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 20, color: color),
+            child: Icon(icon, size: 26, color: color),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1701,17 +1968,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -1725,180 +1993,92 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   // =============================================
   // VEHICLE MANAGEMENT SECTION
   // =============================================
-  Widget _buildVehicleManagement() {
-    final narrow = DashboardLayout.isMobile(context) || DashboardLayout.isNarrow(context);
-    final pad = DashboardLayout.cardPadding(context).left;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: EdgeInsets.all(pad),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return constraints.maxWidth < DashboardLayout.mobileBreakpoint
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextField(
-                              controller: _vehicleSearchController,
-                              decoration: InputDecoration(
-                                hintText: 'Search vehicles...',
-                                prefixIcon: const Icon(Icons.search, size: 20),
-                                suffixIcon: _vehicleSearchQuery.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.clear, size: 18),
-                                        onPressed: () {
-                                          _vehicleSearchController.clear();
-                                          setState(() => _vehicleSearchQuery = '');
-                                        },
-                                      )
-                                    : null,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                isDense: true,
-                              ),
-                              onChanged: (value) => setState(() => _vehicleSearchQuery = value.trim()),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    isExpanded: true,
-                                    value: _vehicleTypeFilter,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      isDense: true,
-                                    ),
-                                    items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                                        .map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis)))
-                                        .toList(),
-                                    onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    isExpanded: true,
-                                    value: _vehicleStatusFilter,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      isDense: true,
-                                    ),
-                                    items: ['All Statuses', 'Active', 'Offline', 'Critical']
-                                        .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
-                                        .toList(),
-                                    onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: TextField(
-                                controller: _vehicleSearchController,
-                                decoration: InputDecoration(
-                                  hintText: 'Search vehicles...',
-                                  prefixIcon: const Icon(Icons.search, size: 20),
-                                  suffixIcon: _vehicleSearchQuery.isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(Icons.clear, size: 18),
-                                          onPressed: () {
-                                            _vehicleSearchController.clear();
-                                            setState(() => _vehicleSearchQuery = '');
-                                          },
-                                        )
-                                      : null,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                onChanged: (value) => setState(() => _vehicleSearchQuery = value.trim()),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  border: Border.all(color: Colors.grey[300]!),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: DropdownButton<String>(
-                                  isExpanded: true,
-                                  value: _vehicleTypeFilter,
-                                  items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                                      .map((t) => DropdownMenuItem(value: t, child: Text(t, overflow: TextOverflow.ellipsis)))
-                                      .toList(),
-                                  onChanged: (value) => setState(() => _vehicleTypeFilter = value!),
-                                  underline: const SizedBox(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  border: Border.all(color: Colors.grey[300]!),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: DropdownButton<String>(
-                                  isExpanded: true,
-                                  value: _vehicleStatusFilter,
-                                  items: ['All Statuses', 'Active', 'Offline', 'Critical']
-                                      .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
-                                      .toList(),
-                                  onChanged: (value) => setState(() => _vehicleStatusFilter = value!),
-                                  underline: const SizedBox(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
+  Widget _buildVehicleSearchField(bool isMobile) {
+    return TextField(
+      controller: _vehicleSearchController,
+      style: TextStyle(fontSize: isMobile ? 16 : 17),
+      decoration: _adminInputDecoration(
+        hintText: 'Search plate, make, model, driver...',
+        prefixIcon: Icons.search,
+        isMobile: isMobile,
+        suffixIcon: _vehicleSearchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 22),
+                onPressed: () {
+                  _vehicleSearchController.clear();
+                  setState(() => _vehicleSearchQuery = '');
                 },
-              ),
-              const SizedBox(height: 24),
-              _buildVehicleTable(),
-            ],
+              )
+            : null,
+      ),
+      onChanged: (value) => setState(() => _vehicleSearchQuery = value.trim()),
+    );
+  }
+
+  Widget _buildVehicleManagement() {
+    final isMobile = DashboardLayout.isMobile(context);
+    var index = 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.search,
+            title: 'Search Vehicles',
+            subtitle: 'Find fleet records by plate or details',
+            child: _buildAdminOptionBlock(
+              isMobile: isMobile,
+              label: 'Search Query',
+              hint: 'Filter the vehicle registry below',
+              icon: Icons.directions_car_outlined,
+              child: _buildVehicleSearchField(isMobile),
+            ),
           ),
+          index++,
+        ),
+        _adminSectionGap(isMobile),
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.category_outlined,
+            title: 'Filter by Type',
+            subtitle: 'Car, bus, van, truck, or rickshaw',
+            child: _buildAdminOptionBlock(
+              isMobile: isMobile,
+              label: 'Vehicle Type',
+              icon: Icons.local_shipping_outlined,
+              child: _buildAdminVehicleTypeDropdown(isMobile),
+            ),
+          ),
+          index++,
+        ),
+        _adminSectionGap(isMobile),
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.traffic_outlined,
+            title: 'Filter by Status',
+            subtitle: 'Live active, offline, or critical state',
+            child: _buildAdminOptionBlock(
+              isMobile: isMobile,
+              label: 'Live Status',
+              icon: Icons.circle,
+              child: _buildAdminVehicleStatusDropdown(isMobile),
+            ),
+          ),
+          index++,
+        ),
+        _adminSectionGap(isMobile),
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.directions_car_filled_outlined,
+            title: 'Vehicle Registry',
+            subtitle: 'Full fleet list with live metrics',
+            child: _buildVehicleTable(),
+          ),
+          index++,
         ),
       ],
     );
@@ -2137,113 +2317,119 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       statusColor = Colors.grey;
     }
 
-    return InkWell(
-      onTap: () => _showVehicleQuickDetails(vehicle),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: statusColor.withValues(alpha: 0.15),
-                  child: Icon(typeIcons[type] ?? Icons.directions_car, size: 20, color: statusColor),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'Unknown Vehicle',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(plate, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    effective,
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF607D8B),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(type, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(width: 12),
-                Icon(Icons.person, size: 14, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    hasDriver ? (driverName ?? 'Assigned') : 'Unassigned',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const Spacer(),
-                if (liveActive) ...[
-                  Icon(
-                    Icons.speed,
-                    size: 14,
-                    color: alertness >= 70
-                        ? const Color(0xFF4CAF50)
-                        : alertness >= 50
-                            ? const Color(0xFFFF9800)
-                            : Colors.red,
-                  ),
-                  const SizedBox(width: 4),
-                  Text('$alertness%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                ] else ...[
-                  Icon(Icons.speed, size: 14, color: Colors.grey[400]),
-                  const SizedBox(width: 4),
-                  Text('N/A', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                ],
-              ],
-            ),
-            if (ownerEmail.isNotEmpty) ...[
-              const SizedBox(height: 8),
+    final isMobile = DashboardLayout.isMobile(context);
+    final alertnessColor = !liveActive
+        ? AppColors.textSecondary
+        : alertness >= 70
+            ? AppColors.success
+            : alertness >= 50
+                ? AppColors.warning
+                : AppColors.danger;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showVehicleQuickDetails(vehicle),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.all(isMobile ? 16 : 18),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.email_outlined, size: 14, color: Colors.grey[500]),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(ownerEmail, style: TextStyle(fontSize: 12, color: Colors.grey[600]), overflow: TextOverflow.ellipsis),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      typeIcons[type] ?? Icons.directions_car_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'Unknown Vehicle',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(plate, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      effective,
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(child: _buildAdminMetricChip('Type', type, large: false)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildAdminMetricChip(
+                      'Status',
+                      effective,
+                      valueColor: statusColor,
+                      large: false,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildAdminMetricChip(
+                      'Driver',
+                      hasDriver ? (driverName ?? 'Assigned') : 'Unassigned',
+                      large: false,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildAdminMetricChip(
+                      'Alertness',
+                      liveActive ? '$alertness%' : 'N/A',
+                      valueColor: alertnessColor,
+                      large: false,
+                    ),
+                  ),
+                ],
+              ),
+              if (ownerEmail.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _buildAdminMetricChip('Owner', ownerEmail, large: false),
+              ],
             ],
-            const SizedBox(height: 8),
-            Text(
-              'Tap for details',
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -2997,18 +3183,17 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   }
 
   Widget _buildDocumentApproval() {
-    return Container(
-      padding: EdgeInsets.all(MediaQuery.of(context).size.width < 768 ? 16 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-
-          // 1) Driver document approval
-          StreamBuilder<List<DriverDocumentSubmission>>(
+    final isMobile = DashboardLayout.isMobile(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.badge_outlined,
+            title: 'Driver Documents',
+            subtitle: 'Review CNIC and license submissions',
+            child: StreamBuilder<List<DriverDocumentSubmission>>(
             stream: _driverDocumentSubmissionService.watchPendingSubmissions(),
             builder: (context, snapshot) {
               final pending = snapshot.data ?? [];
@@ -3017,55 +3202,38 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Driver Documents',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF9800).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '$count Pending',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFFFF9800),
-                          ),
-                        ),
-                      ),
-                    ],
+                  _buildAdminOptionBlock(
+                    isMobile: isMobile,
+                    label: 'Pending Queue',
+                    hint: 'Documents waiting for admin review',
+                    icon: Icons.pending_actions,
+                    child: _buildAdminMetricChip(
+                      'Pending',
+                      count.toString(),
+                      valueColor: AppColors.warning,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
                   if (snapshot.hasError)
                     Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red))
                   else if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
                     const Padding(
                       padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
                     )
                   else if (pending.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Text(
-                        'No Driver Document Submissions',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        'No driver document submissions',
+                        style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
                       ),
                     )
                   else
                     LayoutBuilder(
                       builder: (context, constraints) {
-                        final isMobile = constraints.maxWidth < DashboardLayout.mobileBreakpoint;
-                        if (isMobile) {
+                        final isMobileLayout = constraints.maxWidth < DashboardLayout.mobileBreakpoint;
+                        if (isMobileLayout) {
                           return Column(
                             children: pending.map((s) => _buildMobileDriverDocCard(s)).toList(),
                           );
@@ -3075,14 +3243,16 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               decoration: BoxDecoration(
-                                border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                                color: AppColors.background,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
                               ),
                               child: const Row(
                                 children: [
-                                  Expanded(flex: 3, child: Text('Driver', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                                  Expanded(flex: 2, child: Text('Submitted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                                  Expanded(flex: 2, child: Text('Documents', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                                  Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 3, child: Text('Driver', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+                                  Expanded(flex: 2, child: Text('Submitted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+                                  Expanded(flex: 2, child: Text('Documents', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+                                  Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
                                 ],
                               ),
                             ),
@@ -3095,11 +3265,17 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               );
             },
           ),
-
-          const SizedBox(height: 24),
-
-          // 2) Owner vehicle book approval
-          StreamBuilder<List<OwnerVehicleSubmission>>(
+          ),
+          0,
+        ),
+        _adminSectionGap(isMobile),
+        _buildStaggeredItem(
+          _buildAdminSectionCard(
+            isMobile: isMobile,
+            icon: Icons.directions_car_filled_outlined,
+            title: 'Owner Vehicles',
+            subtitle: 'Approve owner vehicle book submissions',
+            child: StreamBuilder<List<OwnerVehicleSubmission>>(
             stream: _ownerVehicleSubmissionService.watchPendingSubmissions(),
             builder: (context, snapshot) {
               final pending = snapshot.data ?? [];
@@ -3108,55 +3284,38 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Owner Vehicles',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2196F3).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '$count Pending',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF2196F3),
-                          ),
-                        ),
-                      ),
-                    ],
+                  _buildAdminOptionBlock(
+                    isMobile: isMobile,
+                    label: 'Pending Queue',
+                    hint: 'Vehicle books waiting for approval',
+                    icon: Icons.pending_actions,
+                    child: _buildAdminMetricChip(
+                      'Pending',
+                      count.toString(),
+                      valueColor: AppColors.primary,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
                   if (snapshot.hasError)
                     Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red))
                   else if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
                     const Padding(
                       padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
                     )
                   else if (pending.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Text(
-                        'No Owner Vehicle Submissions',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        'No owner vehicle submissions',
+                        style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
                       ),
                     )
                   else
                     LayoutBuilder(
                       builder: (context, constraints) {
-                        final isMobile = constraints.maxWidth < DashboardLayout.mobileBreakpoint;
-                        if (isMobile) {
+                        final isMobileLayout = constraints.maxWidth < DashboardLayout.mobileBreakpoint;
+                        if (isMobileLayout) {
                           return Column(
                             children: pending.map((s) => _buildMobileOwnerVehicleCard(s)).toList(),
                           );
@@ -3166,14 +3325,16 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               decoration: BoxDecoration(
-                                border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                                color: AppColors.background,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
                               ),
                               child: const Row(
                                 children: [
-                                  Expanded(flex: 2, child: Text('Owner', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                                  Expanded(flex: 3, child: Text('Vehicle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                                  Expanded(flex: 2, child: Text('Submitted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
-                                  Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54))),
+                                  Expanded(flex: 2, child: Text('Owner', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+                                  Expanded(flex: 3, child: Text('Vehicle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+                                  Expanded(flex: 2, child: Text('Submitted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+                                  Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
                                 ],
                               ),
                             ),
@@ -3186,8 +3347,10 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               );
             },
           ),
-        ],
-      ),
+          ),
+          1,
+        ),
+      ],
     );
   }
 
@@ -3297,28 +3460,34 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[200]!),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFFFF9800).withOpacity(0.15),
-                child: Text(initial, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFFF9800))),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  initial,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.driverName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+                    Text(s.driverName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     const SizedBox(height: 4),
-                    Text(_formatTime(s.submittedAt), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    Text(_formatTime(s.submittedAt), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                   ],
                 ),
               ),
@@ -3458,35 +3627,41 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[200]!),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFF2196F3).withOpacity(0.15),
-                child: Text(initial, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2196F3))),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  initial,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.ownerName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+                    Text(s.ownerName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     const SizedBox(height: 4),
-                    Text('${s.make} ${s.model} · ${s.licensePlate}', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+                    Text('${s.make} ${s.model} · ${s.licensePlate}', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(_formatTime(s.submittedAt), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          const SizedBox(height: 10),
+          _buildAdminMetricChip('Submitted', _formatTime(s.submittedAt), large: false),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -3536,12 +3711,15 @@ class _AdminLiveVehicleFleetMetrics extends StatefulWidget {
     required this.isMobile,
     required this.monitoringService,
     required this.statCardBuilder,
+    this.metricOnly,
   });
 
   final List<QueryDocumentSnapshot> vehicleDocs;
   final bool isLoading;
   final bool isMobile;
   final MonitoringService monitoringService;
+  /// When set to `active` or `alerts`, only that metric block is built.
+  final String? metricOnly;
   final Widget Function(
     String title,
     String value,
@@ -3666,39 +3844,33 @@ class _AdminLiveVehicleFleetMetricsState extends State<_AdminLiveVehicleFleetMet
     final valueAlerts = widget.isLoading ? '...' : alerts.toString();
 
     final activeCard = widget.statCardBuilder(
-      'Active Vehicles',
+      'Live Sessions',
       valueActive,
-      'Live Monitoring',
-      Icons.directions_car,
-      Colors.black87,
+      'Vehicles currently being monitored',
+      Icons.directions_car_filled_outlined,
+      AppColors.success,
       AppColors.success,
       widget.isMobile,
     );
     final alertsCard = widget.statCardBuilder(
-      'Alerts',
+      'Critical Now',
       valueAlerts,
-      'Live critical conditions',
-      Icons.warning_amber,
-      Colors.black87,
-      AppColors.warning,
+      'Requires immediate attention',
+      Icons.warning_amber_rounded,
+      AppColors.danger,
+      AppColors.danger,
       widget.isMobile,
     );
 
-    if (widget.isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          activeCard,
-          const SizedBox(height: 12),
-          alertsCard,
-        ],
-      );
-    }
-    return Row(
+    if (widget.metricOnly == 'active') return activeCard;
+    if (widget.metricOnly == 'alerts') return alertsCard;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(child: activeCard),
-        const SizedBox(width: 20),
-        Expanded(child: alertsCard),
+        activeCard,
+        SizedBox(height: widget.isMobile ? 16 : 20),
+        alertsCard,
       ],
     );
   }
