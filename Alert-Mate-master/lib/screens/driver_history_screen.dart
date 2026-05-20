@@ -91,6 +91,78 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
     }
   }
 
+  Widget _buildHistorySection({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    bool isMobile = false,
+    String? subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.only(bottom: isMobile ? 14 : 18),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: isMobile ? 16 : 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: isMobile ? 12 : 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+
   Color _getStatusColor(String? status) {
     switch (status) {
       case 'completed':
@@ -126,7 +198,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                         icon: const Icon(Icons.refresh),
                         label: const Text('Retry'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.driverPrimary,
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -161,107 +233,101 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                     )
                   : RefreshIndicator(
                       onRefresh: _loadSessions,
+                      color: AppColors.primary,
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         child: Padding(
-                          padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
+                          padding: EdgeInsets.only(
+                            bottom: isMobile ? 16 : 24,
+                            top: widget.embedded && isMobile ? 0 : (isMobile ? 8 : 0),
+                          ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Summary Card
-                              Container(
-                                width: double.infinity,
-                                padding: EdgeInsets.all(isMobile ? 20 : 24),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      AppColors.driverPrimary,
-                                      AppColors.driverPrimary.withOpacity(0.8),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.driverPrimary.withOpacity(0.3),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(0.2),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: const Icon(
-                                            Icons.analytics_outlined,
-                                            color: Colors.white,
-                                            size: 28,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Total Sessions',
-                                                style: TextStyle(
-                                                  fontSize: isMobile ? 14 : 16,
-                                                  color: Colors.white.withOpacity(0.9),
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                '${_sessions.length}',
-                                                style: TextStyle(
-                                                  fontSize: isMobile ? 32 : 40,
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                              _buildHistorySection(
+                                isMobile: isMobile,
+                                icon: Icons.summarize_outlined,
+                                title: 'Overview',
+                                subtitle: 'Summary of your Completed Monitoring Sessions',
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: EdgeInsets.all(isMobile ? 18 : 22),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.primary,
+                                        AppColors.primary.withValues(alpha: 0.85),
                                       ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
-                                  ],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: const Icon(
+                                          Icons.history,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Total Sessions',
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 14 : 15,
+                                                color: Colors.white.withValues(alpha: 0.9),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${_sessions.length}',
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 34 : 42,
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 24),
-                              
-                              // Analytics Graph
-                              if (_sessions.isNotEmpty) ...[
-                                _buildAnalyticsGraph(isMobile),
-                                const SizedBox(height: 24),
-                              ],
-                              
-                              // Sessions List
-                              Text(
-                                'Session History',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 20 : 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
+                              if (_sessions.isNotEmpty)
+                                _buildHistorySection(
+                                  isMobile: isMobile,
+                                  icon: Icons.show_chart,
+                                  title: 'Performance Trends',
+                                  subtitle: 'Alertness and Session Activity Over Time',
+                                  child: _buildAnalyticsGraph(isMobile),
                                 ),
+                              _buildHistorySection(
+                                isMobile: isMobile,
+                                icon: Icons.list_alt,
+                                title: 'Session History',
+                                subtitle: '${_sessions.length} Recorded Session${_sessions.length == 1 ? '' : 's'}',
+                                child: isMobile
+                                    ? Column(
+                                        children: _sessions
+                                            .map((session) =>
+                                                _buildMobileSessionCard(session, isMobile))
+                                            .toList(),
+                                      )
+                                    : _buildDesktopTable(isMobile),
                               ),
-                              const SizedBox(height: 16),
-                              
-                              isMobile
-                                  ? Column(
-                                      children: _sessions.map((session) =>
-                                          _buildMobileSessionCard(session, isMobile)).toList(),
-                                    )
-                                  : _buildDesktopTable(isMobile),
                             ],
                           ),
                         ),
@@ -272,28 +338,38 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(isMobile ? 0 : 0, 0, 0, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Driving History',
-                    style: TextStyle(
-                      fontSize: isMobile ? 18 : 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+          if (!isMobile)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Driving History',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: AppColors.primary),
-                  onPressed: _loadSessions,
-                  tooltip: 'Refresh',
-                ),
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: AppColors.primary),
+                    onPressed: _loadSessions,
+                    tooltip: 'Refresh',
+                  ),
+                ],
+              ),
             ),
-          ),
+          if (isMobile)
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                icon: const Icon(Icons.refresh, color: AppColors.primary),
+                onPressed: _loadSessions,
+                tooltip: 'Refresh',
+              ),
+            ),
           Expanded(child: body),
         ],
       );
@@ -337,17 +413,11 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
     final status = session['status'] as String?;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -540,7 +610,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   color: Colors.black87,
                 ),
               ),
-              Icon(Icons.analytics, color: AppColors.driverPrimary, size: isMobile ? 20 : 24),
+              Icon(Icons.analytics, color: AppColors.primary, size: isMobile ? 20 : 24),
             ],
           ),
           const SizedBox(height: 24),
@@ -567,7 +637,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
               _buildMetricCard(
                 'Sessions',
                 '${completedSessions.length}',
-                AppColors.driverPrimary,
+                AppColors.primary,
                 Icons.directions_car,
                 isMobile,
               ),
@@ -613,7 +683,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   child: CustomPaint(
                     painter: _AlertnessChartPainter(
                       dataPoints: avgAlertnessValues.reversed.toList(),
-                      color: AppColors.driverPrimary,
+                      color: AppColors.primary,
                     ),
                     child: Container(),
                   ),

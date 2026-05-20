@@ -66,7 +66,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         const MenuItem(
           section: 'Fleet',
           icon: Icons.directions_car_outlined,
-          title: 'Fleet Management',
+          title: 'Vehicle Management',
         ),
         const MenuItem(
           section: 'Fleet',
@@ -108,7 +108,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       case 0:
         return 'Overview';
       case 1:
-        return 'Fleet Management';
+        return 'Vehicle Management';
       case 2:
         return 'Live Map';
       case 3:
@@ -123,17 +123,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   String get _currentPageSubtitle {
     switch (_selectedIndex) {
       case 0:
-        return 'Monitor and manage your vehicle fleet';
+      return 'Monitor and Manage Your Vehicle Fleet';
       case 1:
-        return 'Search, filter, and manage your vehicles';
+      return 'Search and Manage Your Vehicles';
       case 2:
-        return 'Track drivers assigned to your vehicles';
+        return 'Track Drivers Assigned To Your Vehicles';
       case 3:
-        return 'Quick access to emergency services and contacts';
+        return 'Quick Access To Emergency Services and Contacts';
       case 4:
-        return 'Alerts and system messages';
+        return 'Alerts and System Messages';
       default:
-        return 'Monitor and manage your vehicle fleet';
+        return 'Monitor and Manage Your Vehicle Fleet';
     }
   }
 
@@ -159,10 +159,31 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   }
 
   Widget _buildOwnerFleetPage() {
+    final isMobile = DashboardLayout.isMobile(context);
+    final fleetLayout = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: _buildFleetOverview(),
+          ),
+        ),
+        _buildFleetBottomActionBar(isMobile),
+      ],
+    );
+    if (isMobile) {
+      return Padding(
+        padding: DashboardLayout.pagePadding(context).copyWith(bottom: 8),
+        child: fleetLayout,
+      );
+    }
     return _ownerPageShell(
       title: 'Fleet Management',
-      subtitle: 'View and manage all registered vehicles',
-      child: _buildFleetOverview(),
+      subtitle: 'View and Manage All Registered Vehicles',
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.78,
+        child: fleetLayout,
+      ),
     );
   }
 
@@ -221,48 +242,129 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         vehicle.type.toLowerCase().contains(query);
   }
 
+  Widget _buildOwnerSectionCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    bool isMobile = false,
+    String? subtitle,
+    Widget? trailing,
+  }) =>
+      _buildFleetSectionCard(
+        icon: icon,
+        title: title,
+        child: child,
+        isMobile: isMobile,
+        subtitle: subtitle,
+        trailing: trailing,
+      );
+
+  Widget _buildFleetSectionCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    bool isMobile = false,
+    String? subtitle,
+    Widget? trailing,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: isMobile ? 16 : 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: isMobile ? 12 : 13,
+                          color: AppColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+
   Widget _buildFleetSearchField(bool isMobile) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Search vehicle',
-          style: TextStyle(
-            fontSize: isMobile ? 13 : 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
+    return TextField(
+      controller: _vehicleSearchController,
+      textCapitalization: TextCapitalization.characters,
+      cursorColor: AppColors.primary,
+      decoration: InputDecoration(
+        hintText: 'License plate, make, model, or driver',
+        prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+        suffixIcon: _vehicleSearchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 20, color: AppColors.primary),
+                onPressed: () {
+                  _vehicleSearchController.clear();
+                  setState(() => _vehicleSearchQuery = '');
+                },
+              )
+            : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
         ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _vehicleSearchController,
-          textCapitalization: TextCapitalization.characters,
-          cursorColor: AppColors.primary,
-          decoration: InputDecoration(
-            hintText: 'License plate, make, model, or driver',
-            prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-            suffixIcon: _vehicleSearchQuery.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 20),
-                    onPressed: () {
-                      _vehicleSearchController.clear();
-                      setState(() => _vehicleSearchQuery = '');
-                    },
-                  )
-                : null,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.primary, width: 2),
-            ),
-            filled: true,
-            fillColor: AppColors.background,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          ),
-          onChanged: (v) => setState(() => _vehicleSearchQuery = v),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
-      ],
+        filled: true,
+        fillColor: AppColors.background,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      ),
+      onChanged: (v) => setState(() => _vehicleSearchQuery = v),
     );
   }
 
@@ -901,104 +1003,102 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     final isMobile = DashboardLayout.isMobile(context);
     return _ownerPageShell(
       title: 'Overview',
-      subtitle: 'Monitor and manage your vehicle fleet',
+      subtitle: 'Monitor and Manage Your Vehicle Fleet',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          StreamBuilder<List<Vehicle>>(
+          _buildStaggeredItem(
+            _buildOwnerSectionCard(
+              isMobile: isMobile,
+              icon: Icons.dashboard_outlined,
+              title: 'Fleet Overview',
+              subtitle: 'Key Metrics For Your Registered Vehicles And Drivers',
+              child: StreamBuilder<List<Vehicle>>(
                   stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
                   builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Text('Error loading fleet: ${snapshot.error}');
+                    }
                     final vehicles = snapshot.data ?? [];
-                    final isMobile = DashboardLayout.isMobile(context);
+                    final isMobileInner = DashboardLayout.isMobile(context);
                     final isTablet = DashboardLayout.isTablet(context);
 
-                    return _buildStaggeredItem(
-                      isMobile
+                    return isMobileInner
                           ? Column(
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  'Total Vehicles',
-                                  vehicles.length.toString(),
-                                  'Registered in system',
-                                  Icons.directions_car_outlined,
-                                  AppColors.primary,
-                                  isMobile,
-                                  () => _showOwnerStatDetails(
-                                    'All Vehicles',
-                                    vehicles.map(_buildOwnerVehicleSummaryTile).toList(),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _OwnerDashboardActiveDriversCard(
-                                  vehicles: vehicles,
-                                  monitoringService: _monitoringService,
-                                  isMobile: isMobile,
-                                  builder: (context, activeDriverCount, activeDriverTiles) => _buildStatCard(
-                                    'Active Drivers',
-                                    activeDriverCount.toString(),
-                                    'Currently driving',
-                                    Icons.people_outline,
-                                    AppColors.success,
-                                    isMobile,
-                                    () => _showOwnerStatDetails('Active Drivers', activeDriverTiles),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          _buildStatCard(
+                            'Total Vehicles',
+                            vehicles.length.toString(),
+                            'Registered in system',
+                            Icons.directions_car_outlined,
+                            AppColors.primary,
+                            isMobile,
+                            () => _showOwnerStatDetails(
+                              'All Vehicles',
+                              vehicles.map(_buildOwnerVehicleSummaryTile).toList(),
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _OwnerDashboardCriticalAlertsCard(
-                                  vehicles: vehicles,
-                                  isMobile: isMobile,
-                                  monitoringService: _monitoringService,
-                                  builder: (context, criticalVehicles) => _buildStatCard(
-                                    'Critical Alerts',
-                                    criticalVehicles.length.toString(),
-                                    'Requires attention',
-                                    Icons.warning_amber_rounded,
-                                    AppColors.danger,
-                                    isMobile,
-                                    () => _showOwnerStatDetails(
-                                      'Critical Alerts',
-                                      criticalVehicles
-                                          .map(
-                                            (v) => ListTile(
-                                              dense: true,
-                                              title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
-                                              subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
-                                            ),
-                                          )
-                                          .toList(),
-                                    ),
-                                  ),
-                                ),
+                          const SizedBox(height: 14),
+                          _OwnerDashboardActiveDriversCard(
+                            vehicles: vehicles,
+                            monitoringService: _monitoringService,
+                            isMobile: isMobile,
+                            builder: (context, activeDriverCount, activeDriverTiles) => _buildStatCard(
+                              'Active Drivers',
+                              activeDriverCount.toString(),
+                              'Currently driving',
+                              Icons.people_outline,
+                              AppColors.success,
+                              isMobile,
+                              () => _showOwnerStatDetails('Active Drivers', activeDriverTiles),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _OwnerDashboardCriticalAlertsCard(
+                            vehicles: vehicles,
+                            isMobile: isMobile,
+                            monitoringService: _monitoringService,
+                            builder: (context, criticalVehicles) => _buildStatCard(
+                              'Critical Alerts',
+                              criticalVehicles.length.toString(),
+                              'Requires Attention',
+                              Icons.warning_amber_rounded,
+                              AppColors.danger,
+                              isMobile,
+                              () => _showOwnerStatDetails(
+                                'Critical Alerts',
+                                criticalVehicles
+                                    .map(
+                                      (v) => ListTile(
+                                        dense: true,
+                                        title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
+                                        subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
+                                      ),
+                                    )
+                                    .toList(),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _OwnerDashboardLiveSafetyScoreCard(
-                                  vehicles: vehicles,
-                                  isMobile: isMobile,
-                                  monitoringService: _monitoringService,
-                                  builder: (context, scoreText, color, details) => _buildStatCard(
-                                    'Safety Score',
-                                    scoreText,
-                                    'Live monitoring score',
-                                    Icons.shield_outlined,
-                                    color,
-                                    isMobile,
-                                    () => _showOwnerStatDetails('Vehicle Safety Scores', details),
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _OwnerDashboardLiveSafetyScoreCard(
+                            vehicles: vehicles,
+                            isMobile: isMobile,
+                            monitoringService: _monitoringService,
+                            builder: (context, scoreText, color, details) => _buildStatCard(
+                              'Safety Score',
+                              scoreText,
+                              'Live Monitoring Score',
+                              Icons.shield_outlined,
+                              color,
+                              isMobile,
+                              () => _showOwnerStatDetails('Vehicle Safety Scores', details),
+                            ),
                           ),
                         ],
                       )
@@ -1010,7 +1110,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               Expanded(child: _buildStatCard(
                                 'Total Vehicles',
                                 vehicles.length.toString(),
-                                'Registered in system',
+                                'Registered in System',
                                 Icons.directions_car_outlined,
                                 AppColors.primary,
                                 isMobile,
@@ -1028,7 +1128,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                   builder: (context, activeDriverCount, activeDriverTiles) => _buildStatCard(
                                     'Active Drivers',
                                     activeDriverCount.toString(),
-                                    'Currently driving',
+                                    'Currently Driving',
                                     Icons.people_outline,
                                     AppColors.success,
                                     isMobile,
@@ -1174,11 +1274,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             ],
                           ),
                         ],
-                      ),
-                      1,
-                    );
+                      );
                   },
                 ),
+            ),
+            1,
+          ),
         ],
       ),
     );
@@ -1187,9 +1288,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   /// Builds the LiveMap section filtered to only show drivers assigned
   /// to this owner's vehicles.
   Widget _buildOwnerLiveMapSection() {
+    final isMobile = DashboardLayout.isMobile(context);
     return StreamBuilder<List<Vehicle>>(
       stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+          );
+        }
         final vehicles = snapshot.data ?? [];
         final driverIds = vehicles
             .where((v) => v.assignedDriverId != null && v.assignedDriverId!.isNotEmpty)
@@ -1197,9 +1305,48 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             .toSet()
             .toList();
 
+        if (driverIds.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 28 : 40, horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.map_outlined, size: isMobile ? 48 : 56, color: Colors.grey[400]),
+                const SizedBox(height: 12),
+                const Text(
+                  'No assigned drivers on map',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Assign drivers to your vehicles to see their live locations',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          );
+        }
+
         return SizedBox(
           height: DashboardLayout.liveMapHeight(context),
-          child: LiveMap(filterDriverIds: driverIds),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: LiveMap(
+              filterDriverIds: driverIds,
+              showHeader: true,
+              height: DashboardLayout.liveMapHeight(context),
+            ),
+          ),
         );
       },
     );
@@ -1228,64 +1375,315 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color color, [bool isMobile = false, VoidCallback? onTap]) {
     final card = Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 22 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: color.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.all(isMobile ? 10 : 12),
+            padding: EdgeInsets.all(isMobile ? 14 : 16),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [color.withValues(alpha: 0.18), color.withValues(alpha: 0.08)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: color, size: isMobile ? 20 : 24),
+            child: Icon(icon, color: color, size: isMobile ? 28 : 32),
           ),
-          SizedBox(height: isMobile ? 16 : 24),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isMobile ? 22 : 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          SizedBox(width: isMobile ? 16 : 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: isMobile ? 32 : 36,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                    height: 1.1,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 8 : 10),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 17,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 4 : 6),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: isMobile ? 13 : 14,
+                    color: color,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
-          SizedBox(height: isMobile ? 6 : 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: isMobile ? 13 : 14,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: isMobile ? 2 : 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: isMobile ? 11 : 12,
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          if (onTap != null)
+            Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.6), size: isMobile ? 22 : 26),
         ],
       ),
     );
     if (onTap == null) return card;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: card,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: card,
+      ),
+    );
+  }
+
+  ButtonStyle get _fleetClearButtonStyle => TextButton.styleFrom(
+        foregroundColor: AppColors.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
+
+  void _showFleetSearchBottomSheet(bool isMobile) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Search Vehicle',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Find by license plate, make, model, or driver name',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            _buildFleetSearchField(isMobile),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(sheetContext),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Apply Search'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFleetFilterBottomSheet(bool isMobile) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Filter By',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Narrow Vehicles by Live Status and Type',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            _buildFleetFiltersContent(isMobile),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      setState(() {
+                        _statusFilter = 'All Status';
+                        _typeFilter = 'All Types';
+                      });
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Reset'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Apply Filters'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFleetBottomActionBar(bool isMobile) {
+    final searchActive = _vehicleSearchQuery.trim().isNotEmpty;
+    final filterActive = _statusFilter != 'All Status' || _typeFilter != 'All Types';
+
+    return Material(
+      elevation: 12,
+      color: Colors.white,
+      borderRadius: isMobile ? null : const BorderRadius.vertical(top: Radius.circular(14)),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(isMobile ? 12 : 16, 10, isMobile ? 12 : 16, isMobile ? 8 : 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showFleetSearchBottomSheet(isMobile),
+                  icon: Badge(
+                    isLabelVisible: searchActive,
+                    smallSize: 8,
+                    backgroundColor: AppColors.primary,
+                    child: const Icon(Icons.search, size: 20),
+                  ),
+                  label: const Text('Search'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                      color: searchActive ? AppColors.primary : Colors.grey.shade300,
+                      width: searchActive ? 1.5 : 1,
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              SizedBox(width: isMobile ? 10 : 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showFleetFilterBottomSheet(isMobile),
+                  icon: Badge(
+                    isLabelVisible: filterActive,
+                    smallSize: 8,
+                    backgroundColor: AppColors.primary,
+                    child: const Icon(Icons.tune, size: 20),
+                  ),
+                  label: const Text('Filter'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                      color: filterActive ? AppColors.primary : Colors.grey.shade300,
+                      width: filterActive ? 1.5 : 1,
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFleetAddVehicleButton(bool isMobile) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _showAddVehicleDialog,
+        icon: const Icon(Icons.add, size: 20),
+        label: const Text('Register New Vehicle'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: isMobile ? 14 : 16),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1435,16 +1833,44 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildFleetStatusFilter(bool isMobile) {
+  Color _fleetStatusColorForOption(String option) {
+    switch (option.toLowerCase()) {
+      case 'active':
+        return AppColors.success;
+      case 'critical':
+        return AppColors.danger;
+      case 'offline':
+        return Colors.grey;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  Widget _buildFleetStatusFilterDropdown({
+    required String label,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String> onChanged,
+  }) {
+    Widget statusRow(String option) {
+      return Row(
+        children: [
+          Icon(Icons.circle, size: 14, color: _fleetStatusColorForOption(option)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(option)),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Status',
-          style: TextStyle(
-            fontSize: isMobile ? 13 : 14,
+          label,
+          style: const TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
@@ -1452,37 +1878,45 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: AppColors.background,
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: DropdownButton<String>(
-            value: _statusFilter,
-            isExpanded: true,
-            underline: const SizedBox(),
-            icon: const Icon(Icons.arrow_drop_down),
-            items: const [
-              DropdownMenuItem(value: 'All Status', child: Text('All Status')),
-              DropdownMenuItem(value: 'Active', child: Text('Active')),
-              DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-              DropdownMenuItem(value: 'Offline', child: Text('Offline')),
-            ],
-            onChanged: (value) => setState(() => _statusFilter = value!),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
+              selectedItemBuilder: (context) =>
+                  options.map((o) => Align(alignment: Alignment.centerLeft, child: statusRow(o))).toList(),
+              items: options
+                  .map((o) => DropdownMenuItem(value: o, child: statusRow(o)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildFleetTypeFilter(bool isMobile) {
+  Widget _buildFleetFilterDropdown({
+    required String label,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String> onChanged,
+    required IconData icon,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Vehicle type',
-          style: TextStyle(
-            fontSize: isMobile ? 13 : 14,
+          label,
+          style: const TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
@@ -1490,26 +1924,276 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: AppColors.background,
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: DropdownButton<String>(
-            value: _typeFilter,
-            isExpanded: true,
-            underline: const SizedBox(),
-            icon: const Icon(Icons.arrow_drop_down),
-            items: const [
-              DropdownMenuItem(value: 'All Types', child: Text('All Types')),
-              DropdownMenuItem(value: 'Car', child: Text('Car')),
-              DropdownMenuItem(value: 'Bus', child: Text('Bus')),
-              DropdownMenuItem(value: 'Van', child: Text('Van')),
-              DropdownMenuItem(value: 'Truck', child: Text('Truck')),
-              DropdownMenuItem(value: 'Rickshaw', child: Text('Rickshaw')),
-            ],
-            onChanged: (value) => setState(() => _typeFilter = value!),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
+              items: options
+                  .map((o) => DropdownMenuItem(
+                        value: o,
+                        child: Row(
+                          children: [
+                            Icon(icon, size: 18, color: AppColors.primary.withValues(alpha: 0.85)),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(o)),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFleetFiltersContent(bool isMobile) {
+    final statusOptions = const ['All Status', 'Active', 'Critical', 'Offline'];
+    final typeOptions = const ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw'];
+    if (isMobile) {
+      return Column(
+        children: [
+          _buildFleetStatusFilterDropdown(
+            label: 'Status',
+            value: _statusFilter,
+            options: statusOptions,
+            onChanged: (v) => setState(() => _statusFilter = v),
+          ),
+          const SizedBox(height: 14),
+          _buildFleetFilterDropdown(
+            label: 'Vehicle type',
+            value: _typeFilter,
+            options: typeOptions,
+            icon: Icons.directions_car_outlined,
+            onChanged: (v) => setState(() => _typeFilter = v),
+          ),
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _buildFleetStatusFilterDropdown(
+            label: 'Status',
+            value: _statusFilter,
+            options: statusOptions,
+            onChanged: (v) => setState(() => _statusFilter = v),
+          ),
+        ),
+        const SizedBox(width: 20),
+        Expanded(
+          child: _buildFleetFilterDropdown(
+            label: 'Vehicle type',
+            value: _typeFilter,
+            options: typeOptions,
+            icon: Icons.directions_car_outlined,
+            onChanged: (v) => setState(() => _typeFilter = v),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFleetActiveFiltersBar(bool isMobile, {
+    required bool searchActive,
+    required int resultCount,
+  }) {
+    final hasFilters = searchActive ||
+        _statusFilter != 'All Status' ||
+        _typeFilter != 'All Types';
+    if (!hasFilters) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 14, vertical: isMobile ? 10 : 12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          Text(
+            '$resultCount result${resultCount == 1 ? '' : 's'}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          if (searchActive)
+            TextButton(
+              onPressed: () {
+                _vehicleSearchController.clear();
+                setState(() => _vehicleSearchQuery = '');
+              },
+              style: _fleetClearButtonStyle,
+              child: const Text('Clear search', style: TextStyle(fontSize: 13)),
+            ),
+          if (_statusFilter != 'All Status')
+            TextButton(
+              onPressed: () => setState(() => _statusFilter = 'All Status'),
+              style: _fleetClearButtonStyle,
+              child: const Text('Clear status', style: TextStyle(fontSize: 13)),
+            ),
+          if (_typeFilter != 'All Types')
+            TextButton(
+              onPressed: () => setState(() => _typeFilter = 'All Types'),
+              style: _fleetClearButtonStyle,
+              child: const Text('Clear type', style: TextStyle(fontSize: 13)),
+            ),
+          if (searchActive &&
+              (_statusFilter != 'All Status' || _typeFilter != 'All Types'))
+            TextButton.icon(
+              onPressed: () {
+                _vehicleSearchController.clear();
+                setState(() {
+                  _vehicleSearchQuery = '';
+                  _statusFilter = 'All Status';
+                  _typeFilter = 'All Types';
+                });
+              },
+              icon: const Icon(Icons.clear_all, size: 16, color: AppColors.primary),
+              label: const Text('Clear all', style: TextStyle(fontSize: 13)),
+              style: _fleetClearButtonStyle,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFleetVehicleListContent({
+    required bool isMobile,
+    required List<Vehicle> filteredVehicles,
+    required bool searchActive,
+  }) {
+    if (filteredVehicles.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(vertical: isMobile ? 28 : 40, horizontal: 16),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              searchActive ||
+                      _statusFilter != 'All Status' ||
+                      _typeFilter != 'All Types'
+                  ? Icons.filter_alt_off
+                  : Icons.directions_car_outlined,
+              size: isMobile ? 44 : 52,
+              color: Colors.grey[400],
+            ),
+            SizedBox(height: isMobile ? 12 : 16),
+            Text(
+              searchActive ||
+                      _statusFilter != 'All Status' ||
+                      _typeFilter != 'All Types'
+                  ? 'No vehicles match your search or filters'
+                  : 'No vehicles in your fleet yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isMobile ? 14 : 16,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (searchActive ||
+                _statusFilter != 'All Status' ||
+                _typeFilter != 'All Types') ...[
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  _vehicleSearchController.clear();
+                  setState(() {
+                    _vehicleSearchQuery = '';
+                    _statusFilter = 'All Status';
+                    _typeFilter = 'All Types';
+                  });
+                },
+                style: _fleetClearButtonStyle,
+                child: const Text('Clear search & filters'),
+              ),
+            ] else ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _showAddVehicleDialog,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add your first vehicle'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (isMobile) {
+      return Column(
+        children: filteredVehicles.map((vehicle) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildMobileVehicleCard(vehicle),
+          );
+        }).toList(),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: MediaQuery.of(context).size.width - 200,
+            ),
+            child: Table(
+              columnWidths: const {
+                0: FixedColumnWidth(200),
+                1: FixedColumnWidth(260),
+              },
+              border: TableBorder(
+                horizontalInside: BorderSide(color: Colors.grey.shade200),
+              ),
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(color: AppColors.primaryLight.withValues(alpha: 0.35)),
+                  children: [
+                    _buildTableHeader('License Plate', isMobile),
+                    _buildTableHeader('Vehicle Name', isMobile),
+                  ],
+                ),
+                ...filteredVehicles.map((vehicle) => _buildVehicleRow(vehicle, isMobile)),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1520,20 +2204,15 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       stream: _vehicleService.getVehiclesByOwnerStream(widget.user.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+          return _buildFleetSectionCard(
+            isMobile: isMobile,
+            icon: Icons.directions_car_filled_outlined,
+            title: 'Vehicle Information',
+            subtitle: 'Loading your fleet…',
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
             ),
-            child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
           );
         }
 
@@ -1544,20 +2223,15 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           future: _getActiveSessionMapFuture(vehicles),
           builder: (context, sessionSnapshot) {
             if (sessionSnapshot.connectionState == ConnectionState.waiting) {
-              return Container(
-                padding: EdgeInsets.all(isMobile ? 16 : 28),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+              return _buildFleetSectionCard(
+                isMobile: isMobile,
+                icon: Icons.directions_car_filled_outlined,
+                title: 'Vehicle Information',
+                subtitle: 'Checking live driver sessions…',
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
                 ),
-                child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
               );
             }
 
@@ -1602,223 +2276,63 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               return matchesStatusFilter && matchesTypeFilter;
             }).toList();
 
-            return Container(
-              padding: EdgeInsets.all(isMobile ? 14 : 18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildFleetSearchField(isMobile),
-              SizedBox(height: isMobile ? 14 : 16),
-              if (!isMobile)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(child: _buildFleetStatusFilter(isMobile)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildFleetTypeFilter(isMobile)),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      onPressed: _showAddVehicleDialog,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add Vehicle'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ],
+            final vehicleInfoSubtitle = filteredVehicles.isEmpty
+                ? (searchActive ||
+                        _statusFilter != 'All Status' ||
+                        _typeFilter != 'All Types'
+                    ? 'No vehicles match your current search or filters'
+                    : 'Add a vehicle above to see it listed here')
+                : '${filteredVehicles.length} vehicle${filteredVehicles.length == 1 ? '' : 's'} shown';
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildFleetSectionCard(
+                  isMobile: isMobile,
+                  icon: Icons.add_circle_outline,
+                  title: 'Add Vehicle',
+                  subtitle: 'Register a New Vehicle To Your Fleet',
+                  child: _buildFleetAddVehicleButton(isMobile),
                 ),
-              if (isMobile) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _showAddVehicleDialog,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Vehicle'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+                if (searchActive || _statusFilter != 'All Status' || _typeFilter != 'All Types') ...[
+                  SizedBox(height: isMobile ? 12 : 14),
+                  _buildFleetActiveFiltersBar(
+                    isMobile,
+                    searchActive: searchActive,
+                    resultCount: filteredVehicles.length,
                   ),
-                ),
-                const SizedBox(height: 14),
-                _buildFleetStatusFilter(isMobile),
-                const SizedBox(height: 14),
-                _buildFleetTypeFilter(isMobile),
-              ],
-              SizedBox(height: isMobile ? 10 : 12),
-              if (searchActive || _statusFilter != 'All Status' || _typeFilter != 'All Types')
-                Padding(
-                  padding: EdgeInsets.only(bottom: isMobile ? 8 : 12),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Found ${filteredVehicles.length} vehicle${filteredVehicles.length != 1 ? 's' : ''}',
-                        style: TextStyle(
-                          fontSize: isMobile ? 12 : 13,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      if (searchActive) ...[
-                        SizedBox(width: isMobile ? 6 : 8),
-                        TextButton(
-                          onPressed: () {
-                            _vehicleSearchController.clear();
-                            setState(() => _vehicleSearchQuery = '');
-                          },
-                          child: Text('Clear search', style: TextStyle(fontSize: isMobile ? 12 : 13)),
-                        ),
-                      ],
-                      if (_statusFilter != 'All Status') ...[
-                        SizedBox(width: isMobile ? 6 : 8),
-                        TextButton(
-                          onPressed: () => setState(() => _statusFilter = 'All Status'),
-                          child: Text('Clear status', style: TextStyle(fontSize: isMobile ? 12 : 13)),
-                        ),
-                      ],
-                      if (_typeFilter != 'All Types') ...[
-                        SizedBox(width: isMobile ? 6 : 8),
-                        TextButton(
-                          onPressed: () => setState(() => _typeFilter = 'All Types'),
-                          child: Text('Clear type', style: TextStyle(fontSize: isMobile ? 12 : 13)),
-                        ),
-                      ],
-                      if (searchActive &&
-                          (_statusFilter != 'All Status' || _typeFilter != 'All Types')) ...[
-                        SizedBox(width: isMobile ? 6 : 8),
-                        TextButton.icon(
-                          onPressed: () {
-                            _vehicleSearchController.clear();
-                            setState(() {
-                              _vehicleSearchQuery = '';
-                              _statusFilter = 'All Status';
-                              _typeFilter = 'All Types';
-                            });
-                          },
-                          icon: Icon(Icons.clear_all, size: isMobile ? 14 : 16),
-                          label: Text('Clear all', style: TextStyle(fontSize: isMobile ? 12 : 14)),
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 6 : 8,
-                                vertical: isMobile ? 2 : 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 8),
-              if (filteredVehicles.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(isMobile ? 20 : 40),
-                    child: Column(
-                      children: [
-                        Icon(
-                          searchActive ||
-                                  _statusFilter != 'All Status' ||
-                                  _typeFilter != 'All Types'
-                              ? Icons.filter_alt_off
-                              : Icons.directions_car_outlined,
-                          size: isMobile ? 40 : 48,
-                          color: Colors.grey[400],
-                        ),
-                        SizedBox(height: isMobile ? 12 : 16),
-                        Text(
-                          searchActive ||
-                                  _statusFilter != 'All Status' ||
-                                  _typeFilter != 'All Types'
-                              ? 'No vehicles match your search or filters'
-                              : 'No vehicles found',
-                          style: TextStyle(
-                            fontSize: isMobile ? 14 : 16,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (searchActive ||
-                            _statusFilter != 'All Status' ||
-                            _typeFilter != 'All Types') ...[
-                          SizedBox(height: isMobile ? 6 : 8),
-                          TextButton(
-                            onPressed: () {
-                              _vehicleSearchController.clear();
-                              setState(() {
-                                _vehicleSearchQuery = '';
-                                _statusFilter = 'All Status';
-                                _typeFilter = 'All Types';
-                              });
-                            },
-                            child: Text('Clear search & filters',
-                                style: TextStyle(fontSize: isMobile ? 13 : 14)),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                )
-              else
-                isMobile
-                    ? Column(
-                  children: filteredVehicles.map((vehicle) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildMobileVehicleCard(vehicle),
-                  )).toList(),
-                )
-                    : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minWidth: MediaQuery.of(context).size.width - (isMobile ? 32 : 160),
-                    ),
-                    child: Table(
-                      columnWidths: const {
-                        0: FixedColumnWidth(180),
-                        1: FixedColumnWidth(240),
-                      },
-                      children: [
-                        TableRow(
+                ],
+                SizedBox(height: isMobile ? 14 : 18),
+                _buildFleetSectionCard(
+                  isMobile: isMobile,
+                  icon: Icons.directions_car_filled_outlined,
+                  title: 'Vehicle Information',
+                  subtitle: vehicleInfoSubtitle,
+                  trailing: filteredVehicles.isNotEmpty
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
+                            color: AppColors.primaryLight,
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          children: [
-                            _buildTableHeader('License Plate', isMobile),
-                            _buildTableHeader('Vehicle Name', isMobile),
-                          ],
-                        ),
-                        ...filteredVehicles.map((vehicle) => _buildVehicleRow(vehicle, isMobile)),
-                      ],
-                    ),
+                          child: Text(
+                            '${filteredVehicles.length}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        )
+                      : null,
+                  child: _buildFleetVehicleListContent(
+                    isMobile: isMobile,
+                    filteredVehicles: filteredVehicles,
+                    searchActive: searchActive,
                   ),
                 ),
-            ],
-          ),
-        );
+              ],
+            );
           },
         );
       },
@@ -1833,302 +2347,202 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildEmergencyContent(bool isMobile) {
+  Widget _buildOwnerEmergencyServicesGrid(bool isMobile) {
+    final police = _buildEmergencyServiceCard(
+      'Police', '15', Icons.local_police, AppColors.police, AppColors.policeLight, isMobile,
+    );
+    final ambulance = _buildEmergencyServiceCard(
+      'Ambulance', '1122', Icons.local_hospital, AppColors.ambulance, AppColors.ambulanceLight, isMobile,
+    );
+    final fire = _buildEmergencyServiceCard(
+      'Fire Department', '16', Icons.local_fire_department, AppColors.fire, AppColors.fireLight, isMobile,
+    );
+    final motorway = _buildEmergencyServiceCard(
+      'Motorway Police', '130', Icons.car_crash, AppColors.motorway, AppColors.motorwayLight, isMobile,
+    );
+    if (isMobile) {
+      return Column(
+        children: [
+          Row(children: [Expanded(child: police), const SizedBox(width: 12), Expanded(child: ambulance)]),
+          const SizedBox(height: 12),
+          Row(children: [Expanded(child: fire), const SizedBox(width: 12), Expanded(child: motorway)]),
+        ],
+      );
+    }
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-            isMobile
-                ? Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Police',
-                              '15',
-                              Icons.local_police,
-                              AppColors.police,
-                              AppColors.policeLight,
-                              isMobile,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Ambulance',
-                              '1122',
-                              Icons.local_hospital,
-                              AppColors.ambulance,
-                              AppColors.ambulanceLight,
-                              isMobile,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Fire Department',
-                              '16',
-                              Icons.local_fire_department,
-                              AppColors.fire,
-                              AppColors.fireLight,
-                              isMobile,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Motorway Police',
-                              '130',
-                              Icons.car_crash,
-                              AppColors.motorway,
-                              AppColors.motorwayLight,
-                              isMobile,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Police',
-                              '15',
-                              Icons.local_police,
-                              AppColors.police,
-                              AppColors.policeLight,
-                              isMobile,
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Ambulance',
-                              '1122',
-                              Icons.local_hospital,
-                              AppColors.ambulance,
-                              AppColors.ambulanceLight,
-                              isMobile,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Fire Department',
-                              '16',
-                              Icons.local_fire_department,
-                              AppColors.fire,
-                              AppColors.fireLight,
-                              isMobile,
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildEmergencyServiceCard(
-                              'Motorway Police',
-                              '130',
-                              Icons.car_crash,
-                              AppColors.motorway,
-                              AppColors.motorwayLight,
-                              isMobile,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-            SizedBox(height: isMobile ? 20 : 24),
-        _buildEmergencyContactsTable(isMobile),
+        Row(children: [Expanded(child: police), const SizedBox(width: 16), Expanded(child: ambulance)]),
+        const SizedBox(height: 16),
+        Row(children: [Expanded(child: fire), const SizedBox(width: 16), Expanded(child: motorway)]),
       ],
     );
   }
 
-  Widget _buildEmergencyContactsTable([bool isMobile = false]) {
+  Widget _buildEmergencyContent(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildOwnerSectionCard(
+          isMobile: isMobile,
+          icon: Icons.emergency_outlined,
+          title: 'Emergency Services',
+          subtitle: 'One-tap access to local emergency helplines',
+          child: _buildOwnerEmergencyServicesGrid(isMobile),
+        ),
+        SizedBox(height: isMobile ? 14 : 18),
+        _buildOwnerSectionCard(
+          isMobile: isMobile,
+          icon: Icons.contacts_outlined,
+          title: 'Emergency Contacts',
+          subtitle: 'Manage people notified during critical alerts',
+          child: _buildEmergencyContactsContent(isMobile),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmergencyContactsContent([bool isMobile = false]) {
     return StreamBuilder<List<EmergencyContact>>(
       stream: _emergencyContactService.getEmergencyContactsStream(widget.user.id),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Container(
-            padding: EdgeInsets.all(isMobile ? 16 : 28),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Text('Error loading contacts: ${snapshot.error}'),
+          return Text(
+            'Error loading contacts: ${snapshot.error}',
+            style: const TextStyle(color: AppColors.danger),
           );
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            padding: EdgeInsets.all(isMobile ? 16 : 28),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            ),
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 28),
+            child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
           );
         }
 
         final contacts = snapshot.data ?? [];
 
-        return Container(
-          padding: EdgeInsets.all(isMobile ? 16 : 28),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: _showAddContactDialog,
+                icon: Icon(Icons.person_add_outlined, size: isMobile ? 18 : 20),
+                label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 14 : 20,
+                    vertical: isMobile ? 10 : 12,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DashboardLayout.sectionHeader(
-                context: context,
-                title: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Emergency Contacts',
-                      style: TextStyle(
-                        fontSize: isMobile ? 18 : 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+            ),
+            SizedBox(height: isMobile ? 14 : 18),
+            isMobile
+                ? contacts.isEmpty
+                    ? _buildOwnerContactsEmptyState(isMobile)
+                    : Column(
+                        children: contacts
+                            .map((contact) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildMobileContactCard(contact),
+                                ))
+                            .toList(),
+                      )
+                : DashboardLayout.horizontalTable(
+                    context: context,
+                    minWidth: 800,
+                    table: Table(
+                      columnWidths: const {
+                        0: FlexColumnWidth(1.5),
+                        1: FlexColumnWidth(1.2),
+                        2: FlexColumnWidth(1.8),
+                        3: FlexColumnWidth(1.0),
+                        4: FlexColumnWidth(1.0),
+                        5: FlexColumnWidth(0.8),
+                        6: FlexColumnWidth(1.0),
+                      },
+                      children: [
+                        TableRow(
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight.withValues(alpha: 0.35),
+                          ),
+                          children: [
+                            _buildTableHeader('Name', isMobile),
+                            _buildTableHeader('Relationship', isMobile),
+                            _buildTableHeader('Contact', isMobile),
+                            _buildTableHeader('Priority', isMobile),
+                            _buildTableHeader('Methods', isMobile),
+                            _buildTableHeader('Status', isMobile),
+                            _buildTableHeader('Actions', isMobile),
+                          ],
+                        ),
+                        ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
+                      ],
                     ),
-                    SizedBox(height: isMobile ? 2 : 4),
-                    Text(
-                      'Manage your emergency contact list',
-                      style: TextStyle(
-                        fontSize: isMobile ? 12 : 14,
-                        color: Colors.grey[600],
+                  ),
+            if (contacts.isNotEmpty) ...[
+              SizedBox(height: isMobile ? 12 : 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${contacts.length} contact${contacts.length == 1 ? '' : 's'} ready for emergency notifications',
+                        style: TextStyle(fontSize: isMobile ? 12 : 13, color: AppColors.textSecondary),
                       ),
                     ),
                   ],
                 ),
-                action: ElevatedButton.icon(
-                  onPressed: _showAddContactDialog,
-                  icon: Icon(Icons.add, size: isMobile ? 16 : 18),
-                  label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 12 : 20,
-                      vertical: isMobile ? 10 : 12,
-                    ),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: isMobile ? 16 : 24),
-              isMobile
-                  ? contacts.isEmpty
-                      ? Padding(
-                          padding: EdgeInsets.all(isMobile ? 20 : 40),
-                          child: Center(
-                            child: Text(
-                              'No emergency contacts added yet',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ),
-                        )
-                      : Column(
-                          children: contacts.map((contact) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildMobileContactCard(contact),
-                              )).toList(),
-                        )
-                    : DashboardLayout.horizontalTable(
-                  context: context,
-                  minWidth: 800,
-                  table: Table(
-                          columnWidths: const {
-                            0: FlexColumnWidth(1.5),
-                            1: FlexColumnWidth(1.2),
-                            2: FlexColumnWidth(1.8),
-                            3: FlexColumnWidth(1.0),
-                            4: FlexColumnWidth(1.0),
-                            5: FlexColumnWidth(0.8),
-                            6: FlexColumnWidth(1.0),
-                          },
-                          children: [
-                            TableRow(
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              children: [
-                                _buildTableHeader('Name', isMobile),
-                                _buildTableHeader('Relationship', isMobile),
-                                _buildTableHeader('Contact', isMobile),
-                                _buildTableHeader('Priority', isMobile),
-                                _buildTableHeader('Methods', isMobile),
-                                _buildTableHeader('Status', isMobile),
-                                _buildTableHeader('Actions', isMobile),
-                              ],
-                            ),
-                            ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
-                          ],
-                        ),
-                    ),
-              SizedBox(height: isMobile ? 16 : 20),
-              Row(
-                children: [
-                  Icon(Icons.info_outline, size: isMobile ? 14 : 16, color: Colors.grey[600]),
-                  SizedBox(width: isMobile ? 6 : 8),
-                  Flexible(
-                    child: Text(
-                      'Last system test: Just now • ${contacts.length} active contacts',
-                      style: TextStyle(
-                        fontSize: isMobile ? 11 : 13,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
-          ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildOwnerContactsEmptyState(bool isMobile) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 24 : 32),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.contact_phone_outlined, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 12),
+          Text(
+            'No emergency contacts yet',
+            style: TextStyle(
+              fontSize: isMobile ? 15 : 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Add someone to notify during critical alerts',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2137,17 +2551,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       onTap: () => _dialPhoneNumber(number),
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.background,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -2651,9 +3059,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2937,67 +3345,160 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  // Helper methods for fleet overview table
-  Widget _buildMobileVehicleCard(Vehicle vehicle) {
+  Widget _buildOwnerMetricChip(String label, String value, {Color? valueColor}) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: valueColor ?? AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods for fleet overview table
+  Widget _buildMobileVehicleCard(Vehicle vehicle) {
+    final isMobile = DashboardLayout.isMobile(context);
+    final onDetails = () => _showOwnerStatDetails('Vehicle Details', [
+      ListTile(
+        title: Text(vehicle.licensePlate),
+        subtitle: Text('${vehicle.make} ${vehicle.model} (${vehicle.year})'),
+      ),
+      ListTile(
+        title: const Text('Driver'),
+        subtitle: Text(vehicle.driverName ?? 'Unassigned'),
+      ),
+      _vehicleDetailStatusTile(vehicle),
+      ListTile(
+        title: const Text('Type'),
+        subtitle: Text(vehicle.type),
+      ),
+      ListTile(
+        title: const Text('Location'),
+        subtitle: Text(vehicle.location ?? 'Unknown'),
+      ),
+    ]);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onDetails,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: EdgeInsets.all(isMobile ? 16 : 18),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      vehicle.licensePlate,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${vehicle.make} ${vehicle.model}',
-                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                    child: const Icon(
+                      Icons.directions_car_outlined,
+                      color: AppColors.primary,
+                      size: 22,
                     ),
-                    if (vehicle.driverName != null && vehicle.driverName!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        vehicle.driverName!,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${vehicle.make} ${vehicle.model}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Year ${vehicle.year}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildMobileRealtimeStatusBadge(vehicle),
+                ],
               ),
-              _buildMobileRealtimeStatusBadge(vehicle),
-              const SizedBox(width: 4),
-              IconButton(
-                tooltip: 'Edit vehicle',
-                onPressed: () => _showEditVehicleDialog(vehicle),
-                icon: Icon(Icons.edit_outlined, color: AppColors.primary, size: 22),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildOwnerMetricChip('License Plate', vehicle.licensePlate),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildOwnerMetricChip('Type', vehicle.type),
+                  ),
+                ],
               ),
-              IconButton(
-                tooltip: 'Delete vehicle',
-                onPressed: () => _showDeleteVehicleDialog(vehicle),
-                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              const SizedBox(height: 10),
+              _buildOwnerMetricChip(
+                'Driver',
+                vehicle.driverName?.isNotEmpty == true ? vehicle.driverName! : 'Unassigned',
+                valueColor: vehicle.driverName?.isNotEmpty == true
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _showEditVehicleDialog(vehicle),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Edit'),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton.icon(
+                    onPressed: () => _showDeleteVehicleDialog(vehicle),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('Delete'),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -3006,13 +3507,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     return Padding(
       padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 8 : 14,
-          vertical: isMobile ? 8 : 10),
+          vertical: isMobile ? 10 : 12),
       child: Text(
-        text,
+        text.toUpperCase(),
         style: TextStyle(
-          fontSize: isMobile ? 11 : 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.black54,
+          fontSize: isMobile ? 11 : 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryDark,
+          letterSpacing: 0.4,
         ),
       ),
     );

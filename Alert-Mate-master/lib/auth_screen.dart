@@ -676,7 +676,7 @@ class _AuthScreenState extends State<AuthScreen>
                                   height: 90,
                                   fit: BoxFit.contain,
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 4),
                                 const Text(
                                   'ALERT MATE',
                                   style: TextStyle(
