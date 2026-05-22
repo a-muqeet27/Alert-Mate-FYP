@@ -27,7 +27,7 @@ import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
 import '../widgets/emergency_contact_ui.dart';
 import '../constants/vehicle_catalog.dart';
-import '../widgets/dashboard_detail_dialog_theme.dart';
+import '../widgets/owner_form_dialog_ui.dart';
 import '../utils/dashboard_responsive.dart';
 
 /// Matches driver realtime monitoring thresholds (alertness / drowsiness flag).
@@ -340,7 +340,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       textCapitalization: TextCapitalization.characters,
       cursorColor: AppColors.primary,
       decoration: InputDecoration(
-        hintText: 'License plate, make, model, or driver',
+        hintText: 'Plate, Make, Model, or Driver',
         prefixIcon: const Icon(Icons.search, color: AppColors.primary),
         suffixIcon: _vehicleSearchQuery.isNotEmpty
             ? IconButton(
@@ -1036,7 +1036,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                           _buildStatCard(
                             'Total Vehicles',
                             vehicles.length.toString(),
-                            'Registered in system',
+                            'Registered in System',
                             Icons.directions_car_outlined,
                             AppColors.primary,
                             isMobile,
@@ -1053,7 +1053,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                             builder: (context, activeDriverCount, activeDriverTiles) => _buildStatCard(
                               'Active Drivers',
                               activeDriverCount.toString(),
-                              'Currently driving',
+                              'Currently Driving',
                               Icons.people_outline,
                               AppColors.success,
                               isMobile,
@@ -1197,7 +1197,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                               Expanded(child: _buildStatCard(
                                 'Total Vehicles',
                                 vehicles.length.toString(),
-                                'Registered in system',
+                                'Registered in System',
                                 Icons.directions_car_outlined,
                                 AppColors.primary,
                                 isMobile,
@@ -1215,7 +1215,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                   builder: (context, activeDriverCount, activeDriverTiles) => _buildStatCard(
                                     'Active Drivers',
                                     activeDriverCount.toString(),
-                                    'Currently driving',
+                                    'Currently Driving',
                                     Icons.people_outline,
                                     AppColors.success,
                                     isMobile,
@@ -1377,40 +1377,32 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color color, [bool isMobile = false, VoidCallback? onTap]) {
     final card = Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 22 : 28),
+      padding: EdgeInsets.all(isMobile ? 18 : 22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: AppColors.shadowLight,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: EdgeInsets.all(isMobile ? 14 : 16),
+            padding: EdgeInsets.all(isMobile ? 12 : 14),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withValues(alpha: 0.18), color.withValues(alpha: 0.08)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(14),
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
             ),
-            child: Icon(icon, color: color, size: isMobile ? 28 : 32),
+            child: Icon(icon, color: color, size: isMobile ? 26 : 30),
           ),
-          SizedBox(width: isMobile ? 16 : 20),
+          SizedBox(width: isMobile ? 14 : 18),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1418,35 +1410,52 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: isMobile ? 32 : 36,
+                    fontSize: isMobile ? 30 : 34,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+                    color: color,
                     height: 1.1,
                   ),
                 ),
-                SizedBox(height: isMobile ? 8 : 10),
+                SizedBox(height: isMobile ? 6 : 8),
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: isMobile ? 16 : 17,
+                    fontSize: isMobile ? 15 : 16,
                     color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: isMobile ? 4 : 6),
+                SizedBox(height: isMobile ? 2 : 4),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: isMobile ? 13 : 14,
-                    color: color,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (onTap != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.touch_app_outlined, size: 14, color: AppColors.primary.withValues(alpha: 0.9)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Tap for Details',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary.withValues(alpha: 0.95),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
           if (onTap != null)
-            Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.6), size: isMobile ? 22 : 26),
+            Icon(Icons.chevron_right_rounded, color: AppColors.primary.withValues(alpha: 0.7), size: isMobile ? 24 : 28),
         ],
       ),
     );
@@ -1455,7 +1464,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
+        splashColor: AppColors.primary.withValues(alpha: 0.12),
+        highlightColor: AppColors.primaryLight.withValues(alpha: 0.5),
         child: card,
       ),
     );
@@ -1480,42 +1491,26 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
-          top: 20,
+          top: 16,
           bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Search Vehicle',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(sheetContext),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Find by license plate, make, model, or driver name',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            OwnerFormDialogUi.bottomSheetHeader(
+              title: 'Search Vehicle',
+              subtitle: 'Find by License Plate, Make, Model, or Driver\'s Name',
+              icon: Icons.search,
+              onClose: () => Navigator.pop(sheetContext),
             ),
             const SizedBox(height: 16),
             _buildFleetSearchField(isMobile),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => Navigator.pop(sheetContext),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              style: OwnerFormDialogUi.primaryButtonStyle.copyWith(
+                minimumSize: const WidgetStatePropertyAll(Size(double.infinity, 48)),
               ),
               child: const Text('Apply Search'),
             ),
@@ -1537,31 +1532,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
-          top: 20,
+          top: 16,
           bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Filter By',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(sheetContext),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Narrow Vehicles by Live Status and Type',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            OwnerFormDialogUi.bottomSheetHeader(
+              title: 'Filter Vehicles',
+              subtitle: 'Narrow Vehicles by Live Status and Type',
+              icon: Icons.tune,
+              onClose: () => Navigator.pop(sheetContext),
             ),
             const SizedBox(height: 16),
             _buildFleetFiltersContent(isMobile),
@@ -1579,7 +1561,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     child: const Text('Reset'),
                   ),
@@ -1588,11 +1571,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(sheetContext),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
+                    style: OwnerFormDialogUi.primaryButtonStyle,
                     child: const Text('Apply Filters'),
                   ),
                 ),
@@ -1608,57 +1587,83 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     final searchActive = _vehicleSearchQuery.trim().isNotEmpty;
     final filterActive = _statusFilter != 'All Status' || _typeFilter != 'All Types';
 
+    Widget actionTile({
+      required String label,
+      required IconData icon,
+      required bool active,
+      required VoidCallback onTap,
+    }) {
+      return Material(
+        color: active ? AppColors.primaryLight : AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 14 : 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: active ? AppColors.primary : AppColors.border,
+                width: active ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Badge(
+                  isLabelVisible: active,
+                  smallSize: 8,
+                  backgroundColor: AppColors.primary,
+                  child: Icon(icon, size: 20, color: AppColors.primary),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: active ? AppColors.primary : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Material(
-      elevation: 12,
+      elevation: 8,
       color: Colors.white,
-      borderRadius: isMobile ? null : const BorderRadius.vertical(top: Radius.circular(14)),
+      shadowColor: AppColors.primary.withValues(alpha: 0.15),
+      borderRadius: isMobile ? null : const BorderRadius.vertical(top: Radius.circular(16)),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(isMobile ? 12 : 16, 10, isMobile ? 12 : 16, isMobile ? 8 : 12),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: AppColors.primary.withValues(alpha: 0.2), width: 1.5),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(isMobile ? 14 : 18, 12, isMobile ? 14 : 18, isMobile ? 10 : 14),
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _showFleetSearchBottomSheet(isMobile),
-                  icon: Badge(
-                    isLabelVisible: searchActive,
-                    smallSize: 8,
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(Icons.search, size: 20),
-                  ),
-                  label: const Text('Search'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(
-                      color: searchActive ? AppColors.primary : Colors.grey.shade300,
-                      width: searchActive ? 1.5 : 1,
-                    ),
-                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                child: actionTile(
+                  label: 'Search',
+                  icon: Icons.search,
+                  active: searchActive,
+                  onTap: () => _showFleetSearchBottomSheet(isMobile),
                 ),
               ),
-              SizedBox(width: isMobile ? 10 : 12),
+              SizedBox(width: isMobile ? 12 : 14),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _showFleetFilterBottomSheet(isMobile),
-                  icon: Badge(
-                    isLabelVisible: filterActive,
-                    smallSize: 8,
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(Icons.tune, size: 20),
-                  ),
-                  label: const Text('Filter'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(
-                      color: filterActive ? AppColors.primary : Colors.grey.shade300,
-                      width: filterActive ? 1.5 : 1,
-                    ),
-                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                child: actionTile(
+                  label: 'Filter',
+                  icon: Icons.tune,
+                  active: filterActive,
+                  onTap: () => _showFleetFilterBottomSheet(isMobile),
                 ),
               ),
             ],
@@ -1720,9 +1725,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: DashboardDetailDialogTheme.surface,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: 820, maxHeight: maxDialogHeight),
@@ -1731,23 +1736,38 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                padding: const EdgeInsets.fromLTRB(18, 14, 8, 14),
                 decoration: BoxDecoration(
-                  color: DashboardDetailDialogTheme.surface,
+                  color: AppColors.primaryLight,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.35))),
+                  border: Border(
+                    bottom: BorderSide(color: AppColors.primary.withValues(alpha: 0.15)),
+                  ),
                 ),
                 child: Row(
                   children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.insights_outlined, color: AppColors.primary, size: 22),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -1757,22 +1777,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   shrinkWrap: true,
                   padding: const EdgeInsets.all(16),
                   children: children
-                      .map((child) => Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: child,
-                          ))
+                      .map(
+                        (child) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+                          ),
+                          child: child,
+                        ),
+                      )
                       .toList(),
                 ),
               ),
@@ -1787,10 +1802,20 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     final isMobile = MediaQuery.of(context).size.width < 768;
     return ListTile(
       dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(Icons.directions_car_outlined, color: AppColors.primary, size: 20),
+      ),
       title: Text(
         '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
@@ -2052,7 +2077,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             TextButton(
               onPressed: () => setState(() => _typeFilter = 'All Types'),
               style: _fleetClearButtonStyle,
-              child: const Text('Clear type', style: TextStyle(fontSize: 13)),
+              child: const Text('Clear Type', style: TextStyle(fontSize: 13)),
             ),
           if (searchActive &&
               (_statusFilter != 'All Status' || _typeFilter != 'All Types'))
@@ -2104,7 +2129,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               searchActive ||
                       _statusFilter != 'All Status' ||
                       _typeFilter != 'All Types'
-                  ? 'No vehicles match your search or filters'
+                  ? 'No Vehicles Match your Search or Filters'
                   : 'No vehicles in your fleet yet',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -2127,7 +2152,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   });
                 },
                 style: _fleetClearButtonStyle,
-                child: const Text('Clear search & filters'),
+                child: const Text('Clear Search & Filters'),
               ),
             ] else ...[
               const SizedBox(height: 16),
@@ -2281,9 +2306,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 ? (searchActive ||
                         _statusFilter != 'All Status' ||
                         _typeFilter != 'All Types'
-                    ? 'No vehicles match your current search or filters'
+                    ? 'No Vehicles Match your Search or Filters'
                     : 'Add a vehicle above to see it listed here')
-                : '${filteredVehicles.length} vehicle${filteredVehicles.length == 1 ? '' : 's'} shown';
+                : '${filteredVehicles.length} Vehicle${filteredVehicles.length == 1 ? '' : 's'} Shown';
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2633,16 +2658,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add Emergency Contact'),
-          content: SingleChildScrollView(
-            child: Form(
+        builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
+          title: 'Add Emergency Contact',
+          subtitle: 'Add someone to notify in an emergency',
+          icon: Icons.person_add_alt_1_outlined,
+          content: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextFormField(
                     controller: nameController,
+                    cursorColor: AppColors.primary,
                     decoration: EmergencyContactUi.inputDecoration('Name *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -2724,10 +2751,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 ],
               ),
             ),
-          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
+              style: OwnerFormDialogUi.cancelButtonStyle,
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -2776,7 +2803,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   }
                 }
               },
-              style: EmergencyContactUi.primaryButtonStyle,
+              style: OwnerFormDialogUi.primaryButtonStyle,
               child: const Text('Add Contact'),
             ),
           ],
@@ -2797,16 +2824,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Edit Emergency Contact'),
-          content: SingleChildScrollView(
-            child: Form(
+        builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
+          title: 'Edit Emergency Contact',
+          subtitle: contact.name,
+          icon: Icons.edit_outlined,
+          content: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextFormField(
                     controller: nameController,
+                    cursorColor: AppColors.primary,
                     decoration: EmergencyContactUi.inputDecoration('Name *'),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -2888,14 +2917,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 ],
               ),
             ),
-          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
+              style: OwnerFormDialogUi.cancelButtonStyle,
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              style: EmergencyContactUi.primaryButtonStyle,
+              style: OwnerFormDialogUi.primaryButtonStyle,
               onPressed: () async {
                 if (methods.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -3165,7 +3194,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text('Delete Contact'),
-                  content: Text('Are you sure you want to delete ${contact.name} from emergency contacts? This action cannot be undone.'),
+                  content: Text('Are you sure you want to Delete ${contact.name} from emergency contacts? This action cannot be undone.'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -3699,57 +3728,67 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          title: const Text('Edit Vehicle'),
+        builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
+          title: 'Edit Vehicle',
+          subtitle: '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
+          icon: Icons.directions_car_outlined,
           content: Form(
             key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: makeCtrl,
-                    decoration: const InputDecoration(labelText: 'Make', border: OutlineInputBorder()),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: modelCtrl,
-                    decoration: const InputDecoration(labelText: 'Model', border: OutlineInputBorder()),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: yearCtrl,
-                    decoration: const InputDecoration(labelText: 'Year', border: OutlineInputBorder()),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: plateCtrl,
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: [_LicensePlateFormatter()],
-                    decoration: const InputDecoration(labelText: 'License Plate', border: OutlineInputBorder()),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: selectedType,
-                    decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
-                    items: const ['Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) setDialogState(() => selectedType = value);
-                    },
-                  ),
-                ],
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: makeCtrl,
+                  cursorColor: AppColors.primary,
+                  decoration: OwnerFormDialogUi.fieldDecoration('Make'),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: modelCtrl,
+                  cursorColor: AppColors.primary,
+                  decoration: OwnerFormDialogUi.fieldDecoration('Model'),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: yearCtrl,
+                  cursorColor: AppColors.primary,
+                  keyboardType: TextInputType.number,
+                  decoration: OwnerFormDialogUi.fieldDecoration('Year'),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: plateCtrl,
+                  cursorColor: AppColors.primary,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [_LicensePlateFormatter()],
+                  decoration: OwnerFormDialogUi.fieldDecoration('License Plate'),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  dropdownColor: Colors.white,
+                  decoration: OwnerFormDialogUi.fieldDecoration('Type'),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
+                  items: const ['Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => selectedType = value);
+                  },
+                ),
+              ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: OwnerFormDialogUi.cancelButtonStyle,
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
               onPressed: () async {
                 if (formKey.currentState?.validate() != true) return;
@@ -3763,11 +3802,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 if (mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Vehicle updated successfully')),
+                    const SnackBar(
+                      content: Text('Vehicle Updated Successfully'),
+                      backgroundColor: AppColors.primary,
+                    ),
                   );
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+              style: OwnerFormDialogUi.primaryButtonStyle,
               child: const Text('Save Changes'),
             ),
           ],
@@ -3782,12 +3824,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       builder: (context) => AlertDialog(
         title: const Text('Delete Vehicle'),
         content: Text(
-          'Are you sure you want to delete vehicle ${vehicle.licensePlate}? This action cannot be undone.',
+          'Are you sure you want to Delete vehicle ${vehicle.licensePlate}? This Action Cannot be Undone.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -4046,7 +4088,7 @@ class _OwnerDashboardActiveDriversCardState extends State<_OwnerDashboardActiveD
         ? <Widget>[
             const ListTile(
               dense: true,
-              title: Text('No active monitoring sessions'),
+              title: Text('No Active Monitoring Sessions'),
             ),
           ]
         : activeVehicles

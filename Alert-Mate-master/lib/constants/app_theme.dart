@@ -2,13 +2,23 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 ThemeData buildAlertMateTheme() {
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: AppColors.primary,
+    brightness: Brightness.light,
+    primary: AppColors.primary,
+    secondary: AppColors.primaryDark,
+    surface: AppColors.surface,
+    error: AppColors.danger,
+  );
+
   return ThemeData(
-    primarySwatch: Colors.blue,
+    colorScheme: colorScheme,
+    primaryColor: AppColors.primary,
     useMaterial3: true,
     scaffoldBackgroundColor: AppColors.background,
     canvasColor: AppColors.background,
     dialogTheme: DialogThemeData(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
     ),
     popupMenuTheme: PopupMenuThemeData(

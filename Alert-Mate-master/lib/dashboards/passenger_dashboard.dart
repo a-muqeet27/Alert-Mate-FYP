@@ -20,6 +20,7 @@ import '../widgets/mobile_drawer_menu_button.dart';
 import '../widgets/emergency_contact_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/dashboard_responsive.dart';
+import '../widgets/owner_form_dialog_ui.dart';
 
 class PassengerDashboard extends StatefulWidget {
   final User user;
@@ -105,7 +106,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       case 1:
         return 'Live Driver Location on Map';
       case 2:
-        return 'Notify driver, owner, and administrators in an emergency';
+        return 'Notify About Emergency';
       case 3:
         return 'Quick access to emergency services and contacts';
       case 4:
@@ -146,6 +147,63 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: child,
+    );
+  }
+
+  Widget _buildPassengerProminentStatusBox({
+    required String label,
+    required String value,
+    required Color valueColor,
+    String? subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 88),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: valueColor.withValues(alpha: 0.35), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: valueColor,
+              height: 1.05,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -277,7 +335,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               isMobile: isMobile,
               icon: Icons.search,
               title: 'Find Vehicle',
-              subtitle: 'Enter the License Plate to Connect With Your Driver',
+              subtitle: 'Enter the License Plate to Connect With your Driver',
               child: _buildPlateLookupSection(),
             ),
             0,
@@ -369,16 +427,67 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     return _passengerPageShell(
       title: 'Emergency Alert',
       subtitle: 'Notify in an Emergency',
-      child: _buildStaggeredItem(
-        _buildPassengerSectionCard(
+      child: _buildEmergencyAlertSections(isMobile),
+    );
+  }
+
+  Widget _buildEmergencyAlertSections(bool isMobile) {
+    final driverId = _lookupDriverId;
+    if (driverId == null || driverId.isEmpty) {
+      return _buildEmergencyAlertSectionsContent(
+        isMobile: isMobile,
+        canSend: false,
+        statusMessage:
+            'Search for a Vehicle under Find Vehicle before Sending an Alert.',
+      );
+    }
+
+    return StreamBuilder<bool>(
+      stream: _monitoringService.watchHasActiveMonitoringSession(driverId),
+      builder: (context, snapshot) {
+        final sessionActive = snapshot.data ?? false;
+        return _buildEmergencyAlertSectionsContent(
           isMobile: isMobile,
-          icon: Icons.warning_amber_rounded,
-          title: 'Emergency Alert',
-          subtitle: 'Send an Alert to Driver, Owner and Administrators',
-          child: _buildEmergencyControlsCard(),
+          canSend: sessionActive,
+          statusMessage: sessionActive
+              ? null
+              : 'The Driver Has Not Started Monitoring Yet. '
+                  'You Can Send An Alert After They Tap Start Monitoring.',
+        );
+      },
+    );
+  }
+
+  Widget _buildEmergencyAlertSectionsContent({
+    required bool isMobile,
+    required bool canSend,
+    String? statusMessage,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildStaggeredItem(
+          _buildPassengerSectionCard(
+            isMobile: isMobile,
+            icon: Icons.info_outline,
+            title: 'Before You Send',
+            subtitle: 'Read the Guidance and Check Alert Availability',
+            child: _buildEmergencyAlertInfoContent(statusMessage: statusMessage),
+          ),
+          0,
         ),
-        0,
-      ),
+        SizedBox(height: isMobile ? 14 : 18),
+        _buildStaggeredItem(
+          _buildPassengerSectionCard(
+            isMobile: isMobile,
+            icon: Icons.notifications_active,
+            title: 'Send Emergency Alert',
+            subtitle: 'Notify Driver, Owner and Administrators Immediately',
+            child: _buildEmergencySendAlertButton(canSend: canSend),
+          ),
+          1,
+        ),
+      ],
     );
   }
   late EmergencyContactService _emergencyContactService;
@@ -727,7 +836,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     final raw = _plateController.text.trim();
     if (raw.isEmpty) {
       setState(() {
-        _plateError = 'Enter a license plate';
+        _plateError = 'Enter a License Plate';
         _lookupVehicle = null;
         _lookupDriverId = null;
       });
@@ -964,7 +1073,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  'Live status appears when the driver starts monitoring.',
+                  'Live Status appears when the Driver Starts Monitoring.',
                   style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
                 ),
               ],
@@ -1036,11 +1145,11 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ],
           ),
           const SizedBox(height: 14),
-          _buildPassengerMetricChip(
-            'Status',
-            drowsy ? 'Drowsy' : 'Normal',
+          _buildPassengerProminentStatusBox(
+            label: 'Current Status',
+            value: drowsy ? 'Drowsy' : 'Normal',
             valueColor: drowsy ? AppColors.danger : AppColors.success,
-            compact: true,
+            subtitle: drowsy ? 'Driver May Need Rest' : 'Driver is Alert',
           ),
         ],
       ),
@@ -1069,87 +1178,26 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ],
           ),
           const SizedBox(height: 14),
-          _buildPassengerMetricChip(
-            'Status',
-            safe ? 'Safe' : (drowsy ? 'Critical' : 'Break Recommended'),
+          _buildPassengerProminentStatusBox(
+            label: 'Safety Level',
+            value: safe ? 'Safe' : (drowsy ? 'Critical' : 'Caution'),
             valueColor: statusColor,
-            compact: true,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            safe ? 'All systems active' : (drowsy ? 'Drowsiness detected' : 'Consider taking a short break'),
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              height: 1.4,
-            ),
+            subtitle: safe
+                ? 'Safe'
+                : (drowsy ? 'Drowsiness Detected' : 'Consider a Short Break'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmergencyControlsCard() {
-    final driverId = _lookupDriverId;
-    if (driverId == null || driverId.isEmpty) {
-      return _buildEmergencyControlsCardContent(
-        canSend: false,
-        statusMessage: 'Search for a vehicle under Find Vehicle before sending an alert.',
-      );
-    }
-
-    return StreamBuilder<bool>(
-      stream: _monitoringService.watchHasActiveMonitoringSession(driverId),
-      builder: (context, snapshot) {
-        final sessionActive = snapshot.data ?? false;
-        return _buildEmergencyControlsCardContent(
-          canSend: sessionActive,
-          statusMessage: sessionActive
-              ? null
-              : 'The Driver Has Not Started Monitoring Yet. '
-              'You Can Send An Alert After They Tap Start Monitoring.',
-        );
-      },
-    );
-  }
-
-  Widget _buildEmergencyControlsCardContent({
-    required bool canSend,
-    String? statusMessage,
-  }) {
+  Widget _buildEmergencyAlertInfoContent({String? statusMessage}) {
     final isMobile = DashboardLayout.isMobile(context);
     return _buildPassengerMetricPanel(
       isMobile: isMobile,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton.icon(
-              onPressed: canSend ? _showEmergencyAlertDialog : null,
-              icon: const Icon(Icons.notifications_active, size: 22),
-              label: const Text(
-                'Send Emergency Alert',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.shade400,
-                disabledForegroundColor: Colors.white70,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1158,8 +1206,9 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 22),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -1175,7 +1224,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
           ),
           if (statusMessage != null) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
@@ -1200,6 +1249,45 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmergencySendAlertButton({required bool canSend}) {
+    final isMobile = DashboardLayout.isMobile(context);
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 14 : 16),
+      decoration: BoxDecoration(
+        color: Colors.red.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton.icon(
+          onPressed: canSend ? _showEmergencyAlertDialog : null,
+          icon: const Icon(Icons.notifications_active, size: 22),
+          label: const Text(
+            'Send Emergency Alert',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.3,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: Colors.grey.shade400,
+            disabledForegroundColor: Colors.white70,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: 2,
+          ),
+        ),
       ),
     );
   }
@@ -1460,7 +1548,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
           const SizedBox(height: 6),
           const Text(
-            'Current vehicle monitoring details',
+            'Current Vehicle Monitoring Details',
             style: TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,
@@ -1482,7 +1570,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 
                 if (!isMonitoring) {
                   return const Text(
-                    'No active monitoring session. Trip information appears when the driver starts monitoring.',
+                    'No Active Monitoring Session. Trip Information appears when the Driver Starts Monitoring.',
                     style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
                   );
                 }
@@ -2355,108 +2443,76 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       context: scaffoldContext,
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+        builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
+          title: 'Emergency Alert',
+          subtitle: '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
+          icon: Icons.warning_amber_rounded,
+          accentColor: AppColors.danger,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OwnerFormDialogUi.infoBanner(
+                message: 'For ABSOLUTE EMERGENCIES ONLY. Confirm Type and Recipients.',
+                icon: Icons.error_outline,
+                color: AppColors.danger,
               ),
-              child: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Emergency Alert',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 16),
+              OwnerFormDialogUi.sectionTitle('Emergency Type'),
+              const SizedBox(height: 8),
+              OwnerFormDialogUi.listPanel(
+                child: Column(
+                  children: _emergencyCategories
+                      .map(
+                        (cat) => RadioListTile<String>(
+                          value: cat,
+                          groupValue: selectedCategory,
+                          onChanged: (v) {
+                            if (v != null) setDialogState(() => selectedCategory = v);
+                          },
+                          title: Text(cat, style: const TextStyle(fontSize: 14)),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          activeColor: AppColors.primary,
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.error_outline, color: Colors.red, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'This is for ABSOLUTE EMERGENCIES ONLY',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
-                      ),
-                    ),
+              const SizedBox(height: 16),
+              OwnerFormDialogUi.sectionTitle('This Alert Will Notify'),
+              const SizedBox(height: 10),
+              _buildAlertRecipient(Icons.person, 'Driver', driverName),
+              if (ownerName != null && ownerName.isNotEmpty)
+                _buildAlertRecipient(Icons.business, 'Vehicle Owner', ownerName),
+              _buildAlertRecipient(Icons.admin_panel_settings, 'System Admin', 'All Administrators'),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  'Vehicle: ${vehicle.make} ${vehicle.model} (${vehicle.licensePlate})',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Emergency Type',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            ..._emergencyCategories.map((cat) => RadioListTile<String>(
-              value: cat,
-              groupValue: selectedCategory,
-              onChanged: (v) {
-                if (v != null) setDialogState(() => selectedCategory = v);
-              },
-              title: Text(cat, style: const TextStyle(fontSize: 14)),
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              activeColor: AppColors.primary,
-            )),
-            const SizedBox(height: 12),
-            const Text(
-              'This Alert will Immediately Notify:',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildAlertRecipient(Icons.person, 'Driver', driverName),
-            if (ownerName != null && ownerName.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _buildAlertRecipient(Icons.business, 'Vehicle Owner', ownerName),
             ],
-            const SizedBox(height: 8),
-            _buildAlertRecipient(Icons.admin_panel_settings, 'System Admin', 'All Administrators'),
-            const SizedBox(height: 16),
-            Text(
-              'Vehicle: ${vehicle.make} ${vehicle.model} (${vehicle.licensePlate})',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
-          ElevatedButton(
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              style: OwnerFormDialogUi.cancelButtonStyle,
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
             onPressed: () {
               final category = selectedCategory;
               Navigator.pop(dialogContext);
@@ -2553,41 +2609,62 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 }
               });
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('SEND EMERGENCY ALERT'),
+            style: OwnerFormDialogUi.dangerButtonStyle,
+            child: const Text('Send Emergency Alert'),
           ),
         ],
-      ),
+        ),
       ),
     );
   }
 
   Widget _buildAlertRecipient(IconData icon, String role, String name) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Text(
-          '$role: ',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey[600],
-          ),
-        ),
-        Expanded(
-          child: Text(
-            name,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(8),
             ),
-            overflow: TextOverflow.ellipsis,
+            child: Icon(icon, size: 18, color: AppColors.primary),
           ),
-        ),
-      ],
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  role,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
