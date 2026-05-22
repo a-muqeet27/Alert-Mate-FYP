@@ -368,7 +368,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     final isMobile = DashboardLayout.isMobile(context);
     return _passengerPageShell(
       title: 'Emergency Alert',
-      subtitle: 'Notify driver, owner, and administrators in an emergency',
+      subtitle: 'Notify in an Emergency',
       child: _buildStaggeredItem(
         _buildPassengerSectionCard(
           isMobile: isMobile,
@@ -2409,7 +2409,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             ),
             const SizedBox(height: 16),
             const Text(
-              'Emergency type',
+              'Emergency Type',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -2426,7 +2426,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
             )),
             const SizedBox(height: 12),
             const Text(
-              'This alert will immediately notify:',
+              'This Alert will Immediately Notify:',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -2439,7 +2439,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
               _buildAlertRecipient(Icons.business, 'Vehicle Owner', ownerName),
             ],
             const SizedBox(height: 8),
-            _buildAlertRecipient(Icons.admin_panel_settings, 'System Admin', 'All administrators'),
+            _buildAlertRecipient(Icons.admin_panel_settings, 'System Admin', 'All Administrators'),
             const SizedBox(height: 16),
             Text(
               'Vehicle: ${vehicle.make} ${vehicle.model} (${vehicle.licensePlate})',
@@ -2454,7 +2454,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -2545,7 +2545,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                   if (scaffoldContext.mounted) {
                     ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                       SnackBar(
-                        content: Text('Failed to send alert: $e'),
+                        content: Text('Failed to Send Alert: $e'),
                         backgroundColor: Colors.red,
                       ),
                     );

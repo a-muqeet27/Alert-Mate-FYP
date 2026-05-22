@@ -1531,7 +1531,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             icon: Icons.monitor_heart_outlined,
             title: 'Monitoring Session',
             subtitle: _isMonitoring
-                ? 'Session is Active — Drowsiness Detector is Running'
+                ? 'Session is Active. Drowsiness Detector is Running'
                 : 'Start Monitoring to Begin Live Alertness Tracking',
             child: _buildOverviewMonitoringButton(isMobile),
           ),
@@ -1712,7 +1712,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
-                    'Live monitoring active',
+                    'Live Monitoring Active',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -1934,7 +1934,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
           const SizedBox(height: 10),
           Text(
-            _isMonitoring ? 'Updating Live From Camera' : 'Available When Monitoring is Active',
+            _isMonitoring ? 'Updating Live from Camera' : 'Available when Monitoring is Active',
             style: TextStyle(fontSize: isMobile ? 12 : 13, color: AppColors.textSecondary),
           ),
           if (!isMobile) const Spacer(),
@@ -2285,7 +2285,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               ),
               Text(
                 _isMonitoring
-                    ? 'Monitoring active'
+                    ? 'Monitoring Active'
                     : _isCameraTesting
                         ? 'Testing...'
                         : 'Ready to test',
@@ -2375,8 +2375,8 @@ class _DriverDashboardState extends State<DriverDashboard>
       icon: Icons.speed_outlined,
       title: 'Live Metrics',
       subtitle: _isMonitoring
-          ? 'Real-time alertness and eye openness values'
-          : 'Metrics Appear When You Start Monitoring',
+          ? 'Real-Time Alertness and EAR & MAR Values'
+          : 'Metrics Appear when you Start Monitoring',
       child: isMobile
           ? Column(
               children: [
@@ -2434,8 +2434,8 @@ class _DriverDashboardState extends State<DriverDashboard>
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
                         _isMonitoring
-                            ? 'Waiting for camera frame…'
-                            : 'Start monitoring from Drowsiness Monitoring to view the live feed',
+                            ? 'Waiting for Camera Frame…'
+                            : 'Start Monitoring from Drowsiness Monitoring to View the Live Feed',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: isMobile ? 13 : 14,
@@ -2462,8 +2462,8 @@ class _DriverDashboardState extends State<DriverDashboard>
           icon: Icons.videocam_outlined,
           title: 'Camera Feed',
           subtitle: _isMonitoring
-              ? 'Live Drowsiness Detection From Your Device Camera'
-              : 'Camera Preview Starts When Monitoring is Active',
+              ? 'Live Drowsiness Detection from your Device Camera'
+              : 'Camera Preview starts when Monitoring is Active',
           trailing: _isMonitoring
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

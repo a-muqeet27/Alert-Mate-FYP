@@ -460,7 +460,7 @@ class _AuthScreenState extends State<AuthScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-                'Enter your email address and we\'ll send you a password reset link.'),
+                'Enter your Email Address and We\'ll send you a Password Reset Link.'),
             const SizedBox(height: 16),
             TextField(
               controller: emailController,
@@ -476,7 +476,8 @@ class _AuthScreenState extends State<AuthScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -486,7 +487,7 @@ class _AuthScreenState extends State<AuthScreen>
             onPressed: () async {
               final email = emailController.text.trim();
               if (email.isEmpty) {
-                _showErrorDialog('Please enter your email');
+                _showErrorDialog('Please Enter Your Email');
                 return;
               }
 
@@ -498,7 +499,7 @@ class _AuthScreenState extends State<AuthScreen>
               try {
                 await _authService.sendPasswordResetEmail(email);
                 setState(() { _isLoading = false; });
-                _showErrorDialog('Password reset email sent! Check your inbox.');
+                _showErrorDialog('Password Reset Email Sent! Check Your Inbox.');
               } catch (e) {
                 setState(() { _isLoading = false; });
                 _showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
@@ -827,8 +828,8 @@ class _AuthScreenState extends State<AuthScreen>
                                             const SizedBox(height: 6),
                                             Text(
                                               isSignIn
-                                                  ? 'Sign in to access your ${_getSelectedRoleLabel()} dashboard'
-                                                  : 'Register as ${_getSelectedRoleLabel()} to get started',
+                                                  ? 'Sign In To Access Your ${_getSelectedRoleLabel()} Dashboard'
+                                                  : 'Register As ${_getSelectedRoleLabel()} to Get Started',
                                               style: const TextStyle(
                                                 fontSize: 14,
                                                 color: AppColors.textSecondary,
@@ -869,7 +870,7 @@ class _AuthScreenState extends State<AuthScreen>
                                         Expanded(
                                           child: _buildTextField(
                                             'First Name',
-                                            '(e.g., Wahb)',
+                                            '(e.g. Wahb)',
                                             _firstNameController,
                                             validator: FormValidators.validateFirstName,
                                             inputFormatters: [
@@ -881,7 +882,7 @@ class _AuthScreenState extends State<AuthScreen>
                                         Expanded(
                                           child: _buildTextField(
                                             'Last Name',
-                                            '(e.g., Muqeet)',
+                                            '(e.g. Muqeet)',
                                             _lastNameController,
                                             validator: FormValidators.validateLastName,
                                             inputFormatters: [
@@ -895,7 +896,7 @@ class _AuthScreenState extends State<AuthScreen>
                                   ],
                                   _buildTextField(
                                     'Email',
-                                    'Email (e.g., abc@example.com)',
+                                    'abc@example.com',
                                     _emailController,
                                     validator: (value) {
                                       if (value == null || value.isEmpty) {
@@ -904,7 +905,7 @@ class _AuthScreenState extends State<AuthScreen>
                                       if (!RegExp(
                                           r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
                                           .hasMatch(value)) {
-                                        return 'Enter a valid Email!';
+                                        return 'Enter a Valid Email!';
                                       }
                                       return null;
                                     },
@@ -1269,15 +1270,15 @@ class _AuthScreenState extends State<AuthScreen>
           cursorColor: AppColors.primary,
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'Please confirm your password';
+              return 'Please Confirm Your Password';
             }
             if (value != _passwordController.text) {
-              return 'Passwords do not match';
+              return 'Passwords Do Not Match';
             }
             return null;
           },
           decoration: _authFieldDecoration(
-            hintText: 'Re-enter your password',
+            hintText: 'Re-Enter Your Password',
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
@@ -1336,8 +1337,8 @@ class _AuthScreenState extends State<AuthScreen>
           },
           decoration: _authFieldDecoration(
             hintText: isSignIn
-                ? 'Enter a password'
-                : 'Mix of letters, numbers & special chars (min 8)',
+                ? 'Enter a Password'
+                : 'Mix of Letters, Numbers & Special Characters (minimum 8)',
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -1489,7 +1490,7 @@ class _AuthScreenState extends State<AuthScreen>
             color: AppColors.textSecondary,
           ),
           children: [
-            const TextSpan(text: "Don't have an account? "),
+            const TextSpan(text: "Don't Have An Account? "),
             WidgetSpan(
               child: GestureDetector(
                 onTap: () {

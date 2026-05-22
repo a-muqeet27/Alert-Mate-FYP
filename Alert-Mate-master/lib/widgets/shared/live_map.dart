@@ -217,7 +217,7 @@ class _LiveMapState extends State<LiveMap> with TickerProviderStateMixin {
               ),
               const SizedBox(height: 2),
               Text(
-                'Real-time driver locations on map',
+                'Real-Time Driver\'s Locations on Map',
                 style: TextStyle(
                   fontSize: isMobile ? 12 : 14,
                   color: Colors.grey[600],
@@ -679,7 +679,7 @@ class _LiveMapState extends State<LiveMap> with TickerProviderStateMixin {
             ),
             SizedBox(height: 16),
             Text(
-              'Loading map...',
+              'Loading Map...',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.black54,
@@ -706,7 +706,7 @@ class _LiveMapState extends State<LiveMap> with TickerProviderStateMixin {
               ),
               SizedBox(height: isMobile ? 12 : 16),
               Text(
-                'No active drivers',
+                'No Active Drivers',
                 style: TextStyle(
                   fontSize: isMobile ? 16 : 18,
                   fontWeight: FontWeight.w600,
@@ -715,7 +715,7 @@ class _LiveMapState extends State<LiveMap> with TickerProviderStateMixin {
               ),
               const SizedBox(height: 6),
               Text(
-                'Driver locations will appear here when drivers are online',
+                'Driver Locations will Appear Here when Drivers are Online',
                 style: TextStyle(
                   fontSize: isMobile ? 12 : 14,
                   color: Colors.grey[500],

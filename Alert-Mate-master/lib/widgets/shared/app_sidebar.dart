@@ -167,6 +167,7 @@ class AppSidebar extends StatelessWidget {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 3,
+                            color: AppColors.azure
                         ),
                       ),
                       SizedBox(height: 2),

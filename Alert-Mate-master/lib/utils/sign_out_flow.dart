@@ -12,9 +12,9 @@ Future<bool> showSignOutConfirmationDialog(BuildContext context) async {
     context: context,
     barrierDismissible: false,
     builder: (ctx) => AlertDialog(
-      title: const Text('Sign out?'),
+      title: const Text('Sign Out?'),
       content: const Text(
-        'You will be signed out of AlertMate. You will need to sign in again to access your dashboard.',
+        'You will be Signed-Out of ALERT MATE. You will need to Sign-In again to access your Dashboard.',
       ),
       actions: [
         TextButton(
@@ -27,7 +27,7 @@ Future<bool> showSignOutConfirmationDialog(BuildContext context) async {
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
           ),
-          child: const Text('Sign out'),
+          child: const Text('Sign Out'),
         ),
       ],
     ),
