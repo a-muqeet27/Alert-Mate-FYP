@@ -15,6 +15,7 @@ import 'screens/driver_documents_gate_screen.dart';
 import 'utils/page_transitions.dart';
 import 'constants/app_colors.dart';
 import 'utils/form_validators.dart';
+import 'widgets/alert_mate_branding.dart';
 
 class AuthScreen extends StatefulWidget {
   final int? initialDashboardIndex;
@@ -648,9 +649,86 @@ class _AuthScreenState extends State<AuthScreen>
       FadeScalePageRoute(page: dashboardScreen),
     );
   }
+  static const BorderRadius _authRadius = BorderRadius.all(Radius.circular(12));
+
+  InputDecoration _authFieldDecoration({
+    required String hintText,
+    Widget? suffixIcon,
+    int? errorMaxLines,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: TextStyle(
+        fontSize: 14,
+        color: AppColors.textSecondary.withValues(alpha: 0.85),
+      ),
+      filled: true,
+      fillColor: Colors.white,
+      suffixIcon: suffixIcon,
+      errorMaxLines: errorMaxLines,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: _authRadius,
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: _authRadius,
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: _authRadius,
+        borderSide: BorderSide(color: AppColors.primary, width: 2),
+      ),
+      errorBorder: const OutlineInputBorder(
+        borderRadius: _authRadius,
+        borderSide: BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: const OutlineInputBorder(
+        borderRadius: _authRadius,
+        borderSide: BorderSide(color: AppColors.danger, width: 2),
+      ),
+    );
+  }
+
+  Widget _authFieldLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary,
+      ),
+    );
+  }
+
+  BoxDecoration _authPanelDecoration() {
+    return BoxDecoration(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+    );
+  }
+
+  BoxDecoration _authCardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.shadowLight,
+          blurRadius: 14,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 768;
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           SingleChildScrollView(
@@ -664,42 +742,14 @@ class _AuthScreenState extends State<AuthScreen>
                     scale: _scaleAnimation,
                     child: Column(
                       children: [
-                        const SizedBox(height: 12),
-                        Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 320),
-                            child: Column(
-                              children: [
-                                Image.asset(
-                                  'assets/images/Alert Mate New.png',
-                                  width: 120,
-                                  height: 90,
-                                  fit: BoxFit.contain,
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'ALERT MATE',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 4,
-                                    color: Color(0xFF2C3E50),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  'Drowsiness Detection',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF7F8C8D),
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        SizedBox(
+                          height: MediaQuery.paddingOf(context).top +
+                              (isMobile ? 20 : 32),
                         ),
-                        const SizedBox(height: 28),
+                        const AlertMateBranding(
+                          size: AlertMateBrandingSize.auth,
+                        ),
+                        SizedBox(height: isMobile ? 14 : 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -714,20 +764,23 @@ class _AuthScreenState extends State<AuthScreen>
                         const SizedBox(height: 20),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 10),
+                              horizontal: 20, vertical: 14),
                           margin: const EdgeInsets.symmetric(horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F4FD),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Selected Role: ${_getSelectedRoleLabel()}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
-                            ),
-                            textAlign: TextAlign.center,
+                          decoration: _authPanelDecoration(),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.badge_outlined, color: AppColors.primary, size: 22),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Selected Role: ${_getSelectedRoleLabel()}',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -738,56 +791,76 @@ class _AuthScreenState extends State<AuthScreen>
                               constraints: const BoxConstraints(maxWidth: 500),
                               margin:
                               const EdgeInsets.symmetric(horizontal: 20),
-                              padding: const EdgeInsets.all(40),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.08),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
+                              padding: EdgeInsets.all(isMobile ? 22 : 32),
+                              decoration: _authCardDecoration(),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    isSignIn ? 'Welcome!' : 'Create Account',
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF2C3E50),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    isSignIn
-                                        ? 'Sign-in to access your ${_getSelectedRoleLabel()} Dashboard'
-                                        : 'Register as ${_getSelectedRoleLabel()} to get started',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF7F8C8D),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 30),
                                   Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: _buildToggleButton(
-                                            'Sign-In', isSignIn, () {
-                                          if (!isSignIn) _toggleAuthMode();
-                                        }),
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primaryLight,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Icon(
+                                          isSignIn ? Icons.login_rounded : Icons.person_add_outlined,
+                                          color: AppColors.primary,
+                                          size: 24,
+                                        ),
                                       ),
-                                      const SizedBox(width: 16),
+                                      const SizedBox(width: 14),
                                       Expanded(
-                                        child: _buildToggleButton(
-                                            'Sign-Up', !isSignIn, () {
-                                          if (isSignIn) _toggleAuthMode();
-                                        }),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              isSignIn ? 'Welcome Back' : 'Create Account',
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 20 : 24,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              isSignIn
+                                                  ? 'Sign in to access your ${_getSelectedRoleLabel()} dashboard'
+                                                  : 'Register as ${_getSelectedRoleLabel()} to get started',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: AppColors.textSecondary,
+                                                height: 1.35,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ],
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: _authPanelDecoration(),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildToggleButton(
+                                              'Sign-In', isSignIn, () {
+                                            if (!isSignIn) _toggleAuthMode();
+                                          }),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _buildToggleButton(
+                                              'Sign-Up', !isSignIn, () {
+                                            if (isSignIn) _toggleAuthMode();
+                                          }),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                   const SizedBox(height: 30),
                                   if (!isSignIn) ...[
@@ -869,11 +942,10 @@ class _AuthScreenState extends State<AuthScreen>
                                     child: ElevatedButton(
                                       onPressed: _isLoading ? null : _handleAuth,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                        AppColors.primary,
+                                        backgroundColor: AppColors.primary,
+                                        foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                          BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         elevation: 0,
                                       ),
@@ -902,19 +974,19 @@ class _AuthScreenState extends State<AuthScreen>
                                     const SizedBox(height: 20),
                                     Row(
                                       children: [
-                                        Expanded(child: Divider(color: Colors.grey[300])),
+                                        Expanded(child: Divider(color: AppColors.border)),
                                         Padding(
                                           padding: const EdgeInsets.symmetric(horizontal: 16),
                                           child: Text(
                                             'OR',
                                             style: TextStyle(
-                                              color: Colors.grey[600],
+                                              color: AppColors.textSecondary,
                                               fontSize: 12,
-                                              fontWeight: FontWeight.w500,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                         ),
-                                        Expanded(child: Divider(color: Colors.grey[300])),
+                                        Expanded(child: Divider(color: AppColors.border)),
                                       ],
                                     ),
                                     const SizedBox(height: 20),
@@ -924,9 +996,11 @@ class _AuthScreenState extends State<AuthScreen>
                                       child: OutlinedButton.icon(
                                         onPressed: _isLoading ? null : _handleGoogleSignIn,
                                         style: OutlinedButton.styleFrom(
-                                          side: BorderSide(color: Colors.grey[300]!),
+                                          foregroundColor: AppColors.textPrimary,
+                                          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
+                                          backgroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(12),
                                           ),
                                         ),
                                         icon: Image.asset(
@@ -937,12 +1011,12 @@ class _AuthScreenState extends State<AuthScreen>
                                             return const Icon(Icons.g_mobiledata, size: 24);
                                           },
                                         ),
-                                        label: Text(
+                                        label: const Text(
                                           'Continue with Google',
                                           style: TextStyle(
                                             fontSize: 16,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.grey[700],
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
                                           ),
                                         ),
                                       ),
@@ -986,23 +1060,29 @@ class _AuthScreenState extends State<AuthScreen>
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: isActive ? const Color(0xFFE8F4FD) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                color: isActive ? AppColors.primaryLight : Colors.white,
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isActive
                       ? AppColors.primary
-                      : const Color(0xFFE0E0E0),
-                  width: 2,
+                      : AppColors.border.withValues(alpha: 0.8),
+                  width: isActive ? 2 : 1.5,
                 ),
                 boxShadow: isActive
                     ? [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 8,
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                    blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ]
-                    : null,
+                    : [
+                  BoxShadow(
+                    color: AppColors.shadowLight,
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: AnimatedRotation(
                 turns: isActive ? 0.1 : 0.0,
@@ -1011,7 +1091,7 @@ class _AuthScreenState extends State<AuthScreen>
                   icon,
                   color: isActive
                       ? AppColors.primary
-                      : const Color(0xFF95A5A6),
+                      : AppColors.textSecondary,
                   size: 28,
                 ),
               ),
@@ -1024,7 +1104,7 @@ class _AuthScreenState extends State<AuthScreen>
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                 color: isActive
                     ? AppColors.primary
-                    : const Color(0xFF7F8C8D),
+                    : AppColors.textSecondary,
               ),
               child: Text(label),
             ),
@@ -1045,13 +1125,16 @@ class _AuthScreenState extends State<AuthScreen>
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFE8F4FD) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            color: isActive ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: isActive
+                ? Border.all(color: AppColors.primary.withValues(alpha: 0.35))
+                : null,
             boxShadow: isActive
                 ? [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                blurRadius: 4,
+                color: AppColors.primary.withValues(alpha: 0.15),
+                blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
             ]
@@ -1062,10 +1145,10 @@ class _AuthScreenState extends State<AuthScreen>
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 fontSize: 15,
-                fontWeight: FontWeight.w500,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive
                     ? AppColors.primary
-                    : const Color(0xFF7F8C8D),
+                    : AppColors.textSecondary,
               ),
               child: Text(text),
             ),
@@ -1085,48 +1168,15 @@ class _AuthScreenState extends State<AuthScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF2C3E50),
-          ),
-        ),
+        _authFieldLabel(label),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           validator: validator,
           inputFormatters: inputFormatters,
           cursorColor: AppColors.primary,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: Color(0xFFBDC3C7)),
-            filled: true,
-            fillColor: const Color(0xFFF8F9FA),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.primary, width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.red),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-            ),
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: _authFieldDecoration(hintText: hint),
         ),
       ],
     );
@@ -1136,14 +1186,7 @@ class _AuthScreenState extends State<AuthScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Phone Number',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF2C3E50),
-          ),
-        ),
+        _authFieldLabel('Phone Number'),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -1162,11 +1205,11 @@ class _AuthScreenState extends State<AuthScreen>
               },
               child: Container(
                 width: 140,
-                height: 50,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FA),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                  color: Colors.white,
+                  borderRadius: _authRadius,
+                  border: Border.all(color: Colors.grey.shade300),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
@@ -1175,12 +1218,13 @@ class _AuthScreenState extends State<AuthScreen>
                     Text(
                       '$_selectedDialCode ($_selectedCountryIso)',
                       style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF2C3E50),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const Icon(Icons.keyboard_arrow_down,
-                        size: 18, color: Color(0xFF7F8C8D)),
+                        size: 22, color: AppColors.primary),
                   ],
                 ),
               ),
@@ -1200,36 +1244,10 @@ class _AuthScreenState extends State<AuthScreen>
                   return null;
                 },
                 maxLines: 1,
-                style: const TextStyle(fontSize: 14),
-                decoration: InputDecoration(
-                  errorMaxLines: 3,
+                style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                decoration: _authFieldDecoration(
                   hintText: _phoneHintForCountry(),
-                  hintStyle: const TextStyle(color: Color(0xFFBDC3C7)),
-                  filled: true,
-                  fillColor: const Color(0xFFF8F9FA),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                    BorderSide(color: AppColors.primary, width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.red),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
-                  ),
-                  contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  errorMaxLines: 3,
                 ),
               ),
             ),
@@ -1243,14 +1261,7 @@ class _AuthScreenState extends State<AuthScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Confirm Password',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF2C3E50),
-          ),
-        ),
+        _authFieldLabel('Confirm Password'),
         const SizedBox(height: 8),
         TextFormField(
           controller: _confirmPasswordController,
@@ -1265,15 +1276,12 @@ class _AuthScreenState extends State<AuthScreen>
             }
             return null;
           },
-          decoration: InputDecoration(
+          decoration: _authFieldDecoration(
             hintText: 'Re-enter your password',
-            hintStyle: const TextStyle(color: Color(0xFFBDC3C7), fontSize: 13),
-            filled: true,
-            fillColor: const Color(0xFFF8F9FA),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                color: const Color(0xFF7F8C8D),
+                color: AppColors.primary,
               ),
               onPressed: () {
                 setState(() {
@@ -1281,28 +1289,6 @@ class _AuthScreenState extends State<AuthScreen>
                 });
               },
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.primary, width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.red),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ],
@@ -1313,14 +1299,7 @@ class _AuthScreenState extends State<AuthScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Password',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF2C3E50),
-          ),
-        ),
+        _authFieldLabel('Password'),
         const SizedBox(height: 8),
         TextFormField(
           controller: _passwordController,
@@ -1355,17 +1334,14 @@ class _AuthScreenState extends State<AuthScreen>
             }
             return null;
           },
-          decoration: InputDecoration(
+          decoration: _authFieldDecoration(
             hintText: isSignIn
                 ? 'Enter a password'
                 : 'Mix of letters, numbers & special chars (min 8)',
-            hintStyle: const TextStyle(color: Color(0xFFBDC3C7), fontSize: 13),
-            filled: true,
-            fillColor: const Color(0xFFF8F9FA),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                color: const Color(0xFF7F8C8D),
+                color: AppColors.primary,
               ),
               onPressed: () {
                 setState(() {
@@ -1373,28 +1349,6 @@ class _AuthScreenState extends State<AuthScreen>
                 });
               },
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.primary, width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.red),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-            ),
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
         if (!isSignIn) ...[
@@ -1532,7 +1486,7 @@ class _AuthScreenState extends State<AuthScreen>
         text: TextSpan(
           style: const TextStyle(
             fontSize: 14,
-            color: Color(0xFF7F8C8D),
+            color: AppColors.textSecondary,
           ),
           children: [
             const TextSpan(text: "Don't have an account? "),

@@ -3,6 +3,7 @@ import 'dart:async';
 import '../auth_screen.dart';
 import '../constants/app_colors.dart';
 import '../utils/page_transitions.dart';
+import '../widgets/alert_mate_branding.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -23,7 +24,6 @@ class _SplashScreenState extends State<SplashScreen>
   // Animations
   late Animation<double> _logoScaleAnimation;
   late Animation<double> _logoFadeAnimation;
-  late Animation<Offset> _textSlideAnimation;
   late Animation<double> _textFadeAnimation;
   late Animation<double> _progressAnimation;
   late Animation<double> _backgroundAnimation;
@@ -57,16 +57,6 @@ class _SplashScreenState extends State<SplashScreen>
     _textController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
-    );
-    
-    _textSlideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.5),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _textController,
-        curve: Curves.easeOutCubic,
-      ),
     );
     
     _textFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -154,22 +144,25 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: AnimatedBuilder(
         animation: _backgroundController,
         builder: (context, child) {
           return Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white,
-                  Colors.grey[50]!,
-                  Colors.white,
+                  AppColors.background,
+                  Colors.white.withValues(alpha: 0.6),
+                  AppColors.primaryLight.withValues(alpha: 0.35),
+                  AppColors.background,
                 ],
                 stops: [
                   0.0,
-                  0.5 + (_backgroundAnimation.value * 0.3),
+                  0.35 + (_backgroundAnimation.value * 0.1),
+                  0.65,
                   1.0,
                 ],
               ),
@@ -184,92 +177,27 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo with animations
                       FadeTransition(
                         opacity: _logoFadeAnimation,
                         child: ScaleTransition(
                           scale: _logoScaleAnimation,
-                            child: AnimatedBuilder(
-                              animation: _logoController,
-                              builder: (context, child) {
-                                final pulseValue = (_logoController.value > 0.6)
-                                    ? 1.0 + (0.05 * ((_logoController.value - 0.6) / 0.4))
-                                    : 1.0;
-                                return Transform.scale(
-                                  scale: pulseValue,
-                                  child: Container(
-                                    width: 120,
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.primary.withValues(alpha: 0.2),
-                                          blurRadius: 20 * pulseValue,
-                                          spreadRadius: 5 * pulseValue,
-                                        ),
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.08),
-                                          blurRadius: 30,
-                                          spreadRadius: 5,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Center(
-                                      child: Image.asset(
-                                        'assets/images/Alert Mate New.png',
-                                        width: 100,
-                                        height: 80,
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return const Icon(
-                                            Icons.security,
-                                            size: 60,
-                                            color: AppColors.primary,
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                      ),
-                      
-                      const SizedBox(height: 40),
-                      
-                      // App name with slide and fade
-                      SlideTransition(
-                        position: _textSlideAnimation,
-                        child: FadeTransition(
-                          opacity: _textFadeAnimation,
-                          child: Column(
-                            children: [
-                              Text(
-                                'ALERT MATE',
-                                style: TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 4,
-                                  color: AppColors.primary,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withValues(alpha: 0.05),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
+                          child: AnimatedBuilder(
+                            animation: _logoController,
+                            builder: (context, child) {
+                              final pulseValue = (_logoController.value > 0.6)
+                                  ? 1.0 + (0.04 * ((_logoController.value - 0.6) / 0.4))
+                                  : 1.0;
+                              return Transform.scale(
+                                scale: pulseValue,
+                                child: const AlertMateBranding(
+                                  size: AlertMateBrandingSize.splash,
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
+                              );
+                            },
                           ),
                         ),
                       ),
-                      
-                      const SizedBox(height: 60),
+                      const SizedBox(height: 48),
                       
                       // Progress indicator with modern design
                       FadeTransition(
@@ -283,10 +211,13 @@ class _SplashScreenState extends State<SplashScreen>
                                 builder: (context, child) {
                                   return Container(
                                     height: 6,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: Colors.grey[200],
-                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: AppColors.border.withValues(alpha: 0.5),
+                                      border: Border.all(
+                                        color: AppColors.primary.withValues(alpha: 0.15),
+                                      ),
+                                    ),
                                     child: Stack(
                                       children: [
                                         ClipRRect(
@@ -330,11 +261,11 @@ class _SplashScreenState extends State<SplashScreen>
                                   final dots = List.filled(dotCount, '.').join('');
                                   return Text(
                                     'Loading$dots',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 14,
-                                      color: Colors.grey[600],
-                                      fontWeight: FontWeight.w300,
-                                      letterSpacing: 2,
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 1.5,
                                     ),
                                   );
                                 },

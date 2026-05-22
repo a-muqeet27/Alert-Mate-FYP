@@ -25,6 +25,8 @@ class AppColors {
   static const Color surface = Colors.white;
   static const Color textPrimary = Color(0xFF2C3E50);
   static const Color textSecondary = Color(0xFF7F8C8D);
+  static const Color azure = Color(0xFF0078D4);
+  static const Color lightGray = Color(0xFFBDBDBD);
   static const Color border = Color(0xFFE0E0E0);
   
   // Emergency Service Colors
