@@ -18,6 +18,8 @@ import '../widgets/mobile_drawer_menu_button.dart';
 import '../widgets/dashboard_detail_dialog_theme.dart';
 import '../services/monitoring_service.dart';
 import '../utils/dashboard_responsive.dart';
+import '../constants/vehicle_catalog.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 bool adminLiveMetricsCritical(Map<String, dynamic> stats) =>
     MonitoringService.currentStatsCritical(stats);
@@ -179,14 +181,24 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           title: 'Live Map',
         ),
         const MenuItem(
-          section: 'Management',
-          icon: Icons.people_outline,
-          title: 'Users',
+          section: 'Users',
+          icon: Icons.tune_outlined,
+          title: 'User Filters',
         ),
         const MenuItem(
-          section: 'Management',
-          icon: Icons.directions_car_outlined,
-          title: 'Vehicles',
+          section: 'Users',
+          icon: Icons.people_outline,
+          title: 'User Registry',
+        ),
+        const MenuItem(
+          section: 'Vehicles',
+          icon: Icons.tune_outlined,
+          title: 'Vehicle Filters',
+        ),
+        const MenuItem(
+          section: 'Vehicles',
+          icon: Icons.directions_car_filled_outlined,
+          title: 'Vehicle Registry',
         ),
         const MenuItem(
           section: 'Management',
@@ -213,14 +225,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       case 1:
         return _buildAdminLiveMapPage();
       case 2:
-        return _buildAdminUsersPage();
+        return _buildAdminUserFiltersPage();
       case 3:
-        return _buildAdminVehiclesPage();
+        return _buildAdminUserRegistryPage();
       case 4:
-        return _buildAdminActivityPage();
+        return _buildAdminVehicleFiltersPage();
       case 5:
-        return _buildAdminDocumentsPage();
+        return _buildAdminVehicleRegistryPage();
       case 6:
+        return _buildAdminActivityPage();
+      case 7:
+        return _buildAdminDocumentsPage();
+      case 8:
         return _adminPageShell(
           child: NotificationsInboxScreen(user: widget.user, embedded: true),
         );
@@ -236,14 +252,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       case 1:
         return 'Live Map';
       case 2:
-        return 'Users';
+        return 'User Filters';
       case 3:
-        return 'Vehicles';
+        return 'User Registry';
       case 4:
-        return 'Activity';
+        return 'Vehicle Filters';
       case 5:
-        return 'Documents';
+        return 'Vehicle Registry';
       case 6:
+        return 'Activity';
+      case 7:
+        return 'Documents';
+      case 8:
         return 'Notifications';
       default:
         return 'Statistics';
@@ -257,14 +277,18 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       case 1:
         return 'All active drivers on the map';
       case 2:
-        return 'Manage drivers, owners, passengers, and admins';
+        return 'Search accounts and filter by role';
       case 3:
-        return 'Fleet registry and assignment status';
+        return 'Browse accounts matching your user filters';
       case 4:
-        return 'Latest system events and updates';
+        return 'Search fleet records and filter by type or status';
       case 5:
-        return 'Review driver CNIC/license and owner vehicle submissions';
+        return 'Browse vehicles matching your fleet filters';
       case 6:
+        return 'Latest system events and updates';
+      case 7:
+        return 'Review Driver CNIC/License and Owner Vehicle Submissions';
+      case 8:
         return 'Alerts and system messages';
       default:
         return 'Real-time counts across users, vehicles, and alerts';
@@ -593,7 +617,15 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             color: AppColors.textPrimary,
           ),
           items: ['All Types', 'Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-              .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+              .map(
+                (t) => DropdownMenuItem(
+                  value: t,
+                  child: VehicleCatalog.dropdownMenuLabel(
+                    t,
+                    iconColor: AppColors.primary.withValues(alpha: 0.85),
+                  ),
+                ),
+              )
               .toList(),
           onChanged: (v) {
             if (v != null) setState(() => _vehicleTypeFilter = v);
@@ -710,12 +742,20 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildAdminUsersPage() {
-    return _adminPageShell(child: _buildUserManagement());
+  Widget _buildAdminUserFiltersPage() {
+    return _adminPageShell(child: _buildUserFiltersSection());
   }
 
-  Widget _buildAdminVehiclesPage() {
-    return _adminPageShell(child: _buildVehicleManagement());
+  Widget _buildAdminUserRegistryPage() {
+    return _adminPageShell(child: _buildUserRegistrySection());
+  }
+
+  Widget _buildAdminVehicleFiltersPage() {
+    return _adminPageShell(child: _buildVehicleFiltersSection());
+  }
+
+  Widget _buildAdminVehicleRegistryPage() {
+    return _adminPageShell(child: _buildVehicleRegistrySection());
   }
 
   Widget _buildAdminActivityPage() {
@@ -1104,62 +1144,90 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildUserManagement() {
+  Widget _buildUserFiltersSection() {
     final isMobile = DashboardLayout.isMobile(context);
-    var index = 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildStaggeredItem(
           _buildAdminSectionCard(
             isMobile: isMobile,
-            icon: Icons.search,
-            title: 'Search Users',
-            subtitle: 'Find accounts by name or email address',
-            child: _buildAdminOptionBlock(
+            icon: Icons.tune_outlined,
+            title: 'Search & filters',
+            subtitle: 'Find accounts by name, email, or role',
+            child: _buildAdminSeparatedOptions(
               isMobile: isMobile,
-              label: 'Search Query',
-              hint: 'Type to filter the user list below',
-              icon: Icons.person_search_outlined,
-              child: _buildUserSearchField(isMobile),
+              options: [
+                _buildAdminOptionBlock(
+                  isMobile: isMobile,
+                  label: 'Search query',
+                  hint: 'Applied when you open User Registry in the sidebar',
+                  icon: Icons.person_search_outlined,
+                  child: _buildUserSearchField(isMobile),
+                ),
+                _buildAdminOptionBlock(
+                  isMobile: isMobile,
+                  label: 'Role',
+                  hint: 'All roles or a specific account type',
+                  icon: Icons.badge_outlined,
+                  child: _buildAdminRoleDropdown(
+                    value: _selectedRoleFilter,
+                    onChanged: (v) => setState(() => _selectedRoleFilter = v),
+                    isMobile: isMobile,
+                  ),
+                ),
+              ],
             ),
           ),
-          index++,
+          0,
         ),
         _adminSectionGap(isMobile),
         _buildStaggeredItem(
-          _buildAdminSectionCard(
+          _buildAdminRegistryNavHint(
             isMobile: isMobile,
-            icon: Icons.admin_panel_settings_outlined,
-            title: 'Filter by Role',
-            subtitle: 'Show only selected user roles',
-            child: _buildAdminOptionBlock(
-              isMobile: isMobile,
-              label: 'Role',
-              hint: 'All roles or a specific account type',
-              icon: Icons.badge_outlined,
-              child: _buildAdminRoleDropdown(
-                value: _selectedRoleFilter,
-                onChanged: (v) => setState(() => _selectedRoleFilter = v),
-                isMobile: isMobile,
-              ),
-            ),
+            message: 'Open User Registry in the sidebar to view matching accounts.',
+            buttonLabel: 'Go to User Registry',
+            onOpenRegistry: () => setState(() => _selectedIndex = 3),
           ),
-          index++,
+          1,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserRegistrySection() {
+    final isMobile = DashboardLayout.isMobile(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildStaggeredItem(
+          _buildAdminActiveFiltersBanner(
+            isMobile: isMobile,
+            filtersLabel: _userActiveFiltersLabel(),
+            onEditFilters: () => setState(() => _selectedIndex = 2),
+          ),
+          0,
         ),
         _adminSectionGap(isMobile),
         _buildStaggeredItem(
           _buildAdminSectionCard(
             isMobile: isMobile,
             icon: Icons.people_outline,
-            title: 'User Directory',
+            title: 'User registry',
             subtitle: 'Tap a user for details and actions',
             child: _buildUserTable(),
           ),
-          index++,
+          1,
         ),
       ],
     );
+  }
+
+  String _userActiveFiltersLabel() {
+    final parts = <String>[];
+    if (_userSearchQuery.isNotEmpty) parts.add('Search: "$_userSearchQuery"');
+    if (_selectedRoleFilter != 'All Roles') parts.add('Role: $_selectedRoleFilter');
+    return parts.isEmpty ? 'No filters applied (showing all users)' : parts.join(' • ');
   }
 
   Widget _buildUserTable() {
@@ -1874,12 +1942,13 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 final make = data['make'] as String? ?? '';
                 final model = data['model'] as String? ?? '';
                 final plate = data['licensePlate'] as String? ?? '';
+                final vType = data['type'] as String? ?? 'Car';
                 final createdAt = data['createdAt'] is Timestamp
                     ? (data['createdAt'] as Timestamp).toDate()
                     : null;
                 activities.add({
                   'type': 'vehicle_added',
-                  'icon': Icons.directions_car_outlined,
+                  'icon': VehicleCatalog.iconForType(vType),
                   'title': '$make $model'.trim().isNotEmpty ? '$make $model'.trim() : 'New Vehicle',
                   'subtitle': 'Vehicle added ${plate.isNotEmpty ? "• $plate" : ""}',
                   'time': createdAt,
@@ -2015,72 +2084,187 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     );
   }
 
-  Widget _buildVehicleManagement() {
+  Widget _buildVehicleFiltersSection() {
     final isMobile = DashboardLayout.isMobile(context);
-    var index = 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildStaggeredItem(
           _buildAdminSectionCard(
             isMobile: isMobile,
-            icon: Icons.search,
-            title: 'Search Vehicles',
-            subtitle: 'Find fleet records by plate or details',
-            child: _buildAdminOptionBlock(
+            icon: Icons.tune_outlined,
+            title: 'Search & filters',
+            subtitle: 'Find fleet records by plate, details, type, or live status',
+            child: _buildAdminSeparatedOptions(
               isMobile: isMobile,
-              label: 'Search Query',
-              hint: 'Filter the vehicle registry below',
-              icon: Icons.directions_car_outlined,
-              child: _buildVehicleSearchField(isMobile),
+              options: [
+                _buildAdminOptionBlock(
+                  isMobile: isMobile,
+                  label: 'Search query',
+                  hint: 'Applied when you open Vehicle Registry in the sidebar',
+                  icon: Icons.search,
+                  child: _buildVehicleSearchField(isMobile),
+                ),
+                _buildAdminOptionBlock(
+                  isMobile: isMobile,
+                  label: 'Vehicle type',
+                  hint: 'Car, bus, van, truck, or rickshaw',
+                  icon: VehicleCatalog.iconForFilterOption(_vehicleTypeFilter),
+                  child: _buildAdminVehicleTypeDropdown(isMobile),
+                ),
+                _buildAdminOptionBlock(
+                  isMobile: isMobile,
+                  label: 'Live status',
+                  hint: 'Active, offline, or critical state',
+                  icon: Icons.circle,
+                  child: _buildAdminVehicleStatusDropdown(isMobile),
+                ),
+              ],
             ),
           ),
-          index++,
+          0,
         ),
         _adminSectionGap(isMobile),
         _buildStaggeredItem(
-          _buildAdminSectionCard(
+          _buildAdminRegistryNavHint(
             isMobile: isMobile,
-            icon: Icons.category_outlined,
-            title: 'Filter by Type',
-            subtitle: 'Car, bus, van, truck, or rickshaw',
-            child: _buildAdminOptionBlock(
-              isMobile: isMobile,
-              label: 'Vehicle Type',
-              icon: Icons.local_shipping_outlined,
-              child: _buildAdminVehicleTypeDropdown(isMobile),
-            ),
+            message: 'Open Vehicle Registry in the sidebar to view matching fleet records.',
+            buttonLabel: 'Go to Vehicle Registry',
+            onOpenRegistry: () => setState(() => _selectedIndex = 5),
           ),
-          index++,
+          1,
         ),
-        _adminSectionGap(isMobile),
+      ],
+    );
+  }
+
+  Widget _buildVehicleRegistrySection() {
+    final isMobile = DashboardLayout.isMobile(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         _buildStaggeredItem(
-          _buildAdminSectionCard(
+          _buildAdminActiveFiltersBanner(
             isMobile: isMobile,
-            icon: Icons.traffic_outlined,
-            title: 'Filter by Status',
-            subtitle: 'Live active, offline, or critical state',
-            child: _buildAdminOptionBlock(
-              isMobile: isMobile,
-              label: 'Live Status',
-              icon: Icons.circle,
-              child: _buildAdminVehicleStatusDropdown(isMobile),
-            ),
+            filtersLabel: _vehicleActiveFiltersLabel(),
+            onEditFilters: () => setState(() => _selectedIndex = 4),
           ),
-          index++,
+          0,
         ),
         _adminSectionGap(isMobile),
         _buildStaggeredItem(
           _buildAdminSectionCard(
             isMobile: isMobile,
             icon: Icons.directions_car_filled_outlined,
-            title: 'Vehicle Registry',
+            title: 'Vehicle registry',
             subtitle: 'Full fleet list with live metrics',
             child: _buildVehicleTable(),
           ),
-          index++,
+          1,
         ),
       ],
+    );
+  }
+
+  String _vehicleActiveFiltersLabel() {
+    final parts = <String>[];
+    if (_vehicleSearchQuery.isNotEmpty) parts.add('Search: "$_vehicleSearchQuery"');
+    if (_vehicleTypeFilter != 'All Types') parts.add('Type: $_vehicleTypeFilter');
+    if (_vehicleStatusFilter != 'All Statuses') parts.add('Status: $_vehicleStatusFilter');
+    return parts.isEmpty ? 'No filters applied (showing all vehicles)' : parts.join(' • ');
+  }
+
+  Widget _buildAdminActiveFiltersBanner({
+    required bool isMobile,
+    required String filtersLabel,
+    required VoidCallback onEditFilters,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 14 : 16),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.filter_alt_outlined, color: AppColors.primary, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Active filters',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  filtersLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onEditFilters,
+            child: const Text('Edit filters'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminRegistryNavHint({
+    required bool isMobile,
+    required String message,
+    required String buttonLabel,
+    required VoidCallback onOpenRegistry,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: isMobile ? 14 : 15,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: onOpenRegistry,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: Text(buttonLabel),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2300,14 +2484,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         hasDriver && (liveByDriver[assignedDriverId!]?['active'] == true);
     final ownerEmail = vehicle['ownerEmail'] as String? ?? '';
 
-    final typeIcons = {
-      'Car': Icons.directions_car,
-      'Bus': Icons.directions_bus,
-      'Van': Icons.airport_shuttle,
-      'Truck': Icons.local_shipping,
-      'Rickshaw': Icons.electric_rickshaw,
-    };
-
     Color statusColor;
     if (effective == 'Active') {
       statusColor = const Color(0xFF4CAF50);
@@ -2352,7 +2528,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      typeIcons[type] ?? Icons.directions_car_outlined,
+                      VehicleCatalog.iconForType(type),
                       color: AppColors.primary,
                       size: 22,
                     ),
@@ -2804,8 +2980,16 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
-                      items: ['Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      items: VehicleCatalog.vehicleTypes
+                          .map(
+                            (t) => DropdownMenuItem(
+                              value: t,
+                              child: VehicleCatalog.dropdownMenuLabel(
+                                t,
+                                iconColor: AppColors.primary.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          )
                           .toList(),
                       onChanged: (val) {
                         if (val != null) setDialogState(() => selectedType = val);
@@ -3012,7 +3196,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Driver documents approved. Vehicle assignment attempted.'),
+            content: Text('Driver documents Approved. Vehicle Assignment Attempted.'),
             backgroundColor: Color(0xFF4CAF50),
           ),
         );
@@ -3034,11 +3218,11 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       builder: (ctx) {
         final c = TextEditingController();
         return AlertDialog(
-          title: const Text('Reject driver documents'),
+          title: const Text('Reject Driver Documents'),
           content: TextField(
             controller: c,
             decoration: const InputDecoration(
-              labelText: 'Reason (optional)',
+              labelText: 'Reason (Optional)',
               border: OutlineInputBorder(),
             ),
             maxLines: 2,
@@ -3136,8 +3320,69 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     }
   }
 
+  bool _isPdfUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.pdf') || lower.contains('/pdf') || lower.contains('format=pdf');
+  }
+
+  Future<void> _openDocUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   void _showDocPreview(String url, String title) {
     if (url.isEmpty) return;
+
+    if (_isPdfUrl(url)) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.picture_as_pdf_outlined, color: AppColors.primary, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                    ),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'This document is a PDF. Open it in your browser or PDF viewer.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _openDocUrl(url);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Open PDF'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -3169,7 +3414,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                       },
                       errorBuilder: (_, __, ___) => const Padding(
                         padding: EdgeInsets.all(24),
-                        child: Text('Could not load image'),
+                        child: Text('Could not load preview'),
                       ),
                     ),
                   ),
@@ -3192,7 +3437,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             isMobile: isMobile,
             icon: Icons.badge_outlined,
             title: 'Driver Documents',
-            subtitle: 'Review CNIC and license submissions',
+            subtitle: 'Review CNIC and License Submissions',
             child: StreamBuilder<List<DriverDocumentSubmission>>(
             stream: _driverDocumentSubmissionService.watchPendingSubmissions(),
             builder: (context, snapshot) {
@@ -3205,7 +3450,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   _buildAdminOptionBlock(
                     isMobile: isMobile,
                     label: 'Pending Queue',
-                    hint: 'Documents waiting for admin review',
+                    hint: 'Documents Waiting for Admin Review',
                     icon: Icons.pending_actions,
                     child: _buildAdminMetricChip(
                       'Pending',
@@ -3378,10 +3623,21 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    s.driverName,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.driverName,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (s.preferredTypeDisplay != null && s.preferredTypeDisplay!.isNotEmpty)
+                        Text(
+                          'Preferred type: ${s.preferredTypeDisplay}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -3487,6 +3743,11 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
                   children: [
                     Text(s.driverName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     const SizedBox(height: 4),
+                    if (s.preferredTypeDisplay != null && s.preferredTypeDisplay!.isNotEmpty)
+                      Text(
+                        'Preferred type: ${s.preferredTypeDisplay}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                      ),
                     Text(_formatTime(s.submittedAt), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                   ],
                 ),

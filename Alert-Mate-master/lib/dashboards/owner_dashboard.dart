@@ -460,34 +460,45 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   Future<void> _showAddVehicleDialog() async {
     final formKey = GlobalKey<FormState>();
+    final yearCtrl = TextEditingController();
+    final plateCtrl = TextEditingController();
     String vehicleType = 'Car';
     String make = VehicleCatalog.defaultMake('Car') ?? '';
     String model = (make.isNotEmpty)
         ? (VehicleCatalog.defaultModel('Car', make) ?? '')
         : '';
-    String year = '';
-    String licensePlate = '';
     bool willDrive = false;
     Uint8List? vehicleBookBytes;
 
     await showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context,  setDialogState) {
-          return AlertDialog(
-            title: const Text('Add New Vehicle'),
-            content: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return OwnerFormDialogUi.themedDialog(
+            title: 'Add New Vehicle',
+            subtitle: 'Submit Vehicle Details for Admin Approval',
+            icon: Icons.add_road_outlined,
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     value: vehicleType,
-                    decoration: const InputDecoration(labelText: 'Type *'),
+                    dropdownColor: Colors.white,
+                    decoration: OwnerFormDialogUi.fieldDecoration('Type *'),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
                     items: VehicleCatalog.vehicleTypes
-                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .map(
+                          (t) => DropdownMenuItem(
+                            value: t,
+                            child: VehicleCatalog.dropdownMenuLabel(
+                              t,
+                              iconColor: AppColors.primary.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        )
                         .toList(),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -507,14 +518,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       });
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     value: make.isNotEmpty &&
                             VehicleCatalog.makesFor(vehicleType).contains(make)
                         ? make
                         : null,
-                    decoration: const InputDecoration(labelText: 'Make *'),
+                    dropdownColor: Colors.white,
+                    decoration: OwnerFormDialogUi.fieldDecoration('Make *'),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
                     items: VehicleCatalog.makesFor(vehicleType)
                         .map((m) =>
                             DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis)))
@@ -533,14 +546,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       });
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     value: model.isNotEmpty &&
                             VehicleCatalog.modelsFor(vehicleType, make).contains(model)
                         ? model
                         : null,
-                    decoration: const InputDecoration(labelText: 'Model *'),
+                    dropdownColor: Colors.white,
+                    decoration: OwnerFormDialogUi.fieldDecoration('Model *'),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
                     items: VehicleCatalog.modelsFor(vehicleType, make)
                         .map((m) =>
                             DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis)))
@@ -556,9 +571,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       setDialogState(() => model = value);
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   TextFormField(
-                    decoration: const InputDecoration(labelText: 'Year *'),
+                    controller: yearCtrl,
+                    cursorColor: AppColors.primary,
+                    decoration: OwnerFormDialogUi.fieldDecoration('Year *'),
                     keyboardType: TextInputType.number,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -574,14 +591,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       }
                       return null;
                     },
-                    onSaved: (value) => year = value!.trim(),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'License Plate *',
-                      hintText: 'ABC-123',
-                    ),
+                    controller: plateCtrl,
+                    cursorColor: AppColors.primary,
+                    decoration: OwnerFormDialogUi.fieldDecoration('License Plate *', hint: 'ABC-123'),
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9\-]')),
@@ -592,78 +607,102 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                         return 'License plate is required';
                       }
                       final plate = value.trim().toUpperCase();
-                      // Validate ABC-123 format (3 letters, dash, 3 digits)
                       if (!RegExp(r'^[A-Z]{3}-[0-9]{3}$').hasMatch(plate)) {
                         return 'License plate must be in format ABC-123';
                       }
                       return null;
                     },
-                    onSaved: (value) => licensePlate = value!.trim().toUpperCase(),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Vehicle id card / book *',
-                          style: TextStyle(fontSize: MediaQuery.of(context).size.width < 768 ? 13 : 14),
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () async {
-                          final bytes = await _pickImageBytes();
-                          if (bytes == null) return;
-                          setDialogState(() => vehicleBookBytes = bytes);
-                        },
-                        icon: Icon(
-                          vehicleBookBytes != null ? Icons.check_circle : Icons.upload_file,
-                          size: 18,
-                          color: vehicleBookBytes != null ? Colors.green : AppColors.primary,
-                        ),
-                        label: Text(vehicleBookBytes != null ? 'Change' : 'Upload'),
-                      ),
-                    ],
                   ),
                   const SizedBox(height: 12),
-                  CheckboxListTile(
-                    title: const Text('I will be driving this vehicle'),
-                    subtitle: const Text('Assign this vehicle to me'),
-                    value: willDrive,
-                    onChanged: (value) {
-                      final turningOn = value == true && willDrive != true;
-                      setDialogState(() {
-                        willDrive = value!;
-                      });
-
-                      if (turningOn && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'To assign this car to you as driver, you will need driver verification (CNIC + license) approval from admin.',
-                            ),
-                            backgroundColor: AppColors.primary,
-                            duration: Duration(seconds: 4),
+                  OwnerFormDialogUi.sectionTitle('Vehicle ID-Card/Book *'),
+                  const SizedBox(height: 8),
+                  Material(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: () async {
+                        final bytes = await _pickImageBytes();
+                        if (bytes == null) return;
+                        setDialogState(() => vehicleBookBytes = bytes);
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: vehicleBookBytes != null
+                                ? AppColors.success.withValues(alpha: 0.5)
+                                : AppColors.primary.withValues(alpha: 0.2),
                           ),
-                        );
-                      }
-                    },
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    activeColor: AppColors.primary,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              vehicleBookBytes != null ? Icons.check_circle : Icons.upload_file,
+                              color: vehicleBookBytes != null ? AppColors.success : AppColors.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'Upload Registration Document',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            Text(
+                              vehicleBookBytes != null ? 'Change' : 'Upload',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OwnerFormDialogUi.listPanel(
+                    child: CheckboxListTile(
+                      title: const Text('I will be Driving this Vehicle'),
+                      subtitle: const Text('Assign this Vehicle to Me After Approval'),
+                      value: willDrive,
+                      onChanged: (value) {
+                        final turningOn = value == true && willDrive != true;
+                        setDialogState(() => willDrive = value ?? false);
+
+                        if (turningOn && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'You will need CNIC + license admin approval before driving.',
+                              ),
+                              backgroundColor: AppColors.primary,
+                              duration: Duration(seconds: 4),
+                            ),
+                          );
+                        }
+                      },
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: AppColors.primary,
+                    ),
                   ),
                 ],
               ),
             ),
-            ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogCtx),
+                style: OwnerFormDialogUi.cancelButtonStyle,
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
+                style: OwnerFormDialogUi.primaryButtonStyle,
                 onPressed: () async {
                   if (formKey.currentState!.validate()) {
-                    formKey.currentState!.save();
+                    final year = yearCtrl.text.trim();
+                    final licensePlate = plateCtrl.text.trim().toUpperCase();
 
                     // Check if owner already has an assigned vehicle when they want to drive
                     if (willDrive) {
@@ -748,7 +787,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
                     if (confirm != true) return;
 
-                    Navigator.pop(context);
+                    Navigator.pop(dialogCtx);
                     if (!mounted) return;
                     final parentContext = this.context;
 
@@ -823,14 +862,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     }
                   }
                 },
-                child: const Text('Add'),
+                child: const Text('Submit for Approval'),
               ),
             ],
           );
         },
       ),
     );
+
+    yearCtrl.dispose();
+    plateCtrl.dispose();
   }
+
   void _showDriverRegistrationDialog() {
     showDialog(
       context: context,
@@ -1809,7 +1852,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           color: AppColors.primaryLight,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Icon(Icons.directions_car_outlined, color: AppColors.primary, size: 20),
+        child: Icon(VehicleCatalog.iconForType(vehicle.type), color: AppColors.primary, size: 20),
       ),
       title: Text(
         '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
@@ -1932,7 +1975,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     required String value,
     required List<String> options,
     required ValueChanged<String> onChanged,
-    required IconData icon,
+    IconData Function(String option)? iconForOption,
+    IconData icon = Icons.category_outlined,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1959,16 +2003,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
               isExpanded: true,
               icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
               items: options
-                  .map((o) => DropdownMenuItem(
-                        value: o,
-                        child: Row(
-                          children: [
-                            Icon(icon, size: 18, color: AppColors.primary.withValues(alpha: 0.85)),
-                            const SizedBox(width: 10),
-                            Expanded(child: Text(o)),
-                          ],
-                        ),
-                      ))
+                  .map(
+                    (o) => DropdownMenuItem(
+                      value: o,
+                      child: VehicleCatalog.dropdownMenuLabel(
+                        o,
+                        icon: iconForOption?.call(o) ?? icon,
+                        iconColor: AppColors.primary.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  )
                   .toList(),
               onChanged: (v) {
                 if (v != null) onChanged(v);
@@ -1997,7 +2041,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             label: 'Vehicle type',
             value: _typeFilter,
             options: typeOptions,
-            icon: Icons.directions_car_outlined,
+            iconForOption: VehicleCatalog.iconForFilterOption,
             onChanged: (v) => setState(() => _typeFilter = v),
           ),
         ],
@@ -2020,7 +2064,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             label: 'Vehicle type',
             value: _typeFilter,
             options: typeOptions,
-            icon: Icons.directions_car_outlined,
+            iconForOption: VehicleCatalog.iconForFilterOption,
             onChanged: (v) => setState(() => _typeFilter = v),
           ),
         ),
@@ -3318,8 +3362,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
-                      Icons.directions_car_outlined,
+                    child: Icon(
+                      VehicleCatalog.iconForType(vehicle.type),
                       color: AppColors.primary,
                       size: 22,
                     ),
@@ -3731,7 +3775,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
           title: 'Edit Vehicle',
           subtitle: '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
-          icon: Icons.directions_car_outlined,
+          icon: VehicleCatalog.iconForType(selectedType),
           content: Form(
             key: formKey,
             child: Column(
@@ -3773,8 +3817,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                   dropdownColor: Colors.white,
                   decoration: OwnerFormDialogUi.fieldDecoration('Type'),
                   icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
-                  items: const ['Car', 'Bus', 'Van', 'Truck', 'Rickshaw']
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                  items: VehicleCatalog.vehicleTypes
+                      .map(
+                        (t) => DropdownMenuItem(
+                          value: t,
+                          child: VehicleCatalog.dropdownMenuLabel(
+                            t,
+                            iconColor: AppColors.primary.withValues(alpha: 0.85),
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: (value) {
                     if (value != null) setDialogState(() => selectedType = value);

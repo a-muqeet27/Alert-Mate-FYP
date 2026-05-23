@@ -114,7 +114,7 @@ class InAppNotificationService {
   Future<void> notifyDriverDocumentsApproved({required String driverId, required String driverName}) async {
     final name = driverName.trim().isEmpty ? 'Driver' : driverName.trim();
     await _batchWrite({driverId}, <String, dynamic>{
-      'title': 'Documents approved',
+      'title': 'Documents Approved',
       'body':
           '$name: admin approved your CNIC and driving licence. You can proceed with vehicle assignment.',
       'type': 'driver_docs_approved',
@@ -129,7 +129,7 @@ class InAppNotificationService {
     final name = driverName.trim().isEmpty ? 'Driver' : driverName.trim();
     final suffix = (reason != null && reason.trim().isNotEmpty) ? ' Reason: ${reason.trim()}.' : '';
     await _batchWrite({driverId}, <String, dynamic>{
-      'title': 'Documents rejected',
+      'title': 'Documents Rejected',
       'body': '$name: your CNIC and licence submission was rejected.$suffix Please re-upload.',
       'type': 'driver_docs_rejected',
     });

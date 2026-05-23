@@ -1620,7 +1620,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'No vehicles in queue',
+                                            'No Vehicle Available Right Now',
                                             style: TextStyle(
                                               fontSize: isMobile ? 15 : 17,
                                               fontWeight: FontWeight.w700,
@@ -1629,7 +1629,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                                           ),
                                           const SizedBox(height: 6),
                                           Text(
-                                            'When a vehicle is waiting for you, you will be prompted to upload CNIC and license for admin approval.',
+                                            'When a Vehicle is Available, It will be Assigned to You.',
                                             style: TextStyle(
                                               fontSize: isMobile ? 12 : 13,
                                               color: AppColors.textSecondary,

@@ -161,7 +161,7 @@ class _DriverVehicleRegistrationPanelState extends State<DriverVehicleRegistrati
         isMobile,
         icon: Icons.hourglass_top_rounded,
         color: const Color(0xFFFF9800),
-        title: 'Pending admin approval',
+        title: 'Pending Admin Approval',
         body:
             'Your vehicle registration and documents (CNIC, license, etc.) are being reviewed. You cannot be assigned a vehicle until an administrator approves.',
       );
@@ -172,7 +172,7 @@ class _DriverVehicleRegistrationPanelState extends State<DriverVehicleRegistrati
         isMobile,
         icon: Icons.verified_outlined,
         color: const Color(0xFF4CAF50),
-        title: 'Documents approved',
+        title: 'Documents Approved',
         body:
             'Your documents were approved. If a vehicle is available in the fleet, it will appear here automatically. Otherwise, contact your administrator.',
       );

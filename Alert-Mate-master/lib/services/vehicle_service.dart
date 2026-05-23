@@ -264,6 +264,137 @@ class VehicleService {
     }
   }
 
+  /// Assign a driver-selected pending vehicle after document approval.
+  /// Returns true if assigned; false if vehicle unavailable (caller may skip fallback).
+  Future<bool> assignPreferredVehicleToDriver({
+    required String vehicleId,
+    required String driverId,
+    required String driverEmail,
+  }) async {
+    try {
+      if (await _driverHasVehicle(driverId)) {
+        print('⚠️ Driver already has a vehicle; skipping preferred assign.');
+        return false;
+      }
+
+      final doc = await _firestore.collection('vehicles').doc(vehicleId).get();
+      if (!doc.exists) {
+        print('⚠️ Preferred vehicle $vehicleId not found');
+        return false;
+      }
+
+      final data = doc.data() as Map<String, dynamic>;
+      final assigned = data['assignedDriverId'];
+      if (assigned != null && assigned.toString().isNotEmpty) {
+        print('⚠️ Preferred vehicle already assigned');
+        return false;
+      }
+
+      final pendingGeneral = data['pendingAssignment'] == true;
+      final pendingOwner = data['pendingOwnerAssignment'] == true;
+      if (!pendingGeneral && !pendingOwner) {
+        print('⚠️ Preferred vehicle is not in assignment queue');
+        return false;
+      }
+
+      if (pendingOwner && (data['ownerId'] as String?) != driverId) {
+        print('⚠️ Owner-pending vehicle does not belong to this driver');
+        return false;
+      }
+
+      await assignVehicleToDriver(
+        vehicleId: vehicleId,
+        driverId: driverId,
+        driverEmail: driverEmail,
+      );
+      return true;
+    } catch (e) {
+      print('❌ Error assigning preferred vehicle: $e');
+      return false;
+    }
+  }
+
+  static bool isVehicleUnassigned(Vehicle v) {
+    final id = v.assignedDriverId;
+    return id == null || id.trim().isEmpty;
+  }
+
+  static bool isEligibleForDriverPreference(Vehicle v, String driverId) {
+    if (!isVehicleUnassigned(v)) return false;
+    if (v.pendingOwnerAssignment) return v.ownerId == driverId;
+    return v.pendingAssignment;
+  }
+
+  /// All unassigned vehicles in the assignment queue (general + owner-specific).
+  Stream<List<Vehicle>> watchPendingVehiclesForDriverSelection(String driverId) {
+    return _firestore.collection('vehicles').snapshots().map((snap) {
+      final list = <Vehicle>[];
+      final seen = <String>{};
+      for (final doc in snap.docs) {
+        final v = Vehicle.fromMap({'id': doc.id, ...doc.data()});
+        if (!isEligibleForDriverPreference(v, driverId)) continue;
+        if (seen.add(v.id)) list.add(v);
+      }
+      list.sort((a, b) => a.licensePlate.compareTo(b.licensePlate));
+      return list;
+    });
+  }
+
+  Future<List<Vehicle>> getPendingVehiclesForDriverSelection(String driverId) async {
+    final all = await getPendingVehicles();
+    return all.where((v) => isEligibleForDriverPreference(v, driverId)).toList()
+      ..sort((a, b) => a.licensePlate.compareTo(b.licensePlate));
+  }
+
+  /// Assign the oldest unassigned pending vehicle matching [preferredType] for this driver.
+  Future<bool> assignPendingVehicleByType({
+    required String preferredType,
+    required String driverId,
+    required String driverEmail,
+  }) async {
+    try {
+      if (await _driverHasVehicle(driverId)) {
+        print('⚠️ Driver already has a vehicle; skipping type-based assign.');
+        return false;
+      }
+
+      final normalizedType = preferredType.trim();
+      if (normalizedType.isEmpty) return false;
+
+      final snap = await _firestore.collection('vehicles').get();
+      final candidates = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      for (final doc in snap.docs) {
+        final v = Vehicle.fromMap({'id': doc.id, ...doc.data()});
+        if (!isEligibleForDriverPreference(v, driverId)) continue;
+        if (v.type.toLowerCase() != normalizedType.toLowerCase()) continue;
+        candidates.add(doc);
+      }
+
+      if (candidates.isEmpty) {
+        print('⚠️ No pending vehicle of type $normalizedType for driver $driverId');
+        return false;
+      }
+
+      candidates.sort((a, b) {
+        final at = a.data()['createdAt'];
+        final bt = b.data()['createdAt'];
+        final aDate = at is Timestamp ? at.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = bt is Timestamp ? bt.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        return aDate.compareTo(bDate);
+      });
+
+      await assignVehicleToDriver(
+        vehicleId: candidates.first.id,
+        driverId: driverId,
+        driverEmail: driverEmail,
+      );
+      return true;
+    } catch (e) {
+      print('❌ Error assigning by preferred type: $e');
+      return false;
+    }
+  }
+
   /// Auto-assign general pending vehicles to new driver during signup
   /// This is for vehicles where owner said "No, I won't drive"
   Future<bool> assignGeneralPendingVehiclesToNewDriver(

@@ -31,9 +31,13 @@ class DriverDocumentSubmissionService {
     required String driverId,
     required String label,
     required Uint8List bytes,
+    String? originalFileName,
   }) async {
     try {
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$label.jpg';
+      final base = originalFileName != null && originalFileName.trim().isNotEmpty
+          ? originalFileName.trim()
+          : '${DateTime.now().millisecondsSinceEpoch}_$label.pdf';
+      final fileName = base.toLowerCase().endsWith('.pdf') ? base : '$base.pdf';
       return await _cloudinaryService
           .uploadBytes(bytes, fileName, 'driver_document_docs/$driverId')
           .timeout(_uploadTimeout);
@@ -50,9 +54,25 @@ class DriverDocumentSubmissionService {
     required String driverName,
     required Uint8List cnicBytes,
     required Uint8List licenseBytes,
+    String? cnicFileName,
+    String? licenseFileName,
+    required String preferredVehicleType,
+    String? preferredVehicleId,
+    String? preferredVehiclePlate,
+    String? preferredVehicleLabel,
   }) async {
-    final cnicUrl = await _uploadDoc(driverId: driverId, label: 'cnic', bytes: cnicBytes);
-    final licenseUrl = await _uploadDoc(driverId: driverId, label: 'license', bytes: licenseBytes);
+    final cnicUrl = await _uploadDoc(
+      driverId: driverId,
+      label: 'cnic',
+      bytes: cnicBytes,
+      originalFileName: cnicFileName,
+    );
+    final licenseUrl = await _uploadDoc(
+      driverId: driverId,
+      label: 'license',
+      bytes: licenseBytes,
+      originalFileName: licenseFileName,
+    );
 
     try {
       await _firestore.collection(_collection).add({
@@ -61,6 +81,12 @@ class DriverDocumentSubmissionService {
         'driverName': driverName,
         'cnicUrl': cnicUrl,
         'licenseUrl': licenseUrl,
+        'preferredVehicleType': preferredVehicleType,
+        'preferredVehicleLabel': preferredVehicleType,
+        if (preferredVehicleId != null && preferredVehicleId.isNotEmpty)
+          'preferredVehicleId': preferredVehicleId,
+        if (preferredVehiclePlate != null && preferredVehiclePlate.isNotEmpty)
+          'preferredVehiclePlate': preferredVehiclePlate,
         'status': 'pending_review',
         'submittedAt': FieldValue.serverTimestamp(),
       }).timeout(_firestoreTimeout);
@@ -131,17 +157,48 @@ class DriverDocumentSubmissionService {
     await _firestore.collection('users').doc(driverId).update({
       'driverDocsApproved': true,
       'driverDocsReviewedAt': FieldValue.serverTimestamp(),
+      'driverDocsGateCompleted': false,
     });
 
-    // Assign the next available vehicle (only after admin approval).
-    final ownerAssigned = await _vehicleService.assignOwnerPendingVehicles(driverId, email);
-    if (ownerAssigned.isEmpty) {
-      await _vehicleService.assignGeneralPendingVehiclesToNewDriver(driverId, email);
+    final preferredVehicleType = (data['preferredVehicleType'] as String?)?.trim();
+    if (preferredVehicleType != null && preferredVehicleType.isNotEmpty) {
+      final assigned = await _vehicleService.assignPendingVehicleByType(
+        preferredType: preferredVehicleType,
+        driverId: driverId,
+        driverEmail: email,
+      );
+      if (!assigned) {
+        print(
+          '⚠️ No pending $preferredVehicleType vehicle available for driver $driverId.',
+        );
+      }
+    } else {
+      // Legacy submissions that picked a specific vehicle id.
+      final preferredVehicleId = data['preferredVehicleId'] as String?;
+      if (preferredVehicleId != null && preferredVehicleId.isNotEmpty) {
+        await _vehicleService.assignPreferredVehicleToDriver(
+          vehicleId: preferredVehicleId,
+          driverId: driverId,
+          driverEmail: email,
+        );
+      } else {
+        final ownerAssigned = await _vehicleService.assignOwnerPendingVehicles(driverId, email);
+        if (ownerAssigned.isEmpty) {
+          await _vehicleService.assignGeneralPendingVehiclesToNewDriver(driverId, email);
+        }
+      }
     }
 
     try {
       await InAppNotificationService.instance.notifyDriverDocumentsApproved(driverId: driverId, driverName: driverName);
     } catch (_) {}
+  }
+
+  /// Set after the driver taps Continue on the post-approval verification screen.
+  Future<void> markDriverDocsGateCompleted(String driverId) async {
+    await _firestore.collection('users').doc(driverId).update({
+      'driverDocsGateCompleted': true,
+    });
   }
 
   Future<void> rejectSubmission(String submissionId, {String? reason}) async {

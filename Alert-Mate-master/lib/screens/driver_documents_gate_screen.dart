@@ -34,15 +34,15 @@ class DriverDocumentsGateScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
           onPressed: () {
-            // Since this screen is often shown via pushReplacement, we explicitly navigate back.
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
                 builder: (_) => const AuthScreen(
-                  initialDashboardIndex: 0, // Driver
+                  initialDashboardIndex: 0,
                   initialIsSignIn: true,
                 ),
               ),
@@ -51,31 +51,63 @@ class DriverDocumentsGateScreen extends StatelessWidget {
         ),
         title: const Text(
           'Driver Verification',
-          style: TextStyle(color: Colors.black87),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        iconTheme: const IconThemeData(color: Colors.black87),
       ),
       body: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.all(isMobile ? 16 : 24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Upload CNIC & driving license',
-                style: TextStyle(
-                  fontSize: isMobile ? 20 : 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+              Container(
+                padding: EdgeInsets.all(isMobile ? 16 : 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.shadowLight,
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.verified_user_outlined, color: AppColors.primary, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Upload CNIC & Driving License and Choose your Preferred Vehicle',
+                            style: TextStyle(
+                              fontSize: isMobile ? 18 : 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'You must be approved by admin before you can access the driver dashboard.',
-                style: TextStyle(fontSize: isMobile ? 13 : 14, color: Colors.black54),
-              ),
               const SizedBox(height: 16),
-
               StreamBuilder(
                 stream: _docService.watchLatestForDriver(user.id),
                 builder: (context, subSnap) {
@@ -85,9 +117,7 @@ class DriverDocumentsGateScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 16),
-
               StreamBuilder<bool>(
                 stream: _docsApprovedStream(),
                 builder: (context, approvedSnap) {
@@ -98,18 +128,22 @@ class DriverDocumentsGateScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.green.shade200),
+                      color: AppColors.success.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.verified, color: Colors.green.shade700),
+                        const Icon(Icons.verified, color: AppColors.success),
                         const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
-                            'Approved! Redirecting to dashboard…',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            'Approved! You can Continue to the Dashboard.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ],
@@ -117,9 +151,7 @@ class DriverDocumentsGateScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 12),
-
               StreamBuilder<bool>(
                 stream: _docsApprovedStream(),
                 builder: (context, approvedSnap) {
@@ -129,11 +161,30 @@ class DriverDocumentsGateScreen extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: approved
                           ? () async {
-                              // Try assignment again (safe if nothing available).
-                              await FirebaseFirestore.instance.collection('users').doc(user.id).get();
                               try {
-                                await _vehicleService.assignOwnerPendingVehicles(user.id, user.email);
-                                await _vehicleService.assignGeneralPendingVehiclesToNewDriver(user.id, user.email);
+                                final sub = await _docService.watchLatestForDriver(user.id).first;
+                                final preferredType = sub?.preferredVehicleType ??
+                                    sub?.preferredTypeDisplay;
+                                if (preferredType != null && preferredType.isNotEmpty) {
+                                  await _vehicleService.assignPendingVehicleByType(
+                                    preferredType: preferredType,
+                                    driverId: user.id,
+                                    driverEmail: user.email,
+                                  );
+                                } else {
+                                  final preferredId = sub?.preferredVehicleId;
+                                  if (preferredId != null && preferredId.isNotEmpty) {
+                                    await _vehicleService.assignPreferredVehicleToDriver(
+                                      vehicleId: preferredId,
+                                      driverId: user.id,
+                                      driverEmail: user.email,
+                                    );
+                                  }
+                                }
+                              } catch (_) {}
+
+                              try {
+                                await _docService.markDriverDocsGateCompleted(user.id);
                               } catch (_) {}
 
                               if (context.mounted) {
@@ -148,9 +199,10 @@ class DriverDocumentsGateScreen extends StatelessWidget {
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text('Continue to dashboard'),
+                      child: const Text('Continue to Dashboard'),
                     ),
                   );
                 },
@@ -162,4 +214,3 @@ class DriverDocumentsGateScreen extends StatelessWidget {
     );
   }
 }
-

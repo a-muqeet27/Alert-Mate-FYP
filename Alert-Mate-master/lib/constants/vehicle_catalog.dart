@@ -1,6 +1,48 @@
+import 'package:flutter/material.dart';
+
 /// Vehicle type → make → models for owner add-vehicle dropdowns.
 class VehicleCatalog {
   VehicleCatalog._();
+
+  /// Outlined icons used for vehicle type across driver verification, owner, and admin UIs.
+  static IconData iconForType(String type) {
+    switch (type.toLowerCase()) {
+      case 'bus':
+        return Icons.directions_bus_outlined;
+      case 'van':
+        return Icons.airport_shuttle_outlined;
+      case 'truck':
+        return Icons.local_shipping_outlined;
+      case 'rickshaw':
+        return Icons.moped_outlined;
+      default:
+        return Icons.directions_car_outlined;
+    }
+  }
+
+  static IconData iconForFilterOption(String option) {
+    if (option == 'All Types') return Icons.category_outlined;
+    return iconForType(option);
+  }
+
+  static Widget dropdownMenuLabel(
+    String label, {
+    IconData? icon,
+    Color? iconColor,
+    double iconSize = 18,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon ?? iconForFilterOption(label),
+          size: iconSize,
+          color: iconColor,
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label)),
+      ],
+    );
+  }
 
   static const List<String> vehicleTypes = [
     'Car',

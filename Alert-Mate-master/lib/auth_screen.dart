@@ -623,12 +623,14 @@ class _AuthScreenState extends State<AuthScreen>
 
     switch (_selectedDashboard) {
       case 0:
-        // Gate driver dashboard until CNIC + license are admin-approved.
+        // Gate until docs approved; first sign-in after approval requires Continue once.
         dashboardScreen = StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance.collection('users').doc(user.id).snapshots(),
           builder: (context, snap) {
-            final approved = (snap.data?.data()?['driverDocsApproved'] as bool?) ?? false;
-            if (!approved) {
+            final data = snap.data?.data();
+            final approved = (data?['driverDocsApproved'] as bool?) ?? false;
+            final gateCompleted = (data?['driverDocsGateCompleted'] as bool?) ?? false;
+            if (!approved || !gateCompleted) {
               return DriverDocumentsGateScreen(user: user);
             }
             return DriverDashboard(user: user);
