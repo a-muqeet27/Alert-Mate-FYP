@@ -29,7 +29,30 @@ class EmergencyContact {
     this.updatedAt,
   });
 
+  static DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
+
+  static List<String> _parseMethods(dynamic value) {
+    if (value == null) return const ['call'];
+    if (value is List) {
+      return value.map((e) => e.toString()).toList();
+    }
+    return const ['call'];
+  }
+
+  static bool _parseEnabled(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    return true;
+  }
+
   factory EmergencyContact.fromMap(Map<String, dynamic> map) {
+    final rawPriority =
+        (map['priority'] as String? ?? map['contactType'] as String?) ?? 'secondary';
     return EmergencyContact(
       id: map['id'] as String? ?? '',
       userId: map['userId'] as String? ?? '',
@@ -38,15 +61,11 @@ class EmergencyContact {
       relationship: map['relationship'] as String? ?? '',
       phone: map['phone'] as String? ?? '',
       email: map['email'] as String? ?? '',
-      priority: map['priority'] as String? ?? 'secondary',
-      methods: List<String>.from(map['methods'] as List? ?? []),
-      enabled: map['enabled'] as bool? ?? true,
-      createdAt: map['createdAt'] != null 
-          ? (map['createdAt'] as Timestamp).toDate() 
-          : null,
-      updatedAt: map['updatedAt'] != null 
-          ? (map['updatedAt'] as Timestamp).toDate() 
-          : null,
+      priority: rawPriority.toLowerCase().trim(),
+      methods: _parseMethods(map['methods']),
+      enabled: _parseEnabled(map['enabled']),
+      createdAt: _parseTimestamp(map['createdAt']),
+      updatedAt: _parseTimestamp(map['updatedAt']),
     );
   }
 
@@ -65,7 +84,6 @@ class EmergencyContact {
     };
   }
 
-  // Convert to the Map format used in dashboards
   Map<String, dynamic> toDashboardMap() {
     return {
       'name': name,
@@ -77,4 +95,12 @@ class EmergencyContact {
       'enabled': enabled,
     };
   }
+
+  bool get isPrimary => priority == 'primary';
+
+  bool get isSecondary => priority == 'secondary';
+
+  String get contactTypeLabel => isPrimary ? 'Primary' : 'Secondary';
+
+  String get contactType => priority;
 }

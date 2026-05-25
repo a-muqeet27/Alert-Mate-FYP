@@ -14,11 +14,13 @@ import '../services/emergency_alert_service.dart';
 class NotificationsInboxScreen extends StatefulWidget {
   final User user;
   final bool embedded;
+  final bool adminSectioned;
 
   const NotificationsInboxScreen({
     Key? key,
     required this.user,
     this.embedded = false,
+    this.adminSectioned = false,
   }) : super(key: key);
 
   @override
@@ -70,9 +72,6 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
             if (a.unread != b.unread) return a.unread ? -1 : 1;
             return b.createdAt.compareTo(a.createdAt);
           });
-        if (list.length > 80) {
-          list.removeRange(80, list.length);
-        }
         if (mounted) setState(() => _entries = list);
       },
       onError: (e, _) {
@@ -214,6 +213,19 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
     return '${t.day}/${t.month}/${t.year}';
   }
 
+  List<UserNotificationInboxItem> get _unreadEntries =>
+      _entries.where((e) => e.unread).toList();
+
+  List<UserNotificationInboxItem> get _readEntries => _entries
+      .where((e) => !e.unread && (e.handledAction == 'read' || e.handledAction == null))
+      .toList();
+
+  List<UserNotificationInboxItem> get _acknowledgedEntries =>
+      _entries.where((e) => e.handledAction == 'acknowledged').toList();
+
+  List<UserNotificationInboxItem> get _resolvedEntries =>
+      _entries.where((e) => e.handledAction == 'resolved').toList();
+
   Widget _buildTile(UserNotificationInboxItem e) {
     final accent = _accentForType(e.type);
     final busy = _busyIds.contains(e.docId);
@@ -341,10 +353,93 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
     );
   }
 
+  Widget _buildAdminSection({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<UserNotificationInboxItem> items,
+    String emptyMessage = 'Nothing in this section.',
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: items.isNotEmpty && (title == 'Unread' || items.length <= 3),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          leading: Icon(icon, color: color, size: 22),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            '${items.length} Notification${items.length == 1 ? '' : 's'}',
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          children: [
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(emptyMessage, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+              )
+            else
+              ...items.map(_buildTile),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminSectionedInbox() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildAdminSection(
+          title: 'Unread',
+          icon: Icons.mark_email_unread_outlined,
+          color: Colors.red.shade700,
+          items: _unreadEntries,
+          emptyMessage: 'No unread Notifications.',
+        ),
+        _buildAdminSection(
+          title: 'Read',
+          icon: Icons.drafts_outlined,
+          color: AppColors.primary,
+          items: _readEntries,
+          emptyMessage: 'No Read Notifications.',
+        ),
+        _buildAdminSection(
+          title: 'Acknowledged',
+          icon: Icons.check_circle_outline,
+          color: const Color(0xFF1565C0),
+          items: _acknowledgedEntries,
+          emptyMessage: 'No Acknowledged Alerts.',
+        ),
+        _buildAdminSection(
+          title: 'Resolved',
+          icon: Icons.task_alt_outlined,
+          color: const Color(0xFF2E7D32),
+          items: _resolvedEntries,
+          emptyMessage: 'No Resolved Alerts.',
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    final unread = _entries.where((e) => e.unread).length;
+    final unread = _unreadEntries.length;
 
     final listPadding = widget.embedded
         ? EdgeInsets.zero
@@ -360,6 +455,13 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
               style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
           ),
+        );
+      }
+
+      if (widget.adminSectioned) {
+        return Padding(
+          padding: listPadding,
+          child: _buildAdminSectionedInbox(),
         );
       }
 

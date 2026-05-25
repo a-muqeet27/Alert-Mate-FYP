@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../constants/vehicle_catalog.dart';
 
 /// Themed dialogs and form fields for the owner dashboard.
 class OwnerFormDialogUi {
@@ -199,6 +200,216 @@ class OwnerFormDialogUi {
     );
       },
     );
+  }
+
+  static Widget _summaryDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: AppColors.primary.withValues(alpha: 0.85)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: valueColor ?? AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Review-and-submit dialog for owner "Add New Vehicle".
+  static Future<bool> showVehicleAdditionConfirmDialog(
+    BuildContext context, {
+    required String vehicleType,
+    required String make,
+    required String model,
+    required String year,
+    required String licensePlate,
+    required bool willOwnerDrive,
+    String? vehicleBookFileName,
+  }) async {
+    final vehicleTitle = '$make $model'.trim();
+    final displayTitle = vehicleTitle.isNotEmpty ? vehicleTitle : 'New vehicle';
+    final pdfName = vehicleBookFileName?.trim();
+    final hasPdf = pdfName != null && pdfName.isNotEmpty;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => themedDialog(
+        title: 'Confirm Vehicle Addition',
+        subtitle: 'Review your Details before Submitting for Admin Approval',
+        icon: Icons.fact_check_outlined,
+        accentColor: AppColors.success,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primary.withValues(alpha: 0.12),
+                    AppColors.success.withValues(alpha: 0.08),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      VehicleCatalog.iconForType(vehicleType),
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayTitle,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            licensePlate,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            listPanel(
+              child: Column(
+                children: [
+                  _summaryDetailRow(
+                    icon: Icons.category_outlined,
+                    label: 'Vehicle Type',
+                    value: vehicleType,
+                  ),
+                  Divider(height: 1, color: Colors.grey.shade300),
+                  _summaryDetailRow(
+                    icon: Icons.calendar_today_outlined,
+                    label: 'Year',
+                    value: year,
+                  ),
+                  Divider(height: 1, color: Colors.grey.shade300),
+                  _summaryDetailRow(
+                    icon: Icons.confirmation_number_outlined,
+                    label: 'License Plate',
+                    value: licensePlate,
+                    valueColor: AppColors.primary,
+                  ),
+                  Divider(height: 1, color: Colors.grey.shade300),
+                  _summaryDetailRow(
+                    icon: Icons.picture_as_pdf_outlined,
+                    label: 'ID-Card / Book',
+                    value: hasPdf ? pdfName! : 'No PDF selected',
+                    valueColor: hasPdf ? AppColors.success : AppColors.danger,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            infoBanner(
+              icon: willOwnerDrive ? Icons.person_pin_circle_outlined : Icons.group_outlined,
+              color: willOwnerDrive ? AppColors.primary : AppColors.textSecondary,
+              message: willOwnerDrive
+                  ? 'You will be Assigned as the Driver After Admin Approval. CNIC and License must be Approved before You Can Drive.'
+                  : 'This Vehicle will be Available for Driver Assignment after Admin Approval.',
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Your submission will be reviewed by an Administrator. You will be Notified once it is Approved.',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            style: cancelButtonStyle,
+            child: const Text('Go Back'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: primaryButtonStyle,
+            icon: const Icon(Icons.send_rounded, size: 18),
+            label: const Text('Submit for Approval'),
+          ),
+        ],
+      ),
+    );
+
+    return result == true;
   }
 
   static Widget bottomSheetHeader({

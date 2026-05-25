@@ -1,18 +1,17 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
-import '../models/emergency_contact.dart';
 import '../services/vehicle_service.dart';
-import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
 import '../services/owner_vehicle_submission_service.dart';
 import '../services/firebase_auth_service.dart';
@@ -25,7 +24,7 @@ import '../screens/driver_documents_gate_screen.dart';
 import '../utils/sign_out_flow.dart';
 import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
-import '../widgets/emergency_contact_ui.dart';
+import '../widgets/emergency_contacts_panel.dart';
 import '../constants/vehicle_catalog.dart';
 import '../widgets/owner_form_dialog_ui.dart';
 import '../utils/dashboard_responsive.dart';
@@ -53,7 +52,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final OwnerVehicleSubmissionService _ownerVehicleSubmissionService = OwnerVehicleSubmissionService();
   final MonitoringService _monitoringService = MonitoringService();
-  late EmergencyContactService _emergencyContactService;
 
   int _selectedIndex = 0;
   bool _isLoading = false;
@@ -208,7 +206,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   @override
   void initState() {
     super.initState();
-    _emergencyContactService = EmergencyContactService();
     _isLoading = false;
 
     _fadeController = AnimationController(
@@ -369,9 +366,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  bool _contactAllowsCall(EmergencyContact contact) =>
-      contact.methods.any((m) => m.toString() == 'call');
-
   Future<void> _dialPhoneNumber(String rawPhone) async {
     final trimmed = rawPhone.trim();
     if (trimmed.isEmpty) {
@@ -430,6 +424,58 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     return x.readAsBytes();
   }
 
+  Future<({Uint8List bytes, String fileName})?> _pickVehicleBookPdf() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+      withData: true,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return null;
+
+    final file = result.files.single;
+    final name = file.name.trim();
+    if (!name.toLowerCase().endsWith('.pdf')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only PDF files are allowed for the vehicle ID-card/book'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return null;
+    }
+
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not read the PDF file'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return null;
+    }
+
+    if (bytes.length >= 4 &&
+        !(bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selected file is not a valid PDF'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return null;
+    }
+
+    return (bytes: bytes, fileName: name);
+  }
+
   // Build a map of driverId -> hasActiveSession for all vehicles
   Future<Map<String, bool>> _buildActiveSessionMap(List<Vehicle> vehicles) async {
     final Map<String, bool> activeSessionMap = {};
@@ -469,6 +515,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         : '';
     bool willDrive = false;
     Uint8List? vehicleBookBytes;
+    String? vehicleBookFileName;
 
     await showDialog(
       context: context,
@@ -614,16 +661,24 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     },
                   ),
                   const SizedBox(height: 12),
-                  OwnerFormDialogUi.sectionTitle('Vehicle ID-Card/Book *'),
+                  OwnerFormDialogUi.sectionTitle('Vehicle ID-Card/Book (PDF Only) *'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Upload your Vehicle Registration Book or ID-card as a PDF File.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
                   const SizedBox(height: 8),
                   Material(
                     color: AppColors.background,
                     borderRadius: BorderRadius.circular(10),
                     child: InkWell(
                       onTap: () async {
-                        final bytes = await _pickImageBytes();
-                        if (bytes == null) return;
-                        setDialogState(() => vehicleBookBytes = bytes);
+                        final picked = await _pickVehicleBookPdf();
+                        if (picked == null) return;
+                        setDialogState(() {
+                          vehicleBookBytes = picked.bytes;
+                          vehicleBookFileName = picked.fileName;
+                        });
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
@@ -639,18 +694,34 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                         child: Row(
                           children: [
                             Icon(
-                              vehicleBookBytes != null ? Icons.check_circle : Icons.upload_file,
+                              vehicleBookBytes != null
+                                  ? Icons.picture_as_pdf
+                                  : Icons.picture_as_pdf_outlined,
                               color: vehicleBookBytes != null ? AppColors.success : AppColors.primary,
                             ),
                             const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                'Upload Registration Document',
-                                style: TextStyle(fontWeight: FontWeight.w600),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Upload PDF Document',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  if (vehicleBookFileName != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      vehicleBookFileName!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                             Text(
-                              vehicleBookBytes != null ? 'Change' : 'Upload',
+                              vehicleBookBytes != null ? 'Change' : 'Choose PDF',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.primary,
@@ -758,34 +829,30 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       }
                     }
 
-                    // Show confirmation dialog
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Confirm Vehicle Addition'),
-                        content: Text(
-                          'Are you sure you want to add this vehicle?\n\n'
-                              'Type: $vehicleType\n'
-                              'Make: $make\n'
-                              'Model: $model\n'
-                              'Year: $year\n'
-                              'License Plate: $licensePlate\n'
-                              '${willDrive ? "You will be assigned as the driver." : "Vehicle will be available for driver assignment."}',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
+                    if (vehicleBookBytes == null) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please upload the vehicle ID-card/book as a PDF.'),
+                            backgroundColor: Colors.orange,
                           ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Confirm'),
-                          ),
-                        ],
-                      ),
+                        );
+                      }
+                      return;
+                    }
+
+                    final confirm = await OwnerFormDialogUi.showVehicleAdditionConfirmDialog(
+                      context,
+                      vehicleType: vehicleType,
+                      make: make,
+                      model: model,
+                      year: year,
+                      licensePlate: licensePlate,
+                      willOwnerDrive: willDrive,
+                      vehicleBookFileName: vehicleBookFileName,
                     );
 
-                    if (confirm != true) return;
+                    if (!confirm) return;
 
                     Navigator.pop(dialogCtx);
                     if (!mounted) return;
@@ -795,18 +862,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                       ScaffoldMessenger.of(parentContext).showSnackBar(
                         const SnackBar(content: Text('Submitting vehicle for admin approval...')),
                       );
-
-                      if (vehicleBookBytes == null) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(parentContext).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please upload the vehicle id card / book.'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
-                        return;
-                      }
 
                       await _ownerVehicleSubmissionService.submitVehicle(
                         ownerId: widget.user.id,
@@ -1121,7 +1176,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                     .map(
                                       (v) => ListTile(
                                         dense: true,
-                                        title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
+                                        title: Text('${v.licensePlate} · ${v.make} ${v.model}'),
                                         subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
                                       ),
                                     )
@@ -1203,7 +1258,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                           .map(
                                             (v) => ListTile(
                                               dense: true,
-                                              title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
+                                              title: Text('${v.licensePlate} · ${v.make} ${v.model}'),
                                               subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
                                             ),
                                           )
@@ -1289,7 +1344,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                                           .map(
                                             (v) => ListTile(
                                               dense: true,
-                                              title: Text('${v.licensePlate} • ${v.make} ${v.model}'),
+                                              title: Text('${v.licensePlate} · ${v.make} ${v.model}'),
                                               subtitle: Text('Driver: ${v.driverName ?? "Unassigned"}'),
                                             ),
                                           )
@@ -1855,7 +1910,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         child: Icon(VehicleCatalog.iconForType(vehicle.type), color: AppColors.primary, size: 20),
       ),
       title: Text(
-        '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
+        '${vehicle.licensePlate} · ${vehicle.make} ${vehicle.model}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -1883,18 +1938,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 },
               ),
             IconButton(
-              icon: Icon(Icons.edit_outlined, color: AppColors.primary, size: isMobile ? 18 : 20),
-              tooltip: 'Edit',
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              padding: EdgeInsets.zero,
-              onPressed: () => _showEditVehicleDialog(vehicle),
-            ),
-            IconButton(
               icon: Icon(Icons.delete_outline, color: Colors.red, size: isMobile ? 18 : 20),
               tooltip: 'Delete',
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               padding: EdgeInsets.zero,
-              onPressed: () => _showDeleteVehicleDialog(vehicle),
+              onPressed: () => _confirmDeleteVehicle(vehicle),
             ),
           ],
         ),
@@ -2278,7 +2326,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             isMobile: isMobile,
             icon: Icons.directions_car_filled_outlined,
             title: 'Vehicle Information',
-            subtitle: 'Loading your fleet…',
+            subtitle: 'Loading your fleet...',
             child: const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
               child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
@@ -2297,7 +2345,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                 isMobile: isMobile,
                 icon: Icons.directions_car_filled_outlined,
                 title: 'Vehicle Information',
-                subtitle: 'Checking live driver sessions…',
+                subtitle: 'Checking live driver sessions...',
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 32),
                   child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
@@ -2465,154 +2513,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           icon: Icons.contacts_outlined,
           title: 'Emergency Contacts',
           subtitle: 'Manage people notified during critical alerts',
-          child: _buildEmergencyContactsContent(isMobile),
+          child: EmergencyContactsPanel(user: widget.user, userRole: 'owner'),
         ),
       ],
-    );
-  }
-
-  Widget _buildEmergencyContactsContent([bool isMobile = false]) {
-    return StreamBuilder<List<EmergencyContact>>(
-      stream: _emergencyContactService.getEmergencyContactsStream(widget.user.id),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Text(
-            'Error loading contacts: ${snapshot.error}',
-            style: const TextStyle(color: AppColors.danger),
-          );
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 28),
-            child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
-          );
-        }
-
-        final contacts = snapshot.data ?? [];
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                onPressed: _showAddContactDialog,
-                icon: Icon(Icons.person_add_outlined, size: isMobile ? 18 : 20),
-                label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 14 : 20,
-                    vertical: isMobile ? 10 : 12,
-                  ),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ),
-            SizedBox(height: isMobile ? 14 : 18),
-            isMobile
-                ? contacts.isEmpty
-                    ? _buildOwnerContactsEmptyState(isMobile)
-                    : Column(
-                        children: contacts
-                            .map((contact) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _buildMobileContactCard(contact),
-                                ))
-                            .toList(),
-                      )
-                : DashboardLayout.horizontalTable(
-                    context: context,
-                    minWidth: 800,
-                    table: Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(1.5),
-                        1: FlexColumnWidth(1.2),
-                        2: FlexColumnWidth(1.8),
-                        3: FlexColumnWidth(1.0),
-                        4: FlexColumnWidth(1.0),
-                        5: FlexColumnWidth(0.8),
-                        6: FlexColumnWidth(1.0),
-                      },
-                      children: [
-                        TableRow(
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight.withValues(alpha: 0.35),
-                          ),
-                          children: [
-                            _buildTableHeader('Name', isMobile),
-                            _buildTableHeader('Relationship', isMobile),
-                            _buildTableHeader('Contact', isMobile),
-                            _buildTableHeader('Priority', isMobile),
-                            _buildTableHeader('Methods', isMobile),
-                            _buildTableHeader('Status', isMobile),
-                            _buildTableHeader('Actions', isMobile),
-                          ],
-                        ),
-                        ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
-                      ],
-                    ),
-                  ),
-            if (contacts.isNotEmpty) ...[
-              SizedBox(height: isMobile ? 12 : 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${contacts.length} contact${contacts.length == 1 ? '' : 's'} ready for emergency notifications',
-                        style: TextStyle(fontSize: isMobile ? 12 : 13, color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildOwnerContactsEmptyState(bool isMobile) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 24 : 32),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.contact_phone_outlined, size: 48, color: Colors.grey[400]),
-          const SizedBox(height: 12),
-          Text(
-            'No emergency contacts yet',
-            style: TextStyle(
-              fontSize: isMobile ? 15 : 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Add someone to notify during critical alerts',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          ),
-        ],
-      ),
     );
   }
 
@@ -2686,596 +2589,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showAddContactDialog() {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final relationshipController = TextEditingController();
-    final phoneController = TextEditingController();
-    final emailController = TextEditingController();
-    String priority = 'secondary';
-    List<String> methods = ['call'];
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
-          title: 'Add Emergency Contact',
-          subtitle: 'Add someone to notify in an emergency',
-          icon: Icons.person_add_alt_1_outlined,
-          content: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: nameController,
-                    cursorColor: AppColors.primary,
-                    decoration: EmergencyContactUi.inputDecoration('Name *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Name is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: relationshipController,
-                    decoration: EmergencyContactUi.inputDecoration('Relationship *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Relationship is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: phoneController,
-                    decoration: EmergencyContactUi.inputDecoration(
-                      'Phone Number *',
-                      hint: '03XX-1234567',
-                    ),
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
-                      _PhoneNumberFormatter(),
-                    ],
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Phone number is required';
-                      }
-                      final phone = value.trim();
-                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
-                        return 'Phone must be in format 03XX-1234567';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: emailController,
-                    decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value != null && value.trim().isNotEmpty) {
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-                          return 'Please enter a valid email address';
-                        }
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  EmergencyContactUi.priorityDropdown(
-                    value: priority,
-                    onChanged: (value) => setDialogState(() => priority = value),
-                  ),
-                  const SizedBox(height: 16),
-                  EmergencyContactUi.contactMethodsSection(
-                    methods: methods.toSet(),
-                    onChanged: (next) => setDialogState(() {
-                      methods
-                        ..clear()
-                        ..addAll(next);
-                    }),
-                  ),
-                  if (methods.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Text(
-                        'At least one contact method is required',
-                        style: TextStyle(color: AppColors.danger, fontSize: 12),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: OwnerFormDialogUi.cancelButtonStyle,
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (methods.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select at least one contact method'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                
-                if (formKey.currentState!.validate()) {
-                  try {
-                    await _emergencyContactService.addEmergencyContact(
-                      userId: widget.user.id,
-                      userRole: 'owner',
-                      contactData: {
-                        'name': nameController.text.trim(),
-                        'relationship': relationshipController.text.trim(),
-                        'phone': phoneController.text.trim(),
-                        'email': emailController.text.trim(),
-                        'priority': priority,
-                        'methods': methods,
-                        'enabled': true,
-                      },
-                    );
-
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${nameController.text} added to emergency contacts'),
-                          backgroundColor: AppColors.primary,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error adding contact: $e')),
-                      );
-                    }
-                  }
-                }
-              },
-              style: OwnerFormDialogUi.primaryButtonStyle,
-              child: const Text('Add Contact'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditContactDialog(EmergencyContact contact) {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: contact.name);
-    final relationshipController = TextEditingController(text: contact.relationship);
-    final phoneController = TextEditingController(text: contact.phone);
-    final emailController = TextEditingController(text: contact.email);
-    String priority = contact.priority;
-    List<String> methods = List<String>.from(contact.methods);
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
-          title: 'Edit Emergency Contact',
-          subtitle: contact.name,
-          icon: Icons.edit_outlined,
-          content: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: nameController,
-                    cursorColor: AppColors.primary,
-                    decoration: EmergencyContactUi.inputDecoration('Name *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Name is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: relationshipController,
-                    decoration: EmergencyContactUi.inputDecoration('Relationship *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Relationship is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: phoneController,
-                    decoration: EmergencyContactUi.inputDecoration(
-                      'Phone Number *',
-                      hint: '03XX-1234567',
-                    ),
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
-                      _PhoneNumberFormatter(),
-                    ],
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Phone number is required';
-                      }
-                      final phone = value.trim();
-                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
-                        return 'Phone must be in format 03XX-1234567';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: emailController,
-                    decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value != null && value.trim().isNotEmpty) {
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-                          return 'Please enter a valid email address';
-                        }
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  EmergencyContactUi.priorityDropdown(
-                    value: priority,
-                    onChanged: (value) => setDialogState(() => priority = value),
-                  ),
-                  const SizedBox(height: 16),
-                  EmergencyContactUi.contactMethodsSection(
-                    methods: methods.toSet(),
-                    onChanged: (next) => setDialogState(() {
-                      methods
-                        ..clear()
-                        ..addAll(next);
-                    }),
-                  ),
-                  if (methods.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Text(
-                        'At least one contact method is required',
-                        style: TextStyle(color: AppColors.danger, fontSize: 12),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: OwnerFormDialogUi.cancelButtonStyle,
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: OwnerFormDialogUi.primaryButtonStyle,
-              onPressed: () async {
-                if (methods.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select at least one contact method'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                
-                if (formKey.currentState!.validate()) {
-                  try {
-                    await _emergencyContactService.updateEmergencyContact(
-                      contactId: contact.id,
-                      contactData: {
-                        'name': nameController.text.trim(),
-                        'relationship': relationshipController.text.trim(),
-                        'phone': phoneController.text.trim(),
-                        'email': emailController.text.trim(),
-                        'priority': priority,
-                        'methods': methods,
-                        'enabled': contact.enabled,
-                      },
-                    );
-
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${nameController.text} updated successfully'),
-                          backgroundColor: AppColors.primary,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error updating contact: $e')),
-                      );
-                    }
-                  }
-                }
-              },
-              child: const Text('Save Changes'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMobileContactCard(EmergencyContact contact) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  contact.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              _buildContactActionsCell(contact, true),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            contact.relationship,
-            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.phone, size: 14, color: Colors.grey[600]),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(contact.phone, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
-              ),
-            ],
-          ),
-          if (_contactAllowsCall(contact) && contact.phone.trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _dialPhoneNumber(contact.phone),
-                icon: const Icon(Icons.phone, size: 18),
-                label: const Text('Call now'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.85)),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(Icons.email, size: 14, color: Colors.grey[600]),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  contact.email,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _buildPriorityBadgeCell(contact.priority, true),
-              ),
-              const SizedBox(width: 8),
-              _buildStatusToggleCell(contact, true),
-              const SizedBox(width: 8),
-              _buildMethodsCell(contact.methods, true),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  TableRow _buildEmergencyContactRow(EmergencyContact contact, [bool isMobile = false]) {
-    return TableRow(
-      children: [
-        _buildTableCell(contact.name, isMobile),
-        _buildTableCell(contact.relationship, isMobile),
-        _buildContactInfoCell(contact.phone, contact.email, isMobile, _contactAllowsCall(contact)),
-        _buildPriorityBadgeCell(contact.priority, isMobile),
-        _buildMethodsCell(contact.methods, isMobile),
-        _buildStatusToggleCell(contact, isMobile),
-        _buildContactActionsCell(contact, isMobile),
-      ],
-    );
-  }
-
-  Widget _buildContactInfoCell(String phone, String email, [bool isMobile = false, bool showCallNow = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16,
-          vertical: isMobile ? 8 : 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  phone,
-                  style: TextStyle(
-                    fontSize: isMobile ? 12 : 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              if (showCallNow && phone.trim().isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Tooltip(
-                  message: 'Call now',
-                  child: IconButton(
-                    onPressed: () => _dialPhoneNumber(phone),
-                    icon: Icon(Icons.phone, size: isMobile ? 20 : 22, color: Colors.green[700]),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          if (email.isNotEmpty) ...[
-            SizedBox(height: isMobile ? 2 : 4),
-            Text(
-              email,
-              style: TextStyle(
-                fontSize: isMobile ? 11 : 12,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPriorityBadgeCell(String priority, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 0 : 16,
-          vertical: isMobile ? 0 : 12),
-      child: EmergencyContactUi.priorityBadge(priority, compact: isMobile),
-    );
-  }
-
-  Widget _buildMethodsCell(List<dynamic> methods, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 0 : 16,
-          vertical: isMobile ? 0 : 12),
-      child: EmergencyContactUi.methodsRow(methods, iconSize: isMobile ? 16 : 18),
-    );
-  }
-
-  Widget _buildStatusToggleCell(EmergencyContact contact, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 0 : 16,
-          vertical: isMobile ? 0 : 12),
-      child: EmergencyContactUi.themedSwitch(
-        value: contact.enabled,
-        onChanged: (value) async {
-          try {
-            await _emergencyContactService.toggleContactEnabled(contact.id, value);
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error updating contact: $e')),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildContactActionsCell(EmergencyContact contact, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 0 : 8,
-          vertical: isMobile ? 0 : 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(Icons.edit_outlined, size: isMobile ? 18 : 20),
-            onPressed: () {
-              _showEditContactDialog(contact);
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          SizedBox(width: isMobile ? 4 : 8),
-          IconButton(
-            icon: Icon(Icons.delete_outline, size: isMobile ? 18 : 20),
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Delete Contact'),
-                  content: Text('Are you sure you want to Delete ${contact.name} from emergency contacts? This action cannot be undone.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                      child: const Text('Delete'),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                try {
-                  await _emergencyContactService.deleteEmergencyContact(contact.id);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${contact.name} removed'),
-                        backgroundColor: AppColors.primary,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error deleting contact: $e')),
-                    );
-                  }
-                }
-              }
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
       ),
     );
   }
@@ -3413,23 +2726,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
                     : AppColors.textSecondary,
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    onPressed: () => _showEditVehicleDialog(vehicle),
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Edit'),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-                  ),
-                  const SizedBox(width: 4),
-                  TextButton.icon(
-                    onPressed: () => _showDeleteVehicleDialog(vehicle),
-                    icon: const Icon(Icons.delete_outline, size: 18),
-                    label: const Text('Delete'),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-                  ),
-                ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _confirmDeleteVehicle(vehicle),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete', style: TextStyle(color: AppColors.danger)),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                ),
               ),
             ],
           ),
@@ -3524,7 +2828,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  // Real-time status badge — Active only while monitoring pushes stats to RTDB; else Offline; Critical when unsafe.
+  // Real-time status badge - Active only while monitoring pushes stats to RTDB; else Offline; Critical when unsafe.
   Widget _buildRealtimeStatusBadge(Vehicle vehicle, [bool isMobile = false]) {
     if (vehicle.assignedDriverId == null || vehicle.assignedDriverId!.isEmpty) {
       return _buildStatusBadge('Offline', isMobile);
@@ -3699,20 +3003,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: Icon(Icons.edit_outlined, size: isMobile ? 18 : 20, color: AppColors.primary),
-            onPressed: () {
-              _showEditVehicleDialog(vehicle);
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            tooltip: 'Edit vehicle',
-          ),
-          SizedBox(width: isMobile ? 4 : 8),
-          IconButton(
             icon: Icon(Icons.delete_outline, size: isMobile ? 18 : 20, color: Colors.red[700]),
-            onPressed: () {
-              _showDeleteVehicleDialog(vehicle);
-            },
+            onPressed: () => _confirmDeleteVehicle(vehicle),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             tooltip: 'Delete vehicle',
@@ -3761,161 +3053,118 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     );
   }
 
-  Future<void> _showEditVehicleDialog(Vehicle vehicle) async {
-    final formKey = GlobalKey<FormState>();
-    final makeCtrl = TextEditingController(text: vehicle.make);
-    final modelCtrl = TextEditingController(text: vehicle.model);
-    final yearCtrl = TextEditingController(text: vehicle.year);
-    final plateCtrl = TextEditingController(text: vehicle.licensePlate);
-    String selectedType = vehicle.type;
+  Future<void> _confirmDeleteVehicle(Vehicle vehicle) async {
+    final title = '${vehicle.make} ${vehicle.model}'.trim();
+    final plate = vehicle.licensePlate;
+    final hasDriver =
+        vehicle.assignedDriverId != null && vehicle.assignedDriverId!.isNotEmpty;
 
-    await showDialog(
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => OwnerFormDialogUi.themedDialog(
-          title: 'Edit Vehicle',
-          subtitle: '${vehicle.licensePlate} • ${vehicle.make} ${vehicle.model}',
-          icon: VehicleCatalog.iconForType(selectedType),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: makeCtrl,
-                  cursorColor: AppColors.primary,
-                  decoration: OwnerFormDialogUi.fieldDecoration('Make'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: modelCtrl,
-                  cursorColor: AppColors.primary,
-                  decoration: OwnerFormDialogUi.fieldDecoration('Model'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: yearCtrl,
-                  cursorColor: AppColors.primary,
-                  keyboardType: TextInputType.number,
-                  decoration: OwnerFormDialogUi.fieldDecoration('Year'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: plateCtrl,
-                  cursorColor: AppColors.primary,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [_LicensePlateFormatter()],
-                  decoration: OwnerFormDialogUi.fieldDecoration('License Plate'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: selectedType,
-                  dropdownColor: Colors.white,
-                  decoration: OwnerFormDialogUi.fieldDecoration('Type'),
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
-                  items: VehicleCatalog.vehicleTypes
-                      .map(
-                        (t) => DropdownMenuItem(
-                          value: t,
-                          child: VehicleCatalog.dropdownMenuLabel(
-                            t,
-                            iconColor: AppColors.primary.withValues(alpha: 0.85),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setDialogState(() => selectedType = value);
-                  },
-                ),
-              ],
+      useRootNavigator: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Vehicle', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Are you sure you want to Delete this Vehicle?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title.isNotEmpty ? title : 'Unknown Vehicle',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  if (plate.isNotEmpty)
+                    Text('Plate: $plate', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: OwnerFormDialogUi.cancelButtonStyle,
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (formKey.currentState?.validate() != true) return;
-                await _firestore.collection('vehicles').doc(vehicle.id).update({
-                  'make': makeCtrl.text.trim(),
-                  'model': modelCtrl.text.trim(),
-                  'year': yearCtrl.text.trim(),
-                  'licensePlate': plateCtrl.text.trim().toUpperCase(),
-                  'type': selectedType,
-                });
-                if (mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Vehicle Updated Successfully'),
-                      backgroundColor: AppColors.primary,
+            if (hasDriver) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF9800).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber, size: 18, color: Color(0xFFFF9800)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This Vehicle has an Assigned Driver. The Driver will be Unassigned.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFFFF9800)),
+                      ),
                     ),
-                  );
-                }
-              },
-              style: OwnerFormDialogUi.primaryButtonStyle,
-              child: const Text('Save Changes'),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'This Action Cannot be Undone.',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showDeleteVehicleDialog(Vehicle vehicle) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Vehicle'),
-        content: Text(
-          'Are you sure you want to Delete vehicle ${vehicle.licensePlate}? This Action Cannot be Undone.',
-        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await _vehicleService.deleteVehicle(vehicle.id);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Vehicle ${vehicle.licensePlate} deleted successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error deleting vehicle: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
+
+    if (confirm != true) return;
+
+    try {
+      await _vehicleService.deleteVehicle(vehicle.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            title.isNotEmpty ? '$title has been deleted' : 'Vehicle has been deleted',
+          ),
+          backgroundColor: const Color(0xFF4CAF50),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting vehicle: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // Mobile real-time alertness widget

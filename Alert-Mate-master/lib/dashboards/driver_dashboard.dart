@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -13,12 +13,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import '../models/user.dart';
 import '../models/vehicle.dart';
-import '../models/emergency_contact.dart';
 import '../models/driver_document_submission.dart';
 import '../services/vehicle_service.dart';
 import '../services/driver_document_submission_service.dart';
 import '../widgets/driver_cnic_license_upload_panel.dart';
-import '../services/emergency_contact_service.dart';
 import '../services/monitoring_service.dart';
 import '../services/driver_location_update_service.dart';
 import '../screens/notifications_inbox_screen.dart';
@@ -32,7 +30,7 @@ import '../constants/app_config.dart';
 import '../screens/driver_history_screen.dart';
 import '../widgets/email_verified_guard.dart';
 import '../widgets/mobile_drawer_menu_button.dart';
-import '../widgets/emergency_contact_ui.dart';
+import '../widgets/emergency_contacts_panel.dart';
 import '../widgets/dashboard_detail_dialog_theme.dart';
 import '../utils/dashboard_responsive.dart';
 
@@ -221,7 +219,6 @@ class _DriverDashboardState extends State<DriverDashboard>
   
   final VehicleService _vehicleService = VehicleService();
   final DriverDocumentSubmissionService _docSubmissionService = DriverDocumentSubmissionService();
-  final EmergencyContactService _emergencyContactService = EmergencyContactService();
   final MonitoringService _monitoringService = MonitoringService();
   final DriverLocationUpdateService _locationUpdateService = DriverLocationUpdateService();
   Timer? _statsUpdateTimer;
@@ -238,7 +235,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       if (vehicles.isEmpty) return;
       await _vehicleService.updateVehicleStatus(vehicles.first.id, status);
     } catch (e) {
-      print('⚠️ Sync assigned vehicle status: $e');
+      print('âš ï¸ Sync assigned vehicle status: $e');
     }
   }
   
@@ -253,7 +250,6 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   // Alert Settings
   bool _audioAlertsEnabled = true;
-  bool _emergencyContactsEnabled = true;
   String _sensitivityLevel = 'Medium';
   
   // Yawning detection tracking
@@ -264,7 +260,7 @@ class _DriverDashboardState extends State<DriverDashboard>
   DateTime _lastMetricsUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _buzzerCooldown = Duration(milliseconds: 1200);
   static const Duration _metricsUiThrottle = Duration(milliseconds: 300);
-  /// EMA smoothing for alertness bar (0–1, higher = react faster to EAR/MAR).
+  /// EMA smoothing for alertness bar (0â€“1, higher = react faster to EAR/MAR).
   static const double _alertnessEmaAlpha = 0.32;
 
   int _decodedFrameDiagCount = 0;
@@ -297,7 +293,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     return false;
   }
 
-  /// Maps EAR/MAR/eye closure into 0–100; blended with server [alertness] when present.
+  /// Maps EAR/MAR/eye closure into 0â€“100; blended with server [alertness] when present.
   double _instantAlertnessFromMetrics({
     required double ear,
     required double mar,
@@ -309,14 +305,14 @@ class _DriverDashboardState extends State<DriverDashboard>
     final e = ear > 1e-6 ? ear : 0.26;
     final m = mar > 1e-6 ? mar : 0.28;
 
-    // EAR: eyes open → higher ratio (typical open ~0.22–0.38 depending on model scale).
+    // EAR: eyes open â†’ higher ratio (typical open ~0.22â€“0.38 depending on model scale).
     const earOpen = 0.36;
     const earClosed = 0.14;
     final earSpan = earOpen - earClosed;
     final fromEar =
         earSpan <= 1e-6 ? 70.0 : (((e - earClosed) / earSpan) * 100.0).clamp(0.0, 100.0);
 
-    // MAR: mouth open / yawning → lower alertness.
+    // MAR: mouth open / yawning â†’ lower alertness.
     const marRest = 0.26;
     const marHigh = 0.58;
     final marSpan = marHigh - marRest;
@@ -434,14 +430,14 @@ class _DriverDashboardState extends State<DriverDashboard>
     try {
       final status = await Permission.camera.status;
       if (!status.isGranted) {
-        print('❌ Camera permission denied');
+        print('âŒ Camera permission denied');
         return;
       }
       
       // Get available cameras
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) {
-        print('❌ No cameras available');
+        print('âŒ No cameras available');
         return;
       }
       
@@ -460,25 +456,25 @@ class _DriverDashboardState extends State<DriverDashboard>
         _isCameraInitialized = true;
       });
       
-      print('✅ Camera initialized: ${camera.name}');
+      print('âœ… Camera initialized: ${camera.name}');
     } catch (e) {
-      print('❌ Error initializing camera: $e');
+      print('âŒ Error initializing camera: $e');
     }
   }
   
   Future<void> _startCameraStream() async {
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      print('❌ Camera not initialized');
+      print('âŒ Camera not initialized');
       return;
     }
     
     if (_channel == null) {
-      print('❌ WebSocket not connected');
+      print('âŒ WebSocket not connected');
       return;
     }
     
     try {
-      print('📸 Setting up camera frame capture...');
+      print('ðŸ“¸ Setting up camera frame capture...');
       
       // Use a slower rate to avoid overwhelming the connection
       // takePicture is slower but produces proper JPEG images
@@ -487,7 +483,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       
       _frameCaptureTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
         if (!_isMonitoring || _channel == null) {
-          print('⏹️ Stopping camera capture timer');
+          print('â¹ï¸ Stopping camera capture timer');
           timer.cancel();
           return;
         }
@@ -509,7 +505,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             
             frameCount++;
             if (frameCount == 1 || frameCount % 10 == 0) {
-              print('📤 Sending frame #$frameCount (${imageBytes.length} bytes)');
+              print('ðŸ“¤ Sending frame #$frameCount (${imageBytes.length} bytes)');
             }
             
             // Send frame to backend
@@ -527,15 +523,15 @@ class _DriverDashboardState extends State<DriverDashboard>
             } catch (_) {}
           }
         } catch (e) {
-          print('❌ Error capturing frame: $e');
+          print('âŒ Error capturing frame: $e');
         } finally {
           isCapturing = false;
         }
       });
       
-      print('✅ Camera stream started - capturing frames every 500ms');
+      print('âœ… Camera stream started - capturing frames every 500ms');
     } catch (e) {
-      print('❌ Error starting camera stream: $e');
+      print('âŒ Error starting camera stream: $e');
     }
   }
 
@@ -596,15 +592,15 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   String _getWebSocketUrl() {
-    // ── ngrok public tunnel ─────────────────────────────────────────────────
+    // â”€â”€ ngrok public tunnel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Works on every platform (Android, iOS, Web, Desktop) without any
     // IP-address changes or mobile-hotspot setup.
     //
-    // ngrok is HTTPS  →  WebSocket must use wss:// (secure), not ws://.
+    // ngrok is HTTPS  â†’  WebSocket must use wss:// (secure), not ws://.
     // To update the URL when ngrok restarts, edit AppConfig.ngrokBaseUrl
-    // in lib/constants/app_config.dart — change it in one place only.
+    // in lib/constants/app_config.dart â€” change it in one place only.
     final url = AppConfig.wsMonitorUrl;
-    print('🔌 Connecting to backend via ngrok: $url');
+    print('ðŸ”Œ Connecting to backend via ngrok: $url');
     return url;
   }
 
@@ -613,7 +609,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
     // Validate driver ID
     if (driverId == null) {
-      print('❌ Driver ID is missing');
+      print('âŒ Driver ID is missing');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -625,14 +621,14 @@ class _DriverDashboardState extends State<DriverDashboard>
       return;
     }
 
-    print('🚀 Starting monitoring for driver: $driverId');
+    print('ðŸš€ Starting monitoring for driver: $driverId');
 
     try {
     // Start Firebase session
       _currentSessionId = await _monitoringService.startMonitoringSession(driverId);
-      print('✅ Firebase session started: $_currentSessionId');
+      print('âœ… Firebase session started: $_currentSessionId');
     } catch (e) {
-      print('❌ Failed to start Firebase session: $e');
+      print('âŒ Failed to start Firebase session: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -646,7 +642,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
     // Check camera availability
     if (!_isCameraInitialized || _cameraController == null) {
-      print('❌ Camera not initialized, initializing now...');
+      print('âŒ Camera not initialized, initializing now...');
       await _initializeCamera();
       if (!_isCameraInitialized || _cameraController == null) {
         if (mounted) {
@@ -669,21 +665,21 @@ class _DriverDashboardState extends State<DriverDashboard>
     // Connect to FastAPI WebSocket
     try {
       final wsUrl = _getWebSocketUrl();
-      print('🔌 Connecting to FastAPI server at $wsUrl...');
+      print('ðŸ”Œ Connecting to FastAPI server at $wsUrl...');
       if (!kIsWeb) {
-        // Platform.* is dart:io only — unavailable on Flutter Web
-        print('📱 Platform: ${Platform.operatingSystem}');
-        print('📱 Is Android: ${Platform.isAndroid}');
-        print('📱 Is iOS: ${Platform.isIOS}');
+        // Platform.* is dart:io only â€” unavailable on Flutter Web
+        print('ðŸ“± Platform: ${Platform.operatingSystem}');
+        print('ðŸ“± Is Android: ${Platform.isAndroid}');
+        print('ðŸ“± Is iOS: ${Platform.isIOS}');
       }
 
       // Connect to WebSocket with proper error handling
       try {
-        print('🔌 Attempting to connect to $wsUrl...');
+        print('ðŸ”Œ Attempting to connect to $wsUrl...');
         _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-        print('✅ WebSocket channel created');
+        print('âœ… WebSocket channel created');
       } catch (e) {
-        print('❌ Error creating WebSocket channel: $e');
+        print('âŒ Error creating WebSocket channel: $e');
         throw Exception('Failed to create WebSocket connection: $e');
       }
 
@@ -715,16 +711,16 @@ class _DriverDashboardState extends State<DriverDashboard>
             if (!hasReceivedData) {
               hasReceivedData = true;
               connectionConfirmed = true;
-              print('✅ Connection confirmed - received first message from server');
+              print('âœ… Connection confirmed - received first message from server');
             }
             
-            print('📦 Received message (first 150 chars): ${message.toString().substring(0, min(150, message.toString().length))}...');
+            print('ðŸ“¦ Received message (first 150 chars): ${message.toString().substring(0, min(150, message.toString().length))}...');
 
             final data = json.decode(message) as Map<String, dynamic>;
             
             // Handle error messages
             if (data.containsKey('error')) {
-              print('❌ Error from server: ${data['error']}');
+              print('âŒ Error from server: ${data['error']}');
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -738,7 +734,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             
             // Handle status messages
             if (data.containsKey('status')) {
-              print('ℹ️ Status update: ${data['status']}');
+              print('â„¹ï¸ Status update: ${data['status']}');
               return;
             }
             
@@ -758,25 +754,25 @@ class _DriverDashboardState extends State<DriverDashboard>
               // Track yawning frames for buzzer
               if (isYawning) {
                 _yawningFrameCount++;
-                print('🥱 Yawning detected (frame $_yawningFrameCount)');
+                print('ðŸ¥± Yawning detected (frame $_yawningFrameCount)');
 
                 // Play buzzer when 5-7 frames detect yawning (only once per session)
                 if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
                   _playBuzzerIfAllowed();
                   _buzzerPlayed = true;
-                  print('🔔 Buzzer played - Yawning detected for $_yawningFrameCount frames');
+                  print('ðŸ”” Buzzer played - Yawning detected for $_yawningFrameCount frames');
                 }
 
                 // Reset after 7 frames to allow buzzer to play again
                 if (_yawningFrameCount > 7) {
                   _yawningFrameCount = 0;
                   _buzzerPlayed = false;
-                  print('🔄 Yawning counter reset');
+                  print('ðŸ”„ Yawning counter reset');
                 }
               } else {
                 // Reset counter when not yawning
                 if (_yawningFrameCount > 0) {
-                  print('🔄 Yawning stopped, resetting counter');
+                  print('ðŸ”„ Yawning stopped, resetting counter');
                 }
                 _yawningFrameCount = 0;
                 _buzzerPlayed = false;
@@ -806,7 +802,7 @@ class _DriverDashboardState extends State<DriverDashboard>
 
               // Log metrics periodically (every 10th second to avoid spam)
               if (DateTime.now().second % 10 == 0) {
-                print('📊 Metrics - Alertness: ${_alertness.toStringAsFixed(1)}%, EAR: ${_ear.toStringAsFixed(2)}, MAR: ${_mar.toStringAsFixed(2)}');
+                print('ðŸ“Š Metrics - Alertness: ${_alertness.toStringAsFixed(1)}%, EAR: ${_ear.toStringAsFixed(2)}, MAR: ${_mar.toStringAsFixed(2)}');
               }
 
               if (data.containsKey('frame') && data['frame'] != null) {
@@ -819,7 +815,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                         now.difference(_lastSkippedJpegLogAt!) > const Duration(seconds: 20)) {
                       _lastSkippedJpegLogAt = now;
                       print(
-                        '⚠️ Skipping incomplete/bad JPEG (${decodedFrame.length} B). '
+                        'âš ï¸ Skipping incomplete/bad JPEG (${decodedFrame.length} B). '
                         'Often caused by WebSocket echo truncation or overlapping sessions.',
                       );
                     }
@@ -827,24 +823,24 @@ class _DriverDashboardState extends State<DriverDashboard>
                     _updateCameraFrame(decodedFrame);
                     _decodedFrameDiagCount++;
                     if (_decodedFrameDiagCount <= 3 || _decodedFrameDiagCount % 25 == 0) {
-                      print('📸 Camera frame (${decodedFrame.length} bytes)');
+                      print('ðŸ“¸ Camera frame (${decodedFrame.length} bytes)');
                     }
                   }
                 } catch (e) {
-                  print('❌ Error decoding frame: $e');
+                  print('âŒ Error decoding frame: $e');
                 }
               }
 
               _setDrowsyAlarmActive(isDrowsy);
             }
           } catch (e, stackTrace) {
-            print('❌ Error parsing message: $e');
+            print('âŒ Error parsing message: $e');
             print('Stack trace: $stackTrace');
           }
         },
         onError: (error) {
-          print('❌ WebSocket error: $error');
-          print('❌ Connection URL was: $wsUrl');
+          print('âŒ WebSocket error: $error');
+          print('âŒ Connection URL was: $wsUrl');
           if (mounted) {
             setState(() {
               _isMonitoring = false;
@@ -856,7 +852,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('❌ Connection Error',
+                    const Text('âŒ Connection Error',
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     Text('Error: $error', style: const TextStyle(fontSize: 12)),
@@ -878,7 +874,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           }
         },
         onDone: () {
-          print('🔌 WebSocket connection closed');
+          print('ðŸ”Œ WebSocket connection closed');
           if (mounted && _isMonitoring) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -899,10 +895,10 @@ class _DriverDashboardState extends State<DriverDashboard>
         },
       );
 
-      print('✅ WebSocket listener attached successfully');
+      print('âœ… WebSocket listener attached successfully');
       
     } catch (e, stackTrace) {
-      print('❌ Failed to connect to WebSocket server: $e');
+      print('âŒ Failed to connect to WebSocket server: $e');
       print('Stack trace: $stackTrace');
 
       if (mounted) {
@@ -917,7 +913,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('❌ Failed to connect to server',
+                const Text('âŒ Failed to connect to server',
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text('URL: ${_getWebSocketUrl()}',
@@ -949,11 +945,11 @@ class _DriverDashboardState extends State<DriverDashboard>
     await _locationUpdateService.goOnTrip(driverId);
     
     // Start Firebase stats update timer
-    print('⏱️ Starting Firebase stats update timer (1s interval)');
+    print('â±ï¸ Starting Firebase stats update timer (1s interval)');
     _statsUpdateTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isMonitoring) {
         timer.cancel();
-        print('⏱️ Stats timer cancelled - monitoring stopped');
+        print('â±ï¸ Stats timer cancelled - monitoring stopped');
         return;
       }
 
@@ -984,10 +980,10 @@ class _DriverDashboardState extends State<DriverDashboard>
     _lastSyncedFirestoreVehicleStatus = 'Active';
     unawaited(_syncAssignedVehicleFirestoreStatus('Active'));
 
-    print('✅ Monitoring started successfully');
+    print('âœ… Monitoring started successfully');
   }
   void _stopMonitoring() async {
-    print('🛑 Stopping monitoring...');
+    print('ðŸ›‘ Stopping monitoring...');
 
     final driverId = widget.user.id;
 
@@ -1008,38 +1004,38 @@ class _DriverDashboardState extends State<DriverDashboard>
     if (_updateTimer != null) {
       _updateTimer!.cancel();
       _updateTimer = null;
-      print('⏱️ Update timer cancelled');
+      print('â±ï¸ Update timer cancelled');
     }
 
     if (_statsUpdateTimer != null) {
       _statsUpdateTimer!.cancel();
       _statsUpdateTimer = null;
-      print('⏱️ Stats timer cancelled');
+      print('â±ï¸ Stats timer cancelled');
     }
     
     // Close WebSocket connection
     if (_channel != null) {
       try {
         await _channel!.sink.close();
-        print('🔌 WebSocket connection closed');
+        print('ðŸ”Œ WebSocket connection closed');
       } catch (e) {
-        print('⚠️ Error closing WebSocket: $e');
+        print('âš ï¸ Error closing WebSocket: $e');
       }
     _channel = null;
     }
     
     // Clear camera frame
     _updateCameraFrame(null);
-    print('📸 Camera frame cleared');
+    print('ðŸ“¸ Camera frame cleared');
     
     // End Firebase session
     if (_currentSessionId != null && driverId != null) {
       try {
       await _monitoringService.endMonitoringSession(driverId);
-        print('✅ Firebase session ended: $_currentSessionId');
+        print('âœ… Firebase session ended: $_currentSessionId');
       _currentSessionId = null;
       } catch (e) {
-        print('⚠️ Error ending Firebase session: $e');
+        print('âš ï¸ Error ending Firebase session: $e');
       }
     }
 
@@ -1047,9 +1043,9 @@ class _DriverDashboardState extends State<DriverDashboard>
     if (driverId != null) {
       try {
         await _monitoringService.clearCurrentStats(driverId);
-        print('✅ Current stats cleared from Realtime Database');
+        print('âœ… Current stats cleared from Realtime Database');
       } catch (e) {
-        print('⚠️ Error clearing current stats: $e');
+        print('âš ï¸ Error clearing current stats: $e');
       }
     }
 
@@ -1060,7 +1056,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     _lastDrowsyState = false;
     await _locationUpdateService.goIdle(driverId);
 
-    print('✅ Monitoring stopped successfully');
+    print('âœ… Monitoring stopped successfully');
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1090,7 +1086,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         ? '$projectRoot\\python\\drowsiness_classifier.pkl'
         : '$projectRoot/python/drowsiness_classifier.pkl';
 
-    print('🔍 Launching Python with:');
+    print('ðŸ” Launching Python with:');
     print('Script: $scriptPath');
     print('Landmark: $landmarkModelPath');
     print('Drowsy: $drowsyModelPath');
@@ -1112,12 +1108,12 @@ class _DriverDashboardState extends State<DriverDashboard>
 
     // Listen to stdout (JSON data)
     _monitorProcess!.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-      print('📊 Python stdout: $line');
+      print('ðŸ“Š Python stdout: $line');
       try {
         final data = json.decode(line) as Map<String, dynamic>;
         
         if (data.containsKey('error')) {
-          print('❌ Python error: ${data['error']}');
+          print('âŒ Python error: ${data['error']}');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -1130,7 +1126,7 @@ class _DriverDashboardState extends State<DriverDashboard>
         }
         
         if (data.containsKey('status')) {
-          print('✅ Python status: ${data['status']}');
+          print('âœ… Python status: ${data['status']}');
           return;
         }
         
@@ -1154,7 +1150,7 @@ class _DriverDashboardState extends State<DriverDashboard>
               if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
                 _playBuzzerIfAllowed();
                 _buzzerPlayed = true;
-                print('🔔 Buzzer played - Yawning detected for $_yawningFrameCount frames');
+                print('ðŸ”” Buzzer played - Yawning detected for $_yawningFrameCount frames');
               }
               // Reset after 7 frames to allow buzzer to play again if yawning continues
               if (_yawningFrameCount > 7) {
@@ -1196,7 +1192,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('⚠️ DROWSINESS ALERT: $reasonText'),
+                content: Text('âš ï¸ DROWSINESS ALERT: $reasonText'),
                 backgroundColor: Colors.red,
                 duration: const Duration(seconds: 2),
               ),
@@ -1204,18 +1200,18 @@ class _DriverDashboardState extends State<DriverDashboard>
           }
         }
       } catch (e) {
-        print('❌ Error parsing JSON: $e, Line: $line');
+        print('âŒ Error parsing JSON: $e, Line: $line');
       }
     });
 
     // Listen to stderr (errors and debug info)
     _monitorProcess!.stderr.transform(utf8.decoder).listen((error) {
-      print('🔴 Python stderr: $error');
+      print('ðŸ”´ Python stderr: $error');
     });
 
     // When process exits
     _monitorProcess!.exitCode.then((exitCode) {
-      print('🛑 Python process exited with code: $exitCode');
+      print('ðŸ›‘ Python process exited with code: $exitCode');
       if (mounted && _isMonitoring) {
         setState(() {
           _isMonitoring = false;
@@ -1224,10 +1220,10 @@ class _DriverDashboardState extends State<DriverDashboard>
       }
     });
     
-    print('✅ Python process started successfully!');
+    print('âœ… Python process started successfully!');
     
   } catch (e) {
-    print('💥 Error launching Python: $e');
+    print('ðŸ’¥ Error launching Python: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -2124,7 +2120,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             isMobile: isMobile,
             icon: Icons.sensors,
             title: 'Sensitivity Level',
-            subtitle: 'Low = Lower Sound • High = Louder Sound',
+            subtitle: 'Low = Lower Sound â€¢ High = Louder Sound',
             action: ElevatedButton(
               onPressed: _showSensitivityDialog,
               style: ElevatedButton.styleFrom(
@@ -2434,7 +2430,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
                         _isMonitoring
-                            ? 'Waiting for Camera Frame…'
+                            ? 'Waiting for Camera Frameâ€¦'
                             : 'Start Monitoring from Drowsiness Monitoring to View the Live Feed',
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -2622,7 +2618,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           icon: Icons.contacts_outlined,
           title: 'Emergency Contacts',
           subtitle: 'Manage People Notified During Emergency',
-          child: _buildEmergencyContactsContent(isMobile),
+          child: EmergencyContactsPanel(user: widget.user, userRole: 'driver'),
         ),
       ],
     );
@@ -2698,760 +2694,6 @@ class _DriverDashboardState extends State<DriverDashboard>
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Add Contact Dialog
-  void _showAddContactDialog() {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final relationshipController = TextEditingController();
-    final phoneController = TextEditingController();
-    final emailController = TextEditingController();
-    String priority = 'secondary';
-    List<String> methods = ['call'];
-    final scaffoldContext = context; // Store scaffold context
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add Emergency Contact'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                  TextFormField(
-                  controller: nameController,
-                  decoration: EmergencyContactUi.inputDecoration('Name *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Name is required';
-                      }
-                      return null;
-                    },
-                ),
-                const SizedBox(height: 16),
-                  TextFormField(
-                  controller: relationshipController,
-                  decoration: EmergencyContactUi.inputDecoration('Relationship *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Relationship is required';
-                      }
-                      return null;
-                    },
-                ),
-                const SizedBox(height: 16),
-                  TextFormField(
-                  controller: phoneController,
-                  decoration: EmergencyContactUi.inputDecoration(
-                    'Phone Number *',
-                    hint: '03XX-1234567',
-                  ),
-                  keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
-                      _PhoneNumberFormatter(),
-                    ],
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Phone number is required';
-                      }
-                      final phone = value.trim();
-                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
-                        return 'Phone must be in format 03XX-1234567';
-                      }
-                      return null;
-                    },
-                ),
-                const SizedBox(height: 16),
-                  TextFormField(
-                  controller: emailController,
-                  decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
-                  keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value != null && value.trim().isNotEmpty) {
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-                          return 'Please enter a valid email address';
-                        }
-                      }
-                      return null;
-                    },
-                ),
-                const SizedBox(height: 16),
-                EmergencyContactUi.priorityDropdown(
-                  value: priority,
-                  onChanged: (value) => setDialogState(() => priority = value),
-                ),
-                const SizedBox(height: 16),
-                EmergencyContactUi.contactMethodsSection(
-                  methods: methods.toSet(),
-                  includeSms: true,
-                  onChanged: (next) => setDialogState(() {
-                    methods
-                      ..clear()
-                      ..addAll(next);
-                  }),
-                ),
-                if (methods.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'At least one contact method is required',
-                      style: TextStyle(color: AppColors.danger, fontSize: 12),
-                    ),
-                  ),
-              ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: EmergencyContactUi.primaryButtonStyle,
-              onPressed: () async {
-                if (methods.isEmpty) {
-                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select at least one contact method'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                
-                if (formKey.currentState!.validate()) {
-                try {
-                  await _emergencyContactService.addEmergencyContact(
-                    userId: widget.user.id,
-                    userRole: 'driver',
-                    contactData: {
-                        'name': nameController.text.trim(),
-                        'relationship': relationshipController.text.trim(),
-                        'phone': phoneController.text.trim(),
-                        'email': emailController.text.trim(),
-                      'priority': priority,
-                      'methods': methods,
-                      'enabled': true,
-                    },
-                  );
-                  
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(
-                        content: Text('${nameController.text} added to emergency contacts'),
-                        backgroundColor: AppColors.primary,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(
-                        content: Text('Error adding contact: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    }
-                  }
-                }
-              },
-              child: const Text('Add Contact'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Edit Contact Dialog
-  void _showEditContactDialog(EmergencyContact contact) {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: contact.name);
-    final relationshipController = TextEditingController(text: contact.relationship);
-    final phoneController = TextEditingController(text: contact.phone);
-    final emailController = TextEditingController(text: contact.email);
-    String priority = contact.priority;
-    List<String> methods = List<String>.from(contact.methods);
-    final scaffoldContext = context; // Store scaffold context
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Edit Emergency Contact'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                  TextFormField(
-                  controller: nameController,
-                  decoration: EmergencyContactUi.inputDecoration('Name *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Name is required';
-                      }
-                      return null;
-                    },
-                ),
-                const SizedBox(height: 16),
-                  TextFormField(
-                  controller: relationshipController,
-                  decoration: EmergencyContactUi.inputDecoration('Relationship *'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Relationship is required';
-                      }
-                      return null;
-                    },
-                ),
-                const SizedBox(height: 16),
-                  TextFormField(
-                  controller: phoneController,
-                  decoration: EmergencyContactUi.inputDecoration(
-                    'Phone Number *',
-                    hint: '03XX-1234567',
-                  ),
-                  keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
-                      _PhoneNumberFormatter(),
-                    ],
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Phone number is required';
-                      }
-                      final phone = value.trim();
-                      if (!RegExp(r'^03\d{2}-\d{7}$').hasMatch(phone)) {
-                        return 'Phone must be in format 03XX-1234567';
-                      }
-                      return null;
-                    },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: emailController,
-                  decoration: EmergencyContactUi.inputDecoration('Email (Optional)'),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value != null && value.trim().isNotEmpty) {
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-                        return 'Please enter a valid email address';
-                      }
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                EmergencyContactUi.priorityDropdown(
-                  value: priority,
-                  onChanged: (value) => setDialogState(() => priority = value),
-                ),
-                const SizedBox(height: 16),
-                EmergencyContactUi.contactMethodsSection(
-                  methods: methods.toSet(),
-                  includeSms: true,
-                  onChanged: (next) => setDialogState(() {
-                    methods
-                      ..clear()
-                      ..addAll(next);
-                  }),
-                ),
-                if (methods.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'At least one contact method is required',
-                      style: TextStyle(color: AppColors.danger, fontSize: 12),
-                    ),
-                  ),
-              ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: EmergencyContactUi.primaryButtonStyle,
-              onPressed: () async {
-                if (methods.isEmpty) {
-                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select at least one contact method'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-                
-                if (formKey.currentState!.validate()) {
-                try {
-                  await _emergencyContactService.updateEmergencyContact(
-                    contactId: contact.id,
-                    contactData: {
-                        'name': nameController.text.trim(),
-                        'relationship': relationshipController.text.trim(),
-                        'phone': phoneController.text.trim(),
-                        'email': emailController.text.trim(),
-                      'priority': priority,
-                      'methods': methods,
-                      'enabled': contact.enabled,
-                    },
-                  );
-                  
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(
-                        content: Text('${nameController.text} updated successfully'),
-                        backgroundColor: AppColors.primary,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                      SnackBar(
-                        content: Text('Error updating contact: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    }
-                  }
-                }
-              },
-              child: const Text('Save Changes'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmergencyContactsContent([bool isMobile = false]) {
-    return StreamBuilder<List<EmergencyContact>>(
-      stream: _emergencyContactService.getEmergencyContactsStream(widget.user.id),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Text(
-            'Error loading contacts: ${snapshot.error}',
-            style: const TextStyle(color: AppColors.danger),
-          );
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 28),
-            child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
-          );
-        }
-
-        final contacts = snapshot.data ?? [];
-
-        return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: _showAddContactDialog,
-                  icon: Icon(Icons.person_add_outlined, size: isMobile ? 18 : 20),
-                  label: Text('Add Contact', style: TextStyle(fontSize: isMobile ? 13 : 14)),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 14 : 20,
-                      vertical: isMobile ? 10 : 12,
-                    ),
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: isMobile ? 14 : 18),
-              isMobile
-                  ? contacts.isEmpty
-                      ? Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.all(isMobile ? 24 : 32),
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(Icons.contact_phone_outlined, size: 48, color: Colors.grey[400]),
-                              const SizedBox(height: 12),
-                              Text(
-                                'No Emergency Contacts Yet',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 15 : 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Add Someone to Notify During Emergency',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Column(
-                          children: contacts.map((contact) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildMobileContactCard(contact),
-                              )).toList(),
-                        )
-                  : DashboardLayout.horizontalTable(
-                      context: context,
-                      minWidth: 800,
-                      table: Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(1.5),
-                        1: FlexColumnWidth(1.2),
-                        2: FlexColumnWidth(1.8),
-                        3: FlexColumnWidth(1.0),
-                        4: FlexColumnWidth(1.0),
-                        5: FlexColumnWidth(0.8),
-                        6: FlexColumnWidth(1.0),
-                      },
-                      children: [
-                        TableRow(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          children: [
-                            _buildTableHeader('Name', isMobile),
-                            _buildTableHeader('Relationship', isMobile),
-                            _buildTableHeader('Contact', isMobile),
-                            _buildTableHeader('Priority', isMobile),
-                            _buildTableHeader('Methods', isMobile),
-                            _buildTableHeader('Status', isMobile),
-                            _buildTableHeader('Actions', isMobile),
-                          ],
-                        ),
-                        ...contacts.map((contact) => _buildEmergencyContactRow(contact, isMobile)),
-                      ],
-                    ),
-                  ),
-              if (contacts.isNotEmpty) ...[
-                SizedBox(height: isMobile ? 12 : 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${contacts.length} contact${contacts.length == 1 ? '' : 's'} ready for emergency notifications',
-                          style: TextStyle(
-                            fontSize: isMobile ? 12 : 13,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-        );
-      },
-    );
-  }
-
-
-  Widget _buildMobileContactCard(EmergencyContact contact) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  contact.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              _buildContactActionsCell(contact, true),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            contact.relationship,
-            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.phone, size: 14, color: Colors.grey[600]),
-              const SizedBox(width: 4),
-              Text(contact.phone, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(Icons.email, size: 14, color: Colors.grey[600]),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  contact.email,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _buildPriorityBadgeCell(contact.priority, true),
-              ),
-              const SizedBox(width: 8),
-              _buildStatusToggleCell(contact, true),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  TableRow _buildEmergencyContactRow(EmergencyContact contact, [bool isMobile = false]) {
-    return TableRow(
-      children: [
-        _buildTableCell(contact.name, isMobile),
-        _buildTableCell(contact.relationship, isMobile),
-        _buildContactInfoCell(contact.phone, contact.email, isMobile),
-        _buildPriorityBadgeCell(contact.priority, isMobile),
-        _buildMethodsCell(contact.methods, isMobile),
-        _buildStatusToggleCell(contact, isMobile),
-        _buildContactActionsCell(contact, isMobile),
-      ],
-    );
-  }
-
-  Widget _buildTableHeader(String text, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 14,
-          vertical: isMobile ? 10 : 12),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          fontSize: isMobile ? 11 : 12,
-          fontWeight: FontWeight.w700,
-          color: AppColors.primary,
-          letterSpacing: 0.4,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTableCell(String text, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16,
-          vertical: isMobile ? 12 : 16),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: isMobile ? 12 : 14,
-          color: Colors.black87,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContactInfoCell(String phone, String email, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16,
-          vertical: isMobile ? 8 : 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            phone,
-            style: TextStyle(
-              fontSize: isMobile ? 12 : 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-          ),
-          if (email.isNotEmpty) ...[
-            SizedBox(height: isMobile ? 2 : 4),
-            Text(
-              email,
-              style: TextStyle(
-                fontSize: isMobile ? 11 : 12,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPriorityBadgeCell(String priority, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 0 : 16,
-          vertical: isMobile ? 0 : 12),
-      child: EmergencyContactUi.priorityBadge(priority, compact: isMobile),
-    );
-  }
-
-  Widget _buildMethodsCell(List<dynamic> methods, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16,
-          vertical: isMobile ? 8 : 12),
-      child: EmergencyContactUi.methodsRow(methods, iconSize: isMobile ? 16 : 18),
-    );
-  }
-
-  Widget _buildStatusToggleCell(EmergencyContact contact, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 0 : 16,
-          vertical: isMobile ? 0 : 12),
-      child: EmergencyContactUi.themedSwitch(
-        value: contact.enabled,
-        onChanged: (value) async {
-          try {
-            await _emergencyContactService.toggleContactEnabled(contact.id, value);
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error updating contact: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildContactActionsCell(EmergencyContact contact, [bool isMobile = false]) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 0 : 8,
-          vertical: isMobile ? 0 : 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(Icons.call_outlined, size: isMobile ? 18 : 20, color: AppColors.primary),
-            onPressed: () async {
-              final uri = Uri.parse('tel:${contact.phone}');
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-              }
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          SizedBox(width: isMobile ? 4 : 8),
-          IconButton(
-            icon: Icon(Icons.edit_outlined, size: isMobile ? 18 : 20),
-            onPressed: () {
-              _showEditContactDialog(contact);
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          SizedBox(width: isMobile ? 4 : 8),
-          IconButton(
-            icon: Icon(Icons.delete_outline, size: isMobile ? 18 : 20),
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Delete Contact'),
-                  content: Text('Are you sure you want to delete ${contact.name} from emergency contacts? This action cannot be undone.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                      child: const Text('Delete'),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                try {
-                  await _emergencyContactService.deleteEmergencyContact(contact.id);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${contact.name} removed'),
-                        backgroundColor: AppColors.primary,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error deleting contact: $e')),
-                    );
-                  }
-                }
-              }
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -3541,7 +2783,7 @@ class _DriverAssignedVehicleCardState extends State<_DriverAssignedVehicleCard> 
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Year ${v.year} • ${v.type}',
+                          'Year ${v.year} â€¢ ${v.type}',
                           style: TextStyle(
                             fontSize: isMobile ? 12 : 13,
                             color: AppColors.textSecondary,

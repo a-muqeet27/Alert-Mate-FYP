@@ -23,21 +23,58 @@ class EmergencyContactUi {
     );
   }
 
-  static Widget priorityDropdown({
+  static Widget contactTypeDropdown({
     required String value,
     required ValueChanged<String> onChanged,
   }) {
     return DropdownButtonFormField<String>(
       value: value,
-      decoration: inputDecoration('Priority'),
+      decoration: inputDecoration('Contact type *'),
       icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
       items: const [
         DropdownMenuItem(value: 'primary', child: Text('Primary')),
         DropdownMenuItem(value: 'secondary', child: Text('Secondary')),
       ],
-      onChanged: (v) {
-        if (v != null) onChanged(v);
+      onChanged: (String? value) {
+        if (value != null) onChanged(value);
       },
+    );
+  }
+
+  /// @deprecated Use [contactTypeDropdown].
+  static Widget priorityDropdown({
+    required String value,
+    required ValueChanged<String> onChanged,
+  }) =>
+      contactTypeDropdown(value: value, onChanged: onChanged);
+
+  static Widget emergencyCallsMasterToggle({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    bool isMobile = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 14, vertical: isMobile ? 10 : 12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text(
+          'Enable Emergency Calls',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        value: value,
+        activeColor: AppColors.primary,
+        activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
+        onChanged: onChanged,
+      ),
     );
   }
 
@@ -96,13 +133,20 @@ class EmergencyContactUi {
     );
   }
 
-  static Widget enabledSwitchRow({
+  static Widget contactEnabledSwitchRow({
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: const Text('Enabled', style: TextStyle(color: AppColors.textPrimary)),
+      title: const Text(
+        'Enable Emergency Calls',
+        style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+      ),
+      subtitle: const Text(
+        'Include this contact when placing emergency calls',
+        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+      ),
       value: value,
       activeColor: AppColors.primary,
       activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
@@ -110,8 +154,8 @@ class EmergencyContactUi {
     );
   }
 
-  static Widget priorityBadge(String priority, {bool compact = false}) {
-    final isPrimary = priority.toLowerCase() == 'primary';
+  static Widget contactTypeBadge(String contactType, {bool compact = false}) {
+    final isPrimary = contactType.toLowerCase() == 'primary';
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 10 : 12,
@@ -135,6 +179,10 @@ class EmergencyContactUi {
       ),
     );
   }
+
+  /// @deprecated Use [contactTypeBadge].
+  static Widget priorityBadge(String priority, {bool compact = false}) =>
+      contactTypeBadge(priority, compact: compact);
 
   static Widget methodsRow(List<dynamic> methods, {double iconSize = 18}) {
     return Row(
@@ -173,4 +221,75 @@ class EmergencyContactUi {
     foregroundColor: Colors.white,
     elevation: 0,
   );
+
+  static Widget panelSection({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.75)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  static Widget statusBanner({
+    required IconData icon,
+    required String title,
+    required String message,
+    required Color color,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

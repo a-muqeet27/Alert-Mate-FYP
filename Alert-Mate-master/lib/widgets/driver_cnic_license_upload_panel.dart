@@ -197,7 +197,7 @@ class _DriverCnicLicenseUploadPanelState extends State<DriverCnicLicenseUploadPa
             title: 'Documents Rejected',
             body: rejectedReason != null && rejectedReason.isNotEmpty
                 ? rejectedReason
-                : 'Please re-upload your CNIC and driving license as PDF files.',
+                : 'Please Re-Upload your CNIC and Driving License as PDF files.',
           ),
           const SizedBox(height: 16),
           _buildUploadForm(isMobile),

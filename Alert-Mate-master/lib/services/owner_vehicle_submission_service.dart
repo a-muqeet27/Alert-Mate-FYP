@@ -21,9 +21,11 @@ class OwnerVehicleSubmissionService {
     required String ownerId,
     required String label,
     required Uint8List bytes,
+    String fileExtension = 'jpg',
   }) async {
     try {
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$label.jpg';
+      final ext = fileExtension.toLowerCase().replaceAll('.', '');
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$label.$ext';
       return await _cloudinaryService
           .uploadBytes(bytes, fileName, 'owner_vehicle_docs/$ownerId')
           .timeout(_uploadTimeout);
@@ -63,6 +65,7 @@ class OwnerVehicleSubmissionService {
       ownerId: ownerId,
       label: 'vehicle_book',
       bytes: vehicleBookBytes,
+      fileExtension: 'pdf',
     );
 
     try {
