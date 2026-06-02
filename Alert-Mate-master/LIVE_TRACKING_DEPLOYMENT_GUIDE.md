@@ -107,7 +107,7 @@ final trackingUrl = 'https://your-project.firebaseapp.com/track/$tokenId';
 
 1. **As Passenger:**
    - Open passenger dashboard
-   - Search for a vehicle by license plate
+   - Search for a vehicle by Vehicle Registration Number
    - Click "Share Live Location" button
    - WhatsApp should open with pre-filled message
 
@@ -178,7 +178,7 @@ await trackingService.cleanupExpiredTokens();
 ✅ **Drowsiness alerts** - Visual warning if driver is drowsy
 ✅ **Countdown timer** - Shows remaining time before expiry
 ✅ **Error states** - Handles expired links and offline drivers
-✅ **Vehicle info** - Displays make, model, and license plate
+✅ **Vehicle info** - Displays make, model, and Vehicle Registration Number
 
 ---
 
@@ -220,7 +220,7 @@ await trackingService.cleanupExpiredTokens();
 
 ## 📱 How It Works
 
-1. **Passenger searches for vehicle** by license plate
+1. **Passenger searches for vehicle** by Vehicle Registration Number
 2. **Clicks "Share Live Location"** button
 3. **System creates tracking token** with 6-hour expiry
 4. **Token stored in Firestore** with vehicle and driver info

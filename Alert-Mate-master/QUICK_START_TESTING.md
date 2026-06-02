@@ -23,7 +23,7 @@ flutter run -d chrome
 ### 3. Test Flow
 
 1. **Login as Passenger**
-2. **Search for a vehicle** by license plate
+2. **Search for a vehicle** by Vehicle Registration Number
 3. **Click "Share Live Location"**
 4. **Copy the tracking URL** from WhatsApp/SMS
 5. **Open in new browser tab** to see the public tracking screen

@@ -607,7 +607,7 @@ Each dashboard is organized by user goals and tasks:
 We implemented multiple discovery mechanisms:
 
 1. **Search Functionality**:
-   - Vehicle search by license plate
+   - Vehicle search by Vehicle Registration Number
    - User search by name/email
    - Real-time filtering as you type
 
@@ -1467,7 +1467,7 @@ The alertness score (0-100) is visualized through multiple channels:
 **Answer:**
 
 **Step 1: Vehicle Search**
-- Enter license plate number
+- Enter Vehicle Registration Number number
 - Format validation (ABC-123)
 - Search button
 

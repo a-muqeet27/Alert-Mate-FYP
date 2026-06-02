@@ -327,7 +327,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     final hasTrip = _lookupVehicle != null || (_lookupDriverId != null && _lookupDriverId!.isNotEmpty);
     return _passengerPageShell(
       title: 'Find Vehicle',
-      subtitle: 'Search by license plate to connect with your driver',
+      subtitle: 'Search by Vehicle Registration Number to connect with your driver',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -772,7 +772,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
 
 
 
-  // Normalize license plate: uppercase, remove spaces and hyphens
+  // Normalize Vehicle Registration Number: uppercase, remove spaces and hyphens
   String _normalizePlate(String input) {
     return input.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
   }
@@ -847,7 +847,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       final doc = await _findVehicleByPlate(raw);
       if (doc == null) {
         setState(() {
-          _plateError = 'No vehicle found with this license plate';
+          _plateError = 'No vehicle found with this Vehicle Registration Number';
           _isSearchingPlate = false;
         });
         return;
@@ -930,7 +930,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                         textCapitalization: TextCapitalization.characters,
                         cursorColor: AppColors.primary,
                         decoration: InputDecoration(
-                          hintText: 'Enter license plate (e.g., ABC-123)',
+                          hintText: 'Enter Vehicle Registration Number (e.g., ABC-123)',
                           isDense: true,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           focusedBorder: OutlineInputBorder(
@@ -1462,7 +1462,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           const SizedBox(height: 20),
           if (driverId == null || driverId.isEmpty)
             Text(
-              'Search by license plate to view live status',
+              'Search by Vehicle Registration Number to view live status',
               style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             )
           else
@@ -1552,7 +1552,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           const SizedBox(height: 16),
           if (driverId == null || driverId.isEmpty)
             const Text(
-              'Search by license plate to view live trip information.',
+              'Search by Vehicle Registration Number to view live trip information.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
             )
           else

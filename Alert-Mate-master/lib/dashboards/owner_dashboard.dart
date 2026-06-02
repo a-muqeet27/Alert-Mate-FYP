@@ -3671,7 +3671,7 @@ class _PhoneNumberFormatter extends TextInputFormatter {
   }
 }
 
-// Custom formatter for license plate input (ABC-123 format)
+// Custom formatter for Vehicle Registration Number input (ABC-123 format)
 class _LicensePlateFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
