@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
@@ -7,7 +8,9 @@ import '../../utils/sign_out_flow.dart';
 /// Support / contact address shown in the app sidebar.
 const String kAlertMateSupportEmail = 'alertmate.fyp@gmail.com';
 
-/// Opens Gmail compose with [email] in the To field; falls back to [mailto].
+/// Opens Gmail compose with [email] in the To field.
+/// On mobile: uses mailto: to open native email app.
+/// On web/desktop: uses Gmail web compose URL.
 Future<void> launchGmailComposeTo(BuildContext context, String email) async {
   final trimmed = email.trim();
   if (trimmed.isEmpty) return;
@@ -17,14 +20,29 @@ Future<void> launchGmailComposeTo(BuildContext context, String email) async {
   );
   final mailto = Uri(scheme: 'mailto', path: trimmed);
 
+  final isMobile = !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+       defaultTargetPlatform == TargetPlatform.iOS);
+
   try {
-    if (await canLaunchUrl(gmailCompose)) {
-      final opened = await launchUrl(gmailCompose, mode: LaunchMode.externalApplication);
-      if (opened) return;
-    }
-    if (await canLaunchUrl(mailto)) {
-      await launchUrl(mailto, mode: LaunchMode.externalApplication);
-      return;
+    if (isMobile) {
+      if (await canLaunchUrl(mailto)) {
+        final opened = await launchUrl(mailto, mode: LaunchMode.externalApplication);
+        if (opened) return;
+      }
+      if (await canLaunchUrl(gmailCompose)) {
+        await launchUrl(gmailCompose, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } else {
+      if (await canLaunchUrl(gmailCompose)) {
+        final opened = await launchUrl(gmailCompose, mode: LaunchMode.externalApplication);
+        if (opened) return;
+      }
+      if (await canLaunchUrl(mailto)) {
+        await launchUrl(mailto, mode: LaunchMode.externalApplication);
+        return;
+      }
     }
     throw Exception('No handler for mail links');
   } catch (e) {
