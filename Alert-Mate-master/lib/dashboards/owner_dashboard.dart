@@ -57,6 +57,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   int _selectedIndex = 0;
   bool _isLoading = false;
   late User _currentUser;
+  DateTime? _lastBackPress;
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
@@ -1035,17 +1036,35 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      drawer: isMobile ? _buildMobileDrawer() : null,
-      appBar: isMobile ? AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => MobileDrawerMenuButton(
-            unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+          return;
+        }
+        final now = DateTime.now();
+        if (_lastBackPress == null || now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+          _lastBackPress = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Press back again to exit'), duration: Duration(seconds: 2)),
+          );
+          return;
+        }
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        drawer: isMobile ? _buildMobileDrawer() : null,
+        appBar: isMobile ? AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: Builder(
+            builder: (context) => MobileDrawerMenuButton(
+              unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+            ),
           ),
-        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1094,6 +1113,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           ),
           body: _sidebarMainBody(),
         ),
+      ),
       ),
     );
   }

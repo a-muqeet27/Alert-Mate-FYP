@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math';
 import '../models/user.dart';
@@ -38,6 +39,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   int _selectedIndex = 0;
   final Random _random = Random();
   late User _currentUser;
+  DateTime? _lastBackPress;
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
@@ -617,8 +619,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
                 isExpanded: true,
                 items: vehicles.map((v) {
                   final title = '${v.make} ${v.model} (${v.year})'
-                      '${v.driverName != null ? ' â€¢ ${v.driverName}' : ''}'
-                      ' â€¢ ${v.status}';
+                      '${v.driverName != null ? ' • ${v.driverName}' : ''}'
+                      ' • ${v.status}';
                   return DropdownMenuItem<String>(
                     value: v.id,
                     child: Text(title, overflow: TextOverflow.ellipsis),
@@ -683,10 +685,28 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
     
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      drawer: isMobile ? _buildMobileDrawer() : null,
-      appBar: isMobile ? AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+          return;
+        }
+        final now = DateTime.now();
+        if (_lastBackPress == null || now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+          _lastBackPress = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Press back again to exit'), duration: Duration(seconds: 2)),
+          );
+          return;
+        }
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        drawer: isMobile ? _buildMobileDrawer() : null,
+        appBar: isMobile ? AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Builder(
@@ -742,6 +762,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           ),
           body: _sidebarMainBody(),
         ),
+      ),
       ),
     );
   }

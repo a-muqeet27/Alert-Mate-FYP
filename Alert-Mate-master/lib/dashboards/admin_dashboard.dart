@@ -230,7 +230,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   static const int _kActivity = 8;
   static const int _kDocuments = 9;
   static const int _kNotifications = 10;
-  static const int _kSettings = 11;
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
@@ -289,11 +288,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           title: 'Notifications',
           unreadBadgeStream: UserNotificationsService.unreadCountStream(_currentUser.id),
         ),
-        const MenuItem(
-          section: 'Account',
-          icon: Icons.settings_outlined,
-          title: 'Settings',
-        ),
       ];
 
   Widget _sidebarMainBody() {
@@ -325,11 +319,6 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
             embedded: true,
             adminSectioned: true,
           ),
-        );
-      case _kSettings:
-        return AppSettingsPage(
-          user: _currentUser,
-          onUserUpdated: (user) => setState(() => _currentUser = user),
         );
       default:
         return _buildAdminStatsPage();

@@ -48,6 +48,7 @@ class DriverDashboard extends StatefulWidget {
 class _DriverDashboardState extends State<DriverDashboard>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedIndex = 0;
+  DateTime? _lastBackPress;
 
   late User _currentUser;
   final UserSettingsService _userSettingsService = UserSettingsService();
@@ -191,7 +192,34 @@ class _DriverDashboardState extends State<DriverDashboard>
     return _driverPageShell(
       title: 'Live Monitoring',
       subtitle: 'Real-time camera and drowsiness detection',
-      child: _buildLiveMonitoringTab(isMobile),
+      child: Column(
+        children: [
+          if (_isMonitoring)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    _stopMonitoring();
+                    setState(() => _selectedIndex = 0);
+                  },
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  label: const Text('Stop Monitoring'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Expanded(child: _buildLiveMonitoringTab(isMobile)),
+        ],
+      ),
     );
   }
 
@@ -1326,16 +1354,34 @@ class _DriverDashboardState extends State<DriverDashboard>
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
     
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      drawer: isMobile ? _buildMobileDrawer() : null,
-      appBar: isMobile ? AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => MobileDrawerMenuButton(
-            unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
-          ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+          return;
+        }
+        final now = DateTime.now();
+        if (_lastBackPress == null || now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+          _lastBackPress = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Press back again to exit'), duration: Duration(seconds: 2)),
+          );
+          return;
+        }
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        drawer: isMobile ? _buildMobileDrawer() : null,
+        appBar: isMobile ? AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: Builder(
+            builder: (context) => MobileDrawerMenuButton(
+              unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+            ),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1385,6 +1431,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           ),
           body: _sidebarMainBody(),
         ),
+      ),
       ),
     );
   }
@@ -2255,7 +2302,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
                         _isMonitoring
-                            ? 'Waiting for Camera Frameâ€¦'
+                            ? 'Waiting for Camera Frame...'
                             : 'Start Monitoring from Drowsiness Monitoring to View the Live Feed',
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -2608,7 +2655,7 @@ class _DriverAssignedVehicleCardState extends State<_DriverAssignedVehicleCard> 
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Year ${v.year} â€¢ ${v.type}',
+                          'Year ${v.year} • ${v.type}',
                           style: TextStyle(
                             fontSize: isMobile ? 12 : 13,
                             color: AppColors.textSecondary,

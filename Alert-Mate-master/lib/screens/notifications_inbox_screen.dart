@@ -160,6 +160,29 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
     }
   }
 
+  Future<void> _showMarkAsReadConfirmation(UserNotificationInboxItem e) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark as Read'),
+        content: const Text('Mark this notification as read?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark as Read'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await _onDismiss(e);
+    }
+  }
+
   IconData _iconForType(String type) {
     switch (type) {
       case 'emergency_alert':
@@ -314,7 +337,7 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
                 runSpacing: 8,
                 alignment: WrapAlignment.end,
                 children: [
-                  if (isEmergency && hasLinked) ...[
+                  if (widget.adminSectioned && isEmergency && hasLinked) ...[
                     OutlinedButton(
                       onPressed: busy ? null : () => _onAcknowledge(e),
                       style: OutlinedButton.styleFrom(
@@ -341,8 +364,8 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
                     ),
                   ],
                   TextButton(
-                    onPressed: busy ? null : () => _onDismiss(e),
-                    child: Text(isEmergency && !hasLinked ? 'Dismiss' : 'Mark read'),
+                    onPressed: busy ? null : () => _showMarkAsReadConfirmation(e),
+                    child: const Text('Mark as read'),
                   ),
                 ],
               ),
