@@ -2,9 +2,9 @@
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
-import '../../widgets/dashboard_detail_dialog_theme.dart';
 
 class DriverAlertSettingsSection extends StatelessWidget {
+  final bool isMobile;
   final bool audioAlertsEnabled;
   final String sensitivityLevel;
   final ValueChanged<bool> onAudioAlertsChanged;
@@ -12,6 +12,7 @@ class DriverAlertSettingsSection extends StatelessWidget {
 
   const DriverAlertSettingsSection({
     super.key,
+    this.isMobile = true,
     required this.audioAlertsEnabled,
     required this.sensitivityLevel,
     required this.onAudioAlertsChanged,
@@ -20,106 +21,186 @@ class DriverAlertSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 768;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _sectionCard(
-          isMobile: isMobile,
-          icon: Icons.volume_up_outlined,
-          title: 'Audio Alerts',
-          subtitle: 'Sound preferences for drowsiness warnings',
-          child: Column(
-            children: [
-              _settingTile(
-                isMobile: isMobile,
-                icon: Icons.notifications_active_outlined,
-                title: 'Enable Audio Alerts',
-                subtitle: 'Play an alarm when drowsiness is detected',
-                action: Switch(
-                  value: audioAlertsEnabled,
-                  onChanged: onAudioAlertsChanged,
-                  activeThumbColor: AppColors.primary,
+        _buildSettingsGroup(
+          children: [
+            _settingTile(
+              icon: Icons.notifications_active_outlined,
+              title: 'Audio Alerts',
+              subtitle: 'Play an alarm when drowsiness is detected',
+              action: Switch.adaptive(
+                value: audioAlertsEnabled,
+                onChanged: onAudioAlertsChanged,
+                activeColor: AppColors.primary,
+              ),
+            ),
+            _groupDivider(),
+            _settingTile(
+              icon: Icons.music_note_outlined,
+              title: 'Alert Sound',
+              subtitle: 'Change the Alert Sound',
+              action: OutlinedButton.icon(
+                onPressed: () => _openSoundSettings(context),
+                icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                label: const Text('Change Audio'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 12),
-              _settingTile(
-                isMobile: isMobile,
-                icon: Icons.music_note_outlined,
-                title: 'Alert Sound',
-                subtitle: 'Open device sound settings to change sound',
-                action: ElevatedButton(
-                  onPressed: () => _openSoundSettings(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Text(
-                    'Change Audio',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Detection Sensitivity',
+          style: TextStyle(
+            fontSize: isMobile ? 14 : 15,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
           ),
         ),
-        SizedBox(height: isMobile ? 14 : 18),
-        _sectionCard(
-          isMobile: isMobile,
-          icon: Icons.tune,
-          title: 'Detection Sensitivity',
-          subtitle: 'How quickly drowsiness triggers an alert',
-          trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              sensitivityLevel,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-          child: _settingTile(
-            isMobile: isMobile,
-            icon: Icons.sensors,
-            title: 'Sensitivity Level',
-            subtitle: _sensitivityDescription(sensitivityLevel),
-            action: ElevatedButton(
-              onPressed: () => _showSensitivityDialog(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(
-                'Set: $sensitivityLevel',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
+        const SizedBox(height: 6),
+        Text(
+          _sensitivityDescription(sensitivityLevel),
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+            height: 1.35,
           ),
         ),
+        const SizedBox(height: 12),
+        _buildSensitivitySelector(),
       ],
     );
+  }
+
+  Widget _buildSettingsGroup({required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.background.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _groupDivider() => Divider(
+        height: 1,
+        thickness: 1,
+        color: AppColors.border.withValues(alpha: 0.8),
+        indent: 56,
+      );
+
+  Widget _buildSensitivitySelector() {
+    const levels = ['Low', 'Medium', 'High'];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useColumn = isMobile && constraints.maxWidth < 420;
+        if (useColumn) {
+          return Column(
+            children: levels
+                .map(
+                  (level) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _sensitivityChip(level, fullWidth: true),
+                  ),
+                )
+                .toList(),
+          );
+        }
+        return Row(
+          children: levels
+              .map(
+                (level) => Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: level != 'High' ? 8 : 0),
+                    child: _sensitivityChip(level),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _sensitivityChip(String level, {bool fullWidth = false}) {
+    final selected = sensitivityLevel == level;
+    return SizedBox(
+      width: fullWidth ? double.infinity : null,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onSensitivityChanged(level),
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primary : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected ? AppColors.primary : AppColors.border,
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.22),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  _sensitivityIcon(level),
+                  size: 20,
+                  color: selected ? Colors.white : AppColors.primary,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  level,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static IconData _sensitivityIcon(String level) {
+    switch (level) {
+      case 'Low':
+        return Icons.speed_outlined;
+      case 'High':
+        return Icons.bolt_outlined;
+      default:
+        return Icons.tune_rounded;
+    }
   }
 
   static String _sensitivityDescription(String level) {
     switch (level) {
       case 'Low':
-        return 'Low = fewer alerts, slower to trigger';
+        return 'Lower Alert Sound';
       case 'High':
-        return 'High = more alerts, faster to trigger';
+        return 'Louder Alert Sound';
       default:
-        return 'Medium = balanced alert timing';
+        return 'Balanced Alert Sound';
     }
   }
 
@@ -149,137 +230,102 @@ class DriverAlertSettingsSection extends StatelessWidget {
     }
   }
 
-  void _showSensitivityDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: DashboardDetailDialogTheme.surface,
-        surfaceTintColor: Colors.transparent,
-        title: const Text('Sensitivity Level'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: ['Low', 'Medium', 'High']
-              .map(
-                (level) => RadioListTile<String>(
-                  title: Text(level),
-                  value: level,
-                  groupValue: sensitivityLevel,
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    if (value != null) {
-                      onSensitivityChanged(value);
-                    }
-                    Navigator.pop(context);
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionCard({
-    required bool isMobile,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Widget child,
-    Widget? trailing,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: AppColors.primary, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              if (trailing != null) trailing,
-            ],
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
-      ),
-    );
-  }
-
   Widget _settingTile({
-    required bool isMobile,
     required IconData icon,
     required String title,
     required String subtitle,
     required Widget action,
   }) {
     if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      return Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: AppColors.primary, size: 20),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 10),
-          Align(alignment: Alignment.centerLeft, child: action),
-        ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                action,
+              ],
+            ),
+          ],
+        ),
       );
     }
 
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.primary, size: 22),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 20),
           ),
-        ),
-        action,
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          action,
+        ],
+      ),
     );
   }
 }

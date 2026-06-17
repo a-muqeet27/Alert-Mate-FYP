@@ -1509,6 +1509,24 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
     setState(() => _selectedIndex = _kVehicleRegistry);
   }
 
+  void _openUserSearch({bool clearQuery = false}) {
+    if (!mounted) return;
+    if (clearQuery) {
+      _userSearchController.clear();
+      _userSearchQuery = '';
+    }
+    setState(() => _selectedIndex = _kUserSearch);
+  }
+
+  void _openVehicleSearch({bool clearQuery = false}) {
+    if (!mounted) return;
+    if (clearQuery) {
+      _vehicleSearchController.clear();
+      _vehicleSearchQuery = '';
+    }
+    setState(() => _selectedIndex = _kVehicleSearch);
+  }
+
   void _applyUserSearch() {
     setState(() => _userSearchQuery = _userSearchController.text.trim());
     _openUserRegistry();
@@ -2005,18 +2023,28 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
 
   Widget _buildUserRegistrySection() {
     final isMobile = DashboardLayout.isMobile(context);
+    final hasSearch = _userSearchQuery.isNotEmpty;
+    final hasFilters = _selectedRoleFilter != 'All Roles';
+    final hasCriteria = hasSearch || hasFilters;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildStaggeredItem(
-          _buildAdminActiveFiltersBanner(
-            isMobile: isMobile,
-            filtersLabel: _userActiveFiltersLabel(),
-            onEditFilters: () => setState(() => _selectedIndex = _kUserFilter),
+        if (hasCriteria) ...[
+          _buildStaggeredItem(
+            _buildAdminActiveFiltersBanner(
+              isMobile: isMobile,
+              filtersLabel: _userActiveFiltersLabel(),
+              hasSearch: hasSearch,
+              hasFilters: hasFilters,
+              onEditSearch: () => _openUserSearch(),
+              onNewSearch: () => _openUserSearch(clearQuery: true),
+              onEditFilters: () => setState(() => _selectedIndex = _kUserFilter),
+            ),
+            0,
           ),
-          0,
-        ),
-        _adminSectionGap(isMobile),
+          _adminSectionGap(isMobile),
+        ],
         _buildStaggeredItem(
           _buildAdminSectionCard(
             isMobile: isMobile,
@@ -2028,7 +2056,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               child: _buildUserTable(),
             ),
           ),
-          1,
+          hasCriteria ? 1 : 0,
         ),
       ],
     );
@@ -3062,18 +3090,29 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
 
   Widget _buildVehicleRegistrySection() {
     final isMobile = DashboardLayout.isMobile(context);
+    final hasSearch = _vehicleSearchQuery.isNotEmpty;
+    final hasFilters =
+        _vehicleTypeFilter != 'All Types' || _vehicleStatusFilter != 'All Statuses';
+    final hasCriteria = hasSearch || hasFilters;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildStaggeredItem(
-          _buildAdminActiveFiltersBanner(
-            isMobile: isMobile,
-            filtersLabel: _vehicleActiveFiltersLabel(),
-            onEditFilters: () => setState(() => _selectedIndex = _kVehicleFilter),
+        if (hasCriteria) ...[
+          _buildStaggeredItem(
+            _buildAdminActiveFiltersBanner(
+              isMobile: isMobile,
+              filtersLabel: _vehicleActiveFiltersLabel(),
+              hasSearch: hasSearch,
+              hasFilters: hasFilters,
+              onEditSearch: () => _openVehicleSearch(),
+              onNewSearch: () => _openVehicleSearch(clearQuery: true),
+              onEditFilters: () => setState(() => _selectedIndex = _kVehicleFilter),
+            ),
+            0,
           ),
-          0,
-        ),
-        _adminSectionGap(isMobile),
+          _adminSectionGap(isMobile),
+        ],
         _buildStaggeredItem(
           _buildAdminSectionCard(
             isMobile: isMobile,
@@ -3085,7 +3124,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
               child: _buildVehicleTable(),
             ),
           ),
-          1,
+          hasCriteria ? 1 : 0,
         ),
       ],
     );
@@ -3102,8 +3141,42 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   Widget _buildAdminActiveFiltersBanner({
     required bool isMobile,
     required String filtersLabel,
-    required VoidCallback onEditFilters,
+    required bool hasSearch,
+    required bool hasFilters,
+    VoidCallback? onEditSearch,
+    VoidCallback? onNewSearch,
+    VoidCallback? onEditFilters,
   }) {
+    final bannerTitle = hasSearch && hasFilters
+        ? 'Active Search & Filters'
+        : hasSearch
+            ? 'Active Search'
+            : 'Active Filters';
+    final bannerIcon = hasSearch && !hasFilters
+        ? Icons.search
+        : Icons.filter_alt_outlined;
+
+    final actionButtons = <Widget>[
+      if (hasSearch && onEditSearch != null)
+        TextButton.icon(
+          onPressed: onEditSearch,
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('Edit Search'),
+        ),
+      if (hasSearch && onNewSearch != null)
+        TextButton.icon(
+          onPressed: onNewSearch,
+          icon: const Icon(Icons.search, size: 18),
+          label: const Text('New Search'),
+        ),
+      if (hasFilters && onEditFilters != null)
+        TextButton.icon(
+          onPressed: onEditFilters,
+          icon: const Icon(Icons.filter_alt_outlined, size: 18),
+          label: const Text('Edit Filters'),
+        ),
+    ];
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(isMobile ? 14 : 16),
@@ -3112,41 +3185,89 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.filter_alt_outlined, color: AppColors.primary, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(bannerIcon, color: AppColors.primary, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            bannerTitle,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            filtersLabel,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (actionButtons.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 0,
+                    children: actionButtons,
+                  ),
+                ],
+              ],
+            )
+          : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Active Filters',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                Icon(bannerIcon, color: AppColors.primary, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bannerTitle,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        filtersLabel,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  filtersLabel,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
+                if (actionButtons.isNotEmpty)
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 0,
+                    alignment: WrapAlignment.end,
+                    children: actionButtons,
                   ),
-                ),
               ],
             ),
-          ),
-          TextButton(
-            onPressed: onEditFilters,
-            child: const Text('Edit Filters'),
-          ),
-        ],
-      ),
     );
   }
 

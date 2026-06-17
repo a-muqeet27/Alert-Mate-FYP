@@ -126,7 +126,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
       case 4:
         return 'Alerts and system messages';
       case 5:
-        return 'Account, security, and preferences';
+        return 'Account, Security, and Alert Preferences';
       default:
         return 'Connect with Your Driver';
     }
@@ -143,6 +143,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   Widget _buildPassengerSettingsPage() {
     return AppSettingsPage(
       user: _currentUser,
+      sessionRole: 'passenger',
       onUserUpdated: (user) => setState(() => _currentUser = user),
     );
   }

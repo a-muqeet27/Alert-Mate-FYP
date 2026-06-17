@@ -138,7 +138,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       case 4:
         return 'Alerts and System Messages';
       case 5:
-        return 'Account, security, and alert preferences';
+        return 'Account, Security, and Alert Preferences';
       default:
         return 'Start Monitoring your Drowsiness';
     }
@@ -193,6 +193,7 @@ class _DriverDashboardState extends State<DriverDashboard>
       title: 'Live Monitoring',
       subtitle: 'Real-time camera and drowsiness detection',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_isMonitoring)
             Padding(
@@ -217,7 +218,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                 ),
               ),
             ),
-          Expanded(child: _buildLiveMonitoringTab(isMobile)),
+          _buildLiveMonitoringTab(isMobile),
         ],
       ),
     );
@@ -226,6 +227,7 @@ class _DriverDashboardState extends State<DriverDashboard>
   Widget _buildDriverSettingsPage() {
     return AppSettingsPage(
       user: _currentUser,
+      sessionRole: 'driver',
       onUserUpdated: (user) => setState(() => _currentUser = user),
       showDriverAlerts: true,
       audioAlertsEnabled: _audioAlertsEnabled,
@@ -685,7 +687,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     return url;
   }
 
-  void _startMonitoring() async {
+  Future<void> _startMonitoring() async {
     final driverId = widget.user.id;
 
     // Validate driver ID
@@ -1838,12 +1840,14 @@ class _DriverDashboardState extends State<DriverDashboard>
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () {
+            onPressed: () async {
               if (_isMonitoring) {
                 _stopMonitoring();
               } else {
-                _startMonitoring();
-                setState(() => _selectedIndex = 2);
+                await _startMonitoring();
+                if (mounted && _isMonitoring) {
+                  setState(() => _selectedIndex = 2);
+                }
               }
             },
             icon: Icon(_isMonitoring ? Icons.stop_circle_outlined : Icons.play_circle_outline),

@@ -237,18 +237,20 @@ class _AuthScreenState extends State<AuthScreen>
             email,
             _passwordController.text,
           );
-          setState(() { _isLoading = false; });
 
           if (user != null) {
             final hasAccess = await _validateAndPrepareRoleAccess(user);
             if (!hasAccess) {
+              if (mounted) setState(() => _isLoading = false);
               _showErrorDialog(
                 'This account is not registered for ${_getSelectedRoleLabel()}. Please sign in with your registered role.',
               );
               return;
             }
             await _navigateToDashboard(user);
+            if (mounted) setState(() => _isLoading = false);
           } else {
+            if (mounted) setState(() => _isLoading = false);
             _showErrorDialog('User data not found');
           }
         } catch (e) {
@@ -582,6 +584,17 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
+  Future<Widget> _buildDriverEntryScreen(User user) async {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.id).get();
+    final data = doc.data();
+    final approved = (data?['driverDocsApproved'] as bool?) ?? false;
+    final gateCompleted = (data?['driverDocsGateCompleted'] as bool?) ?? false;
+    if (!approved || !gateCompleted) {
+      return DriverDocumentsGateScreen(user: user);
+    }
+    return DriverDashboard(user: user);
+  }
+
   Future<void> _navigateToDashboard(User user) async {
     final fb = FirebaseAuth.instance.currentUser;
     if (fb == null) {
@@ -594,6 +607,7 @@ class _AuthScreenState extends State<AuthScreen>
     final fresh = FirebaseAuth.instance.currentUser;
     if (fresh == null || !fresh.emailVerified) {
       if (mounted) {
+        setState(() => _isLoading = false);
         _showVerificationDialog();
       }
       return;
@@ -603,19 +617,7 @@ class _AuthScreenState extends State<AuthScreen>
 
     switch (_selectedDashboard) {
       case 0:
-        // Gate until docs approved; first sign-in after approval requires Continue once.
-        dashboardScreen = StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection('users').doc(user.id).snapshots(),
-          builder: (context, snap) {
-            final data = snap.data?.data();
-            final approved = (data?['driverDocsApproved'] as bool?) ?? false;
-            final gateCompleted = (data?['driverDocsGateCompleted'] as bool?) ?? false;
-            if (!approved || !gateCompleted) {
-              return DriverDocumentsGateScreen(user: user);
-            }
-            return DriverDashboard(user: user);
-          },
-        );
+        dashboardScreen = await _buildDriverEntryScreen(user);
         break;
       case 1:
         dashboardScreen = PassengerDashboard(user: user);
@@ -624,8 +626,10 @@ class _AuthScreenState extends State<AuthScreen>
         dashboardScreen = OwnerDashboard(user: user);
         break;
       default:
-        dashboardScreen = DriverDashboard(user: user);
+        dashboardScreen = await _buildDriverEntryScreen(user);
     }
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,

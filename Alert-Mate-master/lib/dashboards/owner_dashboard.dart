@@ -144,7 +144,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
       case 4:
         return 'Alerts and System Messages';
       case 5:
-        return 'Account, security, and preferences';
+        return 'Account, Security, and Alert Preferences';
       default:
         return 'Monitor and Manage Your Vehicle Fleet';
     }
@@ -161,6 +161,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   Widget _buildOwnerSettingsPage() {
     return AppSettingsPage(
       user: _currentUser,
+      sessionRole: 'owner',
       onUserUpdated: (user) => setState(() => _currentUser = user),
     );
   }
