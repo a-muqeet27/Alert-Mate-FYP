@@ -28,6 +28,7 @@ import '../widgets/emergency_contacts_panel.dart';
 import '../constants/vehicle_catalog.dart';
 import '../widgets/owner_form_dialog_ui.dart';
 import '../utils/dashboard_responsive.dart';
+import '../widgets/shared/app_settings_page.dart';
 
 /// Matches driver realtime monitoring thresholds (alertness / drowsiness flag).
 bool ownerLiveMetricsCritical(Map<String, dynamic> stats) {
@@ -55,6 +56,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
 
   int _selectedIndex = 0;
   bool _isLoading = false;
+  late User _currentUser;
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
@@ -81,7 +83,12 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           section: 'Account',
           icon: Icons.notifications_outlined,
           title: 'Notifications',
-          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(_currentUser.id),
+        ),
+        const MenuItem(
+          section: 'Account',
+          icon: Icons.settings_outlined,
+          title: 'Settings',
         ),
       ];
 
@@ -97,6 +104,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         return _buildEmergency();
       case 4:
         return _buildOwnerNotificationsPage();
+      case 5:
+        return _buildOwnerSettingsPage();
       default:
         return _buildOwnerOverviewPage();
     }
@@ -114,6 +123,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         return 'Emergency';
       case 4:
         return 'Notifications';
+      case 5:
+        return 'Settings';
       default:
         return 'Overview';
     }
@@ -131,6 +142,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
         return 'Quick Access To Emergency Services and Contacts';
       case 4:
         return 'Alerts and System Messages';
+      case 5:
+        return 'Account, security, and preferences';
       default:
         return 'Monitor and Manage Your Vehicle Fleet';
     }
@@ -140,7 +153,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
     return _ownerPageShell(
       title: 'Notifications',
       subtitle: 'Alerts and system messages',
-      child: NotificationsInboxScreen(user: widget.user, embedded: true),
+      child: NotificationsInboxScreen(user: _currentUser, embedded: true),
+    );
+  }
+
+  Widget _buildOwnerSettingsPage() {
+    return AppSettingsPage(
+      user: _currentUser,
+      onUserUpdated: (user) => setState(() => _currentUser = user),
     );
   }
 
@@ -206,6 +226,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.user;
     _isLoading = false;
 
     _fadeController = AnimationController(
@@ -1064,7 +1085,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> with TickerProviderStat
           context: context,
           sidebar: AppSidebar(
             role: 'owner',
-            user: widget.user is User ? widget.user : null,
+            user: _currentUser,
             selectedIndex: _selectedIndex,
             onMenuItemTap: (index) => setState(() => _selectedIndex = index),
             menuItems: _sidebarMenuItems,

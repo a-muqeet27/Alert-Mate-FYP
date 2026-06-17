@@ -22,6 +22,7 @@ import '../utils/emergency_call_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/dashboard_responsive.dart';
 import '../widgets/owner_form_dialog_ui.dart';
+import '../widgets/shared/app_settings_page.dart';
 
 class PassengerDashboard extends StatefulWidget {
   final User user;
@@ -36,6 +37,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     with TickerProviderStateMixin {
   int _selectedIndex = 0;
   final Random _random = Random();
+  late User _currentUser;
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
@@ -62,7 +64,12 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           section: 'Account',
           icon: Icons.notifications_outlined,
           title: 'Notifications',
-          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(_currentUser.id),
+        ),
+        const MenuItem(
+          section: 'Account',
+          icon: Icons.settings_outlined,
+          title: 'Settings',
         ),
       ];
 
@@ -78,6 +85,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         return _buildEmergency();
       case 4:
         return _buildPassengerNotificationsPage();
+      case 5:
+        return _buildPassengerSettingsPage();
       default:
         return _buildVehicleLookupPage();
     }
@@ -95,6 +104,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         return 'Emergency Services';
       case 4:
         return 'Notifications';
+      case 5:
+        return 'Settings';
       default:
         return 'Find Vehicle';
     }
@@ -112,6 +123,8 @@ class _PassengerDashboardState extends State<PassengerDashboard>
         return 'Quick access to emergency services and contacts';
       case 4:
         return 'Alerts and system messages';
+      case 5:
+        return 'Account, security, and preferences';
       default:
         return 'Connect with Your Driver';
     }
@@ -121,7 +134,14 @@ class _PassengerDashboardState extends State<PassengerDashboard>
     return _passengerPageShell(
       title: 'Notifications',
       subtitle: 'Alerts and system messages',
-      child: NotificationsInboxScreen(user: widget.user, embedded: true),
+      child: NotificationsInboxScreen(user: _currentUser, embedded: true),
+    );
+  }
+
+  Widget _buildPassengerSettingsPage() {
+    return AppSettingsPage(
+      user: _currentUser,
+      onUserUpdated: (user) => setState(() => _currentUser = user),
     );
   }
 
@@ -523,6 +543,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.user;
     _emergencyContactService = EmergencyContactService();
     
     _fadeController = AnimationController(
@@ -712,7 +733,7 @@ class _PassengerDashboardState extends State<PassengerDashboard>
           context: context,
           sidebar: AppSidebar(
             role: 'Passenger',
-            user: widget.user,
+            user: _currentUser,
             selectedIndex: _selectedIndex,
             onMenuItemTap: (index) => setState(() => _selectedIndex = index),
             menuItems: _sidebarMenuItems,

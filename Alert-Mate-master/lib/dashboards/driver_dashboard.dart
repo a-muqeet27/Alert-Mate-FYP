@@ -33,6 +33,8 @@ import '../widgets/mobile_drawer_menu_button.dart';
 import '../widgets/emergency_contacts_panel.dart';
 import '../widgets/dashboard_detail_dialog_theme.dart';
 import '../utils/dashboard_responsive.dart';
+import '../widgets/shared/app_settings_page.dart';
+import '../services/user_settings_service.dart';
 
 class DriverDashboard extends StatefulWidget {
   final User user;
@@ -46,7 +48,9 @@ class DriverDashboard extends StatefulWidget {
 class _DriverDashboardState extends State<DriverDashboard>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedIndex = 0;
-  int _selectedTab = 0;
+
+  late User _currentUser;
+  final UserSettingsService _userSettingsService = UserSettingsService();
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
@@ -65,11 +69,6 @@ class _DriverDashboardState extends State<DriverDashboard>
           title: 'Live Monitoring',
         ),
         const MenuItem(
-          section: 'Monitoring',
-          icon: Icons.tune_outlined,
-          title: 'Alert Settings',
-        ),
-        const MenuItem(
           section: 'Safety',
           icon: Icons.phone_outlined,
           title: 'Emergency',
@@ -78,7 +77,12 @@ class _DriverDashboardState extends State<DriverDashboard>
           section: 'Account',
           icon: Icons.notifications_outlined,
           title: 'Notifications',
-          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(_currentUser.id),
+        ),
+        const MenuItem(
+          section: 'Account',
+          icon: Icons.settings_outlined,
+          title: 'Settings',
         ),
       ];
 
@@ -91,11 +95,11 @@ class _DriverDashboardState extends State<DriverDashboard>
       case 2:
         return _buildDriverLiveMonitoringPage();
       case 3:
-        return _buildDriverSettingsPage();
-      case 4:
         return _buildEmergency();
-      case 5:
+      case 4:
         return _buildDriverNotificationsPage();
+      case 5:
+        return _buildDriverSettingsPage();
       default:
         return _buildDriverOverviewPage();
     }
@@ -110,11 +114,11 @@ class _DriverDashboardState extends State<DriverDashboard>
       case 2:
         return 'Live Monitoring';
       case 3:
-        return 'Alert Settings';
-      case 4:
         return 'Emergency';
-      case 5:
+      case 4:
         return 'Notifications';
+      case 5:
+        return 'Settings';
       default:
         return 'Drowsiness Monitoring';
     }
@@ -129,11 +133,11 @@ class _DriverDashboardState extends State<DriverDashboard>
       case 2:
         return 'Live Camera Feed and Alertness Level';
       case 3:
-        return 'Audio Alerts and Sensitivity';
-      case 4:
         return 'Quick Access to Emergency Services and Contacts';
-      case 5:
+      case 4:
         return 'Alerts and System Messages';
+      case 5:
+        return 'Account, security, and alert preferences';
       default:
         return 'Start Monitoring your Drowsiness';
     }
@@ -143,7 +147,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     return _driverPageShell(
       title: 'Notifications',
       subtitle: 'Alerts and system messages',
-      child: NotificationsInboxScreen(user: widget.user, embedded: true),
+      child: NotificationsInboxScreen(user: _currentUser, embedded: true),
     );
   }
 
@@ -192,10 +196,25 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   Widget _buildDriverSettingsPage() {
-    return _driverPageShell(
-      title: 'Alert Settings',
-      subtitle: 'Audio alerts, contacts, and sensitivity',
-      child: _buildAlertSettingsTab(),
+    return AppSettingsPage(
+      user: _currentUser,
+      onUserUpdated: (user) => setState(() => _currentUser = user),
+      showDriverAlerts: true,
+      audioAlertsEnabled: _audioAlertsEnabled,
+      sensitivityLevel: _sensitivityLevel,
+      onAudioAlertsChanged: (value) async {
+        setState(() => _audioAlertsEnabled = value);
+        await _userSettingsService.saveDriverAudioAlerts(_currentUser.id, value);
+        if (!value) {
+          _setDrowsyAlarmActive(false);
+        } else if (_isMonitoring && _alertness < 80.0) {
+          _setDrowsyAlarmActive(true);
+        }
+      },
+      onSensitivityChanged: (value) async {
+        setState(() => _sensitivityLevel = value);
+        await _userSettingsService.saveDriverSensitivity(_currentUser.id, value);
+      },
     );
   }
   bool _isMonitoring = false;
@@ -251,6 +270,28 @@ class _DriverDashboardState extends State<DriverDashboard>
   // Alert Settings
   bool _audioAlertsEnabled = true;
   String _sensitivityLevel = 'Medium';
+
+  (int, int) get _yawningTriggerRange {
+    switch (_sensitivityLevel) {
+      case 'Low':
+        return (7, 9);
+      case 'High':
+        return (3, 5);
+      default:
+        return (5, 7);
+    }
+  }
+
+  int get _yawningResetAfter {
+    switch (_sensitivityLevel) {
+      case 'Low':
+        return 9;
+      case 'High':
+        return 5;
+      default:
+        return 7;
+    }
+  }
   
   // Yawning detection tracking
   int _yawningFrameCount = 0;
@@ -343,6 +384,7 @@ class _DriverDashboardState extends State<DriverDashboard>
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.user;
     WidgetsBinding.instance.addObserver(this);
     // Vehicle data is now fetched via StreamBuilder
 
@@ -377,8 +419,19 @@ class _DriverDashboardState extends State<DriverDashboard>
     // Request required runtime permissions on startup.
     _requestStartupPermissions();
 
+    _loadDriverAlertSettings();
+
     // Mark driver as online (idle) in Firestore so the map shows them
-    _locationUpdateService.goOnline(widget.user.id, widget.user.fullName);
+    _locationUpdateService.goOnline(_currentUser.id, _currentUser.fullName);
+  }
+
+  Future<void> _loadDriverAlertSettings() async {
+    final settings = await _userSettingsService.loadDriverAlertSettings(_currentUser.id);
+    if (!mounted) return;
+    setState(() {
+      _audioAlertsEnabled = settings.audioAlertsEnabled;
+      _sensitivityLevel = settings.sensitivityLevel;
+    });
   }
 
   Future<void> _requestStartupPermissions() async {
@@ -756,15 +809,19 @@ class _DriverDashboardState extends State<DriverDashboard>
                 _yawningFrameCount++;
                 print('ðŸ¥± Yawning detected (frame $_yawningFrameCount)');
 
-                // Play buzzer when 5-7 frames detect yawning (only once per session)
-                if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
+                // Play buzzer when sensitivity range detects yawning (only once per session)
+                final (triggerMin, triggerMax) = _yawningTriggerRange;
+                if (_yawningFrameCount >= triggerMin &&
+                    _yawningFrameCount <= triggerMax &&
+                    !_buzzerPlayed &&
+                    _audioAlertsEnabled) {
                   _playBuzzerIfAllowed();
                   _buzzerPlayed = true;
                   print('ðŸ”” Buzzer played - Yawning detected for $_yawningFrameCount frames');
                 }
 
-                // Reset after 7 frames to allow buzzer to play again
-                if (_yawningFrameCount > 7) {
+                // Reset after threshold to allow buzzer to play again
+                if (_yawningFrameCount > _yawningResetAfter) {
                   _yawningFrameCount = 0;
                   _buzzerPlayed = false;
                   print('ðŸ”„ Yawning counter reset');
@@ -1146,14 +1203,18 @@ class _DriverDashboardState extends State<DriverDashboard>
             // Track yawning frames
             if (isYawning) {
               _yawningFrameCount++;
-              // Play buzzer when 5-7 frames detect yawning (only once per yawning session)
-              if (_yawningFrameCount >= 5 && _yawningFrameCount <= 7 && !_buzzerPlayed && _audioAlertsEnabled) {
+              // Play buzzer when sensitivity range detects yawning (only once per yawning session)
+              final (triggerMin, triggerMax) = _yawningTriggerRange;
+              if (_yawningFrameCount >= triggerMin &&
+                  _yawningFrameCount <= triggerMax &&
+                  !_buzzerPlayed &&
+                  _audioAlertsEnabled) {
                 _playBuzzerIfAllowed();
                 _buzzerPlayed = true;
                 print('ðŸ”” Buzzer played - Yawning detected for $_yawningFrameCount frames');
               }
-              // Reset after 7 frames to allow buzzer to play again if yawning continues
-              if (_yawningFrameCount > 7) {
+              // Reset after threshold to allow buzzer to play again if yawning continues
+              if (_yawningFrameCount > _yawningResetAfter) {
                 _yawningFrameCount = 0;
                 _buzzerPlayed = false;
               }
@@ -1315,7 +1376,7 @@ class _DriverDashboardState extends State<DriverDashboard>
           context: context,
           sidebar: AppSidebar(
             role: 'Driver',
-            user: widget.user,
+            user: _currentUser,
             selectedIndex: _selectedIndex,
             onMenuItemTap: (index) => setState(() => _selectedIndex = index),
             menuItems: _sidebarMenuItems,
@@ -1663,7 +1724,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                                 return Column(
                                   children: [
                                     DriverCnicLicenseUploadPanel(
-                                      user: widget.user,
+                                      user: _currentUser,
                                       latestSubmission: subSnap.data,
                         ),
                       ],
@@ -1973,244 +2034,8 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
 
-  Widget _buildTabBar([bool isMobile = false]) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _buildTab('Live Monitoring', 0, isMobile),
-          SizedBox(width: isMobile ? 8 : 8),
-          _buildTab('Alert Settings', 1, isMobile),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String text, int index, [bool isMobile = false]) {
-    final isActive = _selectedTab == index;
-    return AnimatedScale(
-      scale: isActive ? 1.05 : 1.0,
-      duration: const Duration(milliseconds: 200),
-      child: InkWell(
-        onTap: () => setState(() => _selectedTab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 16 : 20,
-              vertical: isMobile ? 10 : 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: isActive
-                ? const Border(
-              bottom: BorderSide(color: AppColors.primary, width: 2),
-            )
-                : null,
-            boxShadow: isActive ? [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ] : null,
-          ),
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 200),
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-              color: isActive ? AppColors.primary : Colors.black54,
-            ),
-            child: Text(text),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabContent(bool isSmallScreen) {
-    switch (_selectedTab) {
-      case 0:
-        return _buildLiveMonitoringTab(isSmallScreen);
-      case 1:
-        return _buildAlertSettingsTab();
-      default:
-        return _buildLiveMonitoringTab(isSmallScreen);
-    }
-  }
-
   Widget _buildLiveMonitoringTab(bool isSmallScreen) {
     return _buildRealtimeAlertness();
-  }
-
-  Widget _buildAlertSettingsTab() {
-    final isMobile = DashboardLayout.isMobile(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildDriverSectionCard(
-          isMobile: isMobile,
-          icon: Icons.volume_up_outlined,
-          title: 'Audio Alerts',
-          subtitle: 'Sound and Notification Preferences for Drowsiness Warnings',
-          child: Column(
-            children: [
-              _buildDriverSettingTile(
-                isMobile: isMobile,
-                icon: Icons.notifications_active_outlined,
-                title: 'Enable Audio Alerts',
-                subtitle: 'Play an Alarm When Drowsiness is Detected',
-                action: Switch(
-                  value: _audioAlertsEnabled,
-                  onChanged: (value) {
-                    setState(() => _audioAlertsEnabled = value);
-                    if (!value) {
-                      _setDrowsyAlarmActive(false);
-                    } else if (_isMonitoring && _alertness < 80.0) {
-                      _setDrowsyAlarmActive(true);
-                    }
-                  },
-                  activeThumbColor: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildDriverSettingTile(
-                isMobile: isMobile,
-                icon: Icons.music_note_outlined,
-                title: 'Alert Sound',
-                subtitle: 'Open Device Sound Settings to Change Sound',
-                action: ElevatedButton(
-                  onPressed: _openSoundSettings,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Text('Change Audio', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: isMobile ? 14 : 18),
-        _buildDriverSectionCard(
-          isMobile: isMobile,
-          icon: Icons.tune,
-          title: 'Detection Sensitivity',
-          subtitle: 'How Quickly Drowsiness is Flagged During Monitoring',
-          trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              _sensitivityLevel,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-          child: _buildDriverSettingTile(
-            isMobile: isMobile,
-            icon: Icons.sensors,
-            title: 'Sensitivity Level',
-            subtitle: 'Low = Lower Sound â€¢ High = Louder Sound',
-            action: ElevatedButton(
-              onPressed: _showSensitivityDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text('Set: $_sensitivityLevel', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _openSoundSettings() async {
-    final candidates = <Uri>[
-      Uri.parse('intent:#Intent;action=android.settings.SOUND_SETTINGS;end'),
-      Uri.parse('app-settings:'),
-      Uri.parse('settings:'),
-      Uri.parse('android.settings.SOUND_SETTINGS'),
-    ];
-    for (final uri in candidates) {
-      try {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return;
-        }
-      } catch (_) {}
-    }
-    if (await openAppSettings()) {
-      return;
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open sound settings automatically.'),
-          backgroundColor: AppColors.primary,
-        ),
-      );
-    }
-  }
-
-  void _showSensitivityDialog() {
-    showDialog(
-      context: context,
-      builder: (context) =>
-          AlertDialog(
-            backgroundColor: DashboardDetailDialogTheme.surface,
-            surfaceTintColor: Colors.transparent,
-            title: const Text('Sensitivity Level'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                RadioListTile(
-                  title: const Text('Low'),
-                  value: 'Low',
-                  groupValue: _sensitivityLevel,
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    setState(() => _sensitivityLevel = value.toString());
-                    Navigator.pop(context);
-                  },
-                ),
-                RadioListTile(
-                  title: const Text('Medium'),
-                  value: 'Medium',
-                  groupValue: _sensitivityLevel,
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    setState(() => _sensitivityLevel = value.toString());
-                    Navigator.pop(context);
-                  },
-                ),
-                RadioListTile(
-                  title: const Text('High'),
-                  value: 'High',
-                  groupValue: _sensitivityLevel,
-                  activeColor: AppColors.primary,
-                  onChanged: (value) {
-                    setState(() => _sensitivityLevel = value.toString());
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-    );
   }
 
   Widget _buildCameraTestTab() {

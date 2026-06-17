@@ -16,6 +16,7 @@ import 'utils/page_transitions.dart';
 import 'constants/app_colors.dart';
 import 'utils/form_validators.dart';
 import 'widgets/alert_mate_branding.dart';
+import 'widgets/legal_document_dialog.dart';
 
 class AuthScreen extends StatefulWidget {
   final int? initialDashboardIndex;
@@ -37,6 +38,7 @@ class _AuthScreenState extends State<AuthScreen>
     with TickerProviderStateMixin {
   // ... all your existing variables stay the same ...
   bool isSignIn = true;
+  bool _acceptedTerms = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -192,6 +194,7 @@ class _AuthScreenState extends State<AuthScreen>
   void _toggleAuthMode() {
     setState(() {
       isSignIn = !isSignIn;
+      _acceptedTerms = false;
     });
     _animationController.reset();
     _animationController.forward();
@@ -208,6 +211,7 @@ class _AuthScreenState extends State<AuthScreen>
         _passwordController.clear();
         _confirmPasswordController.clear();
         isSignIn = true;
+        _acceptedTerms = false;
       });
       _animationController.reset();
       _animationController.forward();
@@ -258,6 +262,18 @@ class _AuthScreenState extends State<AuthScreen>
         }
       } else {
         // SIGN UP FLOW
+        if (!_acceptedTerms) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Please accept the Privacy Policy and Terms & Conditions to continue.',
+              ),
+            ),
+          );
+          return;
+        }
+
         try {
           await _authService.signUp(
             firstName: _firstNameController.text.trim(),
@@ -356,42 +372,6 @@ class _AuthScreenState extends State<AuthScreen>
         ],
       ),
     );
-  }
-
-  // Google Sign-In Handler
-  Future<void> _handleGoogleSignIn() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final selectedRole = _getSelectedRole();
-      
-      // Call Google Sign-In with the selected role
-      final user = await _authService.signInWithGoogle(roles: [selectedRole]);
-      
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (user != null) {
-        final hasAccess = await _validateAndPrepareRoleAccess(user);
-        if (!hasAccess) {
-          _showErrorDialog(
-            'This account is not registered for ${_getSelectedRoleLabel()}. Please sign in with your registered role.',
-          );
-          return;
-        }
-        await _navigateToDashboard(user);
-      } else {
-        _showErrorDialog('Google Sign-In was cancelled');
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
-    }
   }
 
   // ... all your existing helper methods stay the same ...
@@ -938,12 +918,18 @@ class _AuthScreenState extends State<AuthScreen>
                                       ),
                                     ),
                                   ],
+                                  if (!isSignIn) ...[
+                                    const SizedBox(height: 20),
+                                    _buildTermsAcceptanceRow(),
+                                  ],
                                   const SizedBox(height: 30),
                                   SizedBox(
                                     width: double.infinity,
                                     height: 50,
                                     child: ElevatedButton(
-                                      onPressed: _isLoading ? null : _handleAuth,
+                                      onPressed: (_isLoading || (!isSignIn && !_acceptedTerms))
+                                          ? null
+                                          : _handleAuth,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppColors.primary,
                                         foregroundColor: Colors.white,
@@ -973,58 +959,6 @@ class _AuthScreenState extends State<AuthScreen>
                                       ),
                                     ),
                                   ),
-                                  if (isSignIn) ...[
-                                    const SizedBox(height: 20),
-                                    Row(
-                                      children: [
-                                        Expanded(child: Divider(color: AppColors.border)),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                                          child: Text(
-                                            'OR',
-                                            style: TextStyle(
-                                              color: AppColors.textSecondary,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(child: Divider(color: AppColors.border)),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 20),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      height: 50,
-                                      child: OutlinedButton.icon(
-                                        onPressed: _isLoading ? null : _handleGoogleSignIn,
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: AppColors.textPrimary,
-                                          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
-                                          backgroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                        ),
-                                        icon: Image.asset(
-                                          'assets/images/google_logo.png',
-                                          height: 24,
-                                          width: 24,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return const Icon(Icons.g_mobiledata, size: 24);
-                                          },
-                                        ),
-                                        label: const Text(
-                                          'Continue with Google',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                   if (isSignIn) ...[
                                     const SizedBox(height: 16),
                                     _buildSignUpLink(),
@@ -1483,6 +1417,73 @@ class _AuthScreenState extends State<AuthScreen>
     return 'Missing: ${missing.join(', ')}';
   }
 
+  Widget _buildTermsAcceptanceRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 24,
+          width: 24,
+          child: Checkbox(
+            value: _acceptedTerms,
+            onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+            activeColor: AppColors.primary,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _acceptedTerms = !_acceptedTerms),
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: AppColors.textSecondary,
+                ),
+                children: [
+                  const TextSpan(text: 'I agree to the '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: GestureDetector(
+                      onTap: () => showPrivacyPolicyDialog(context),
+                      child: const Text(
+                        'Privacy Policy',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const TextSpan(text: ' and '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: GestureDetector(
+                      onTap: () => showTermsDialog(context),
+                      child: const Text(
+                        'Terms & Conditions',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSignUpLink() {
     return Center(
       child: RichText(
@@ -1498,6 +1499,7 @@ class _AuthScreenState extends State<AuthScreen>
                 onTap: () {
                   setState(() {
                     isSignIn = false;
+                    _acceptedTerms = false;
                   });
                   _animationController.reset();
                   _animationController.forward();

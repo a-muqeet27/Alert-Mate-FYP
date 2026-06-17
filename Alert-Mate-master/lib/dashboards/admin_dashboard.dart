@@ -21,6 +21,7 @@ import '../services/vehicle_service.dart';
 import '../utils/dashboard_responsive.dart';
 import '../constants/vehicle_catalog.dart';
 import '../widgets/admin/admin_stats_charts.dart';
+import '../widgets/shared/app_settings_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 bool adminLiveMetricsCritical(Map<String, dynamic> stats) =>
@@ -216,6 +217,7 @@ class AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   final MonitoringService _monitoringService = MonitoringService();
+  late User _currentUser;
 
   static const int _kStats = 0;
   static const int _kMap = 1;
@@ -228,6 +230,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   static const int _kActivity = 8;
   static const int _kDocuments = 9;
   static const int _kNotifications = 10;
+  static const int _kSettings = 11;
 
   List<MenuItem> get _sidebarMenuItems => [
         const MenuItem(
@@ -284,7 +287,12 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
           section: 'Account',
           icon: Icons.notifications_outlined,
           title: 'Notifications',
-          unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+          unreadBadgeStream: UserNotificationsService.unreadCountStream(_currentUser.id),
+        ),
+        const MenuItem(
+          section: 'Account',
+          icon: Icons.settings_outlined,
+          title: 'Settings',
         ),
       ];
 
@@ -313,10 +321,15 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       case _kNotifications:
         return _adminPageShell(
           child: NotificationsInboxScreen(
-            user: widget.user,
+            user: _currentUser,
             embedded: true,
             adminSectioned: true,
           ),
+        );
+      case _kSettings:
+        return AppSettingsPage(
+          user: _currentUser,
+          onUserUpdated: (user) => setState(() => _currentUser = user),
         );
       default:
         return _buildAdminStatsPage();
@@ -1472,6 +1485,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.user;
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -1659,7 +1673,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
         elevation: 0,
         leading: Builder(
           builder: (context) => MobileDrawerMenuButton(
-            unreadBadgeStream: UserNotificationsService.unreadCountStream(widget.user.id),
+            unreadBadgeStream: UserNotificationsService.unreadCountStream(_currentUser.id),
           ),
         ),
         title: Column(
@@ -1716,7 +1730,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
       child: SafeArea(
         child: AppSidebar(
           role: 'Admin',
-          user: widget.user,
+          user: _currentUser,
           selectedIndex: _selectedIndex,
           onMenuItemTap: (index) {
             _onSidebarTap(index);
@@ -1734,7 +1748,7 @@ class _AdminDashboardState extends State<AdminDashboard> with TickerProviderStat
   Widget _buildSidebar() {
     return AppSidebar(
       role: 'Admin',
-      user: widget.user,
+      user: _currentUser,
       selectedIndex: _selectedIndex,
       onMenuItemTap: _onSidebarTap,
       menuItems: _sidebarMenuItems,
