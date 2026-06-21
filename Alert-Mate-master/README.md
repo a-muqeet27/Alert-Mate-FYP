@@ -244,7 +244,8 @@ cd python
 py backend.py
 
 # Terminal 2 — Flutter
-flutter run
+flutter run # for Driver, Passenger and Vehicle Owner Dashboards as Mobile Application
+flutter run -d chrome -t lib/main_admin.dart # for Admin Dashboard as Web Application
 ```
 
 ---
