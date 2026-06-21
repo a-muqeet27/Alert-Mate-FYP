@@ -685,8 +685,6 @@ flutter run -d android    # Android device/emulator
 | Share tracking link | Passenger | Public map loads with valid token |
 | Stop monitoring | Driver | Status resets to idle, stats cleared |
 
-See also: `QUICK_START_TESTING.md`, `EVALUATION_GUIDE.md`, and `SYSTEM_ARCHITECTURE.md` in the repository for extended test scenarios.
-
 ---
 
 ## Troubleshooting
