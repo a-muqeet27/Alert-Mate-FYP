@@ -29,9 +29,8 @@
 14. [Ngrok Setup for Public Access](#ngrok-setup-for-public-access)
 15. [Testing Instructions](#testing-instructions)
 16. [Troubleshooting](#troubleshooting)
-17. [Future Enhancements](#future-enhancements)
-18. [Contributors](#contributors)
-19. [License](#license)
+17. [Contributors](#contributors)
+18. [License](#license)
 
 ---
 
@@ -66,7 +65,6 @@ When a driver starts monitoring, the mobile app captures front-camera frames, en
 - Multi-role authentication: **Driver**, **Passenger**, **Owner**, **Admin**
 - Driver live monitoring with camera preview, alertness meter, and audio alerts
 - Passenger vehicle lookup by registration number and live trip status
-- Token-based **public live location tracking** (shareable via WhatsApp/SMS)
 - Emergency contact management and one-tap calling
 - In-app notifications inbox with role-aware filtering
 - Admin registry search, analytics charts, and fleet oversight
@@ -746,28 +744,12 @@ After restarting ngrok, update `lib/constants/app_config.dart` and hot-restart t
 
 ---
 
-## Future Enhancements
-
-- [ ] Cloud deployment (AWS EC2 / Google Cloud Run / Azure) with fixed production URL
-- [ ] ONNX / TensorRT model export for edge inference on-device
-- [ ] Driver-specific calibration session for personalized baselines
-- [ ] Multi-face detection for passenger distraction monitoring
-- [ ] Integration with vehicle OBD-II telematics (speed, steering patterns)
-- [ ] Push notifications via Firebase Cloud Messaging for drowsiness alerts
-- [ ] Admin analytics dashboard with historical drowsiness trends
-- [ ] CI/CD pipeline with automated Flutter and backend tests
-- [ ] Docker Compose for one-command backend deployment
-
----
-
 ## Contributors
 
-| Name | Role |
-|------|------|
-| **Muhammad Wahb** | Co-developer |
-| **Project Team** | Final Year Project — AlertMate |
-
-> Add your name and contribution details here before submission.
+| Name | Registration Number | Role |
+|------|------|------|
+| **Abdul Muqeet** | FA22-BCS-168 | Developer |
+| **Muhammad Wahb** | FA22-BCS-072 | Developer |
 
 ---
 
@@ -780,6 +762,6 @@ Unless otherwise specified, all rights are reserved by the project authors. For 
 ---
 
 <p align="center">
-  <strong>AlertMate</strong> — Driving safer with AI<br/>
-  <sub>Built with Flutter · FastAPI · PyTorch · Firebase · MediaPipe</sub>
+  <strong>AlertMate</strong> — Drowsiness Detecteion System with AI<br/>
+  <sub>Built with Flutter · Python · FastAPI · PyTorch · Firebase </sub>
 </p>
