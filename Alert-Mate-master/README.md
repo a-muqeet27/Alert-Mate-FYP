@@ -763,5 +763,5 @@ Unless otherwise specified, all rights are reserved by the project authors. For 
 
 <p align="center">
   <strong>AlertMate</strong> — Drowsiness Detection System with AI<br/>
-  <sub>Built with Flutter · Python · FastAPI · PyTorch · Firebase </sub>
+  <sub>Built with Flutter · Python · FastAPI · OpenCV · PyTorch · Firebase </sub>
 </p>
