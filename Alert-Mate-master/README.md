@@ -9,28 +9,33 @@
 
 > **Final Year Project** — A full-stack intelligent transportation safety platform that detects driver drowsiness in real time using computer vision and deep learning, with role-based mobile dashboards, live GPS tracking, and emergency alerting.
 
----
+## Demo Video
+
+Watch the full project demonstration:
+
+**[▶ Alert Mate — FYP Demo Video](https://drive.google.com/file/d/10OwIoC6OKUktm9TGcGTTCZilqyx7abkz/view?usp=sharing)** *(Alert Mate Demo.mp4)*
 
 ## Table of Contents
 
-1. [Project Overview](#project-overview)
-2. [Features](#features)
-3. [System Architecture](#system-architecture)
-4. [Technologies Used](#technologies-used)
-5. [Folder Structure](#folder-structure)
-6. [Installation Guide](#installation-guide)
-7. [Prerequisites](#prerequisites)
-8. [Python Dependencies](#python-dependencies)
-9. [Environment Configuration](#environment-configuration)
-10. [Running the Backend Server](#running-the-backend-server)
-11. [Running with Pretrained MediaPipe Model](#running-with-pretrained-mediapipe-model)
-12. [Running with Custom Trained Model](#running-with-custom-trained-model)
-13. [API Endpoints](#api-endpoints)
-14. [Ngrok Setup for Public Access](#ngrok-setup-for-public-access)
-15. [Testing Instructions](#testing-instructions)
-16. [Troubleshooting](#troubleshooting)
-17. [Contributors](#contributors)
-18. [License](#license)
+1. [Demo Video](#demo-video)
+2. [Project Overview](#project-overview)
+3. [Features](#features)
+4. [System Architecture](#system-architecture)
+5. [Technologies Used](#technologies-used)
+6. [Folder Structure](#folder-structure)
+7. [Installation Guide](#installation-guide)
+8. [Prerequisites](#prerequisites)
+9. [Python Dependencies](#python-dependencies)
+10. [Environment Configuration](#environment-configuration)
+11. [Running the Backend Server](#running-the-backend-server)
+12. [Running with Pretrained MediaPipe Model](#running-with-pretrained-mediapipe-model)
+13. [Running with Custom Trained Model](#running-with-custom-trained-model)
+14. [API Endpoints](#api-endpoints)
+15. [Ngrok Setup for Public Access](#ngrok-setup-for-public-access)
+16. [Testing Instructions](#testing-instructions)
+17. [Troubleshooting](#troubleshooting)
+18. [Contributors](#contributors)
+19. [License](#license)
 
 ---
 
